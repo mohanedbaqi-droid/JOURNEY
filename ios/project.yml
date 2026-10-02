@@ -1,0 +1,45 @@
+name: JourneyControl
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  CocoaMQTT:
+    url: https://github.com/emqx/CocoaMQTT.git
+    from: 2.1.0
+targets:
+  JourneyControl:
+    type: application
+    platform: iOS
+    sources:
+      - JourneyControl
+    info:
+      path: JourneyControl/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
+        SWIFT_VERSION: 5.9
+        DEVELOPMENT_TEAM: 6778LWD4ZB
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: 2.4.5
+        CURRENT_PROJECT_VERSION: 36
+    dependencies:
+      - package: CocoaMQTT
+      - target: JourneyWidgetExtension
+  JourneyWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - JourneyWidget
+    info:
+      path: JourneyWidget/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
+        PRODUCT_NAME: JourneyWidget
+        SKIP_INSTALL: YES
+        SWIFT_VERSION: 5.9
+        DEVELOPMENT_TEAM: 6778LWD4ZB
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: 2.4.5
+        CURRENT_PROJECT_VERSION: 36

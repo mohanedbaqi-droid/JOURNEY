@@ -1,0 +1,487 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B00000000000000000000001 /* JourneyControlApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* JourneyControlApp.swift */; };
+		B00000000000000000000002 /* DeviceProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000002 /* DeviceProfile.swift */; };
+		B00000000000000000000003 /* VehicleCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000003 /* VehicleCommand.swift */; };
+		B00000000000000000000004 /* VehicleState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000004 /* VehicleState.swift */; };
+		B00000000000000000000005 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000005 /* AppConfig.swift */; };
+		B00000000000000000000006 /* DeviceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000006 /* DeviceStore.swift */; };
+		B00000000000000000000007 /* MQTTService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* MQTTService.swift */; };
+		B00000000000000000000008 /* ProximityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* ProximityMonitor.swift */; };
+		B00000000000000000000009 /* CarVisualView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000009 /* CarVisualView.swift */; };
+		B0000000000000000000000A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000A /* ContentView.swift */; };
+		B0000000000000000000000B /* ManageDevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000B /* ManageDevicesView.swift */; };
+		B0000000000000000000000E /* HomeScreenShortcutRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000F /* HomeScreenShortcutRouter.swift */; };
+		B0000000000000000000000F /* FaceIDAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000010 /* FaceIDAuthenticator.swift */; };
+		B00000000000000000000010 /* AIInsight.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000011 /* AIInsight.swift */; };
+		B00000000000000000000011 /* AIAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000012 /* AIAnalysisService.swift */; };
+		B00000000000000000000012 /* NFCCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000013 /* NFCCredential.swift */; };
+		B00000000000000000000013 /* NFCCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000014 /* NFCCredentialStore.swift */; };
+		B00000000000000000000014 /* NFCLaunchRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000015 /* NFCLaunchRouter.swift */; };
+		B00000000000000000000015 /* NFCAccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000016 /* NFCAccessView.swift */; };
+		B00000000000000000000016 /* JourneyWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000017 /* JourneyWidget.swift */; };
+		B00000000000000000000017 /* JourneyWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000019 /* JourneyWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B00000000000000000000018 /* VehicleNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* VehicleNotificationService.swift */; };
+		B0000000000000000000000C /* CocoaMQTT in Frameworks */ = {isa = PBXBuildFile; productRef = 900000000000000000000002 /* CocoaMQTT */; };
+		B0000000000000000000000D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000E /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D10000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E00000000000000000000002;
+			remoteInfo = JourneyWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F00000000000000000000007 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B00000000000000000000017 /* JourneyWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		A00000000000000000000001 /* JourneyControlApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyControlApp.swift; sourceTree = "<group>"; };
+		A00000000000000000000002 /* DeviceProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceProfile.swift; sourceTree = "<group>"; };
+		A00000000000000000000003 /* VehicleCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleCommand.swift; sourceTree = "<group>"; };
+		A00000000000000000000004 /* VehicleState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleState.swift; sourceTree = "<group>"; };
+		A00000000000000000000005 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		A00000000000000000000006 /* DeviceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000007 /* MQTTService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MQTTService.swift; sourceTree = "<group>"; };
+		A00000000000000000000008 /* ProximityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProximityMonitor.swift; sourceTree = "<group>"; };
+		A00000000000000000000009 /* CarVisualView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarVisualView.swift; sourceTree = "<group>"; };
+		A0000000000000000000000A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A0000000000000000000000B /* ManageDevicesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManageDevicesView.swift; sourceTree = "<group>"; };
+		A0000000000000000000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A0000000000000000000000D /* JourneyControl.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JourneyControl.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0000000000000000000000E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A0000000000000000000000F /* HomeScreenShortcutRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreenShortcutRouter.swift; sourceTree = "<group>"; };
+		A00000000000000000000010 /* FaceIDAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceIDAuthenticator.swift; sourceTree = "<group>"; };
+		A00000000000000000000011 /* AIInsight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIInsight.swift; sourceTree = "<group>"; };
+		A00000000000000000000012 /* AIAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAnalysisService.swift; sourceTree = "<group>"; };
+		A00000000000000000000013 /* NFCCredential.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFCCredential.swift; sourceTree = "<group>"; };
+		A00000000000000000000014 /* NFCCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFCCredentialStore.swift; sourceTree = "<group>"; };
+		A00000000000000000000015 /* NFCLaunchRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFCLaunchRouter.swift; sourceTree = "<group>"; };
+		A00000000000000000000016 /* NFCAccessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFCAccessView.swift; sourceTree = "<group>"; };
+		A00000000000000000000017 /* JourneyWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyWidget.swift; sourceTree = "<group>"; };
+		A00000000000000000000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00000000000000000000019 /* JourneyWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = JourneyWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A0000000000000000000001A /* VehicleNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleNotificationService.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F00000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0000000000000000000000C /* CocoaMQTT in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F00000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000002 /* JourneyControl */,
+				C00000000000000000000007 /* JourneyWidget */,
+				C00000000000000000000006 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C00000000000000000000002 /* JourneyControl */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000001 /* JourneyControlApp.swift */,
+				C00000000000000000000003 /* Models */,
+				C00000000000000000000004 /* Services */,
+				C00000000000000000000005 /* Views */,
+				A0000000000000000000000E /* Assets.xcassets */,
+				A0000000000000000000000C /* Info.plist */,
+			);
+			path = JourneyControl;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000003 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000002 /* DeviceProfile.swift */,
+				A00000000000000000000003 /* VehicleCommand.swift */,
+				A00000000000000000000004 /* VehicleState.swift */,
+				A00000000000000000000011 /* AIInsight.swift */,
+				A00000000000000000000013 /* NFCCredential.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000004 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000005 /* AppConfig.swift */,
+				A00000000000000000000006 /* DeviceStore.swift */,
+				A00000000000000000000007 /* MQTTService.swift */,
+				A00000000000000000000008 /* ProximityMonitor.swift */,
+				A0000000000000000000000F /* HomeScreenShortcutRouter.swift */,
+				A00000000000000000000010 /* FaceIDAuthenticator.swift */,
+				A00000000000000000000012 /* AIAnalysisService.swift */,
+				A00000000000000000000014 /* NFCCredentialStore.swift */,
+				A00000000000000000000015 /* NFCLaunchRouter.swift */,
+				A0000000000000000000001A /* VehicleNotificationService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000005 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000009 /* CarVisualView.swift */,
+				A0000000000000000000000A /* ContentView.swift */,
+				A0000000000000000000000B /* ManageDevicesView.swift */,
+				A00000000000000000000016 /* NFCAccessView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000006 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A0000000000000000000000D /* JourneyControl.app */,
+				A00000000000000000000019 /* JourneyWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000007 /* JourneyWidget */ = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000017 /* JourneyWidget.swift */,
+				A00000000000000000000018 /* Info.plist */,
+			);
+			path = JourneyWidget;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E00000000000000000000001 /* JourneyControl */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 800000000000000000000002 /* Build configuration list for PBXNativeTarget "JourneyControl" */;
+			buildPhases = (
+				F00000000000000000000002 /* Sources */,
+				F00000000000000000000001 /* Frameworks */,
+				F00000000000000000000003 /* Resources */,
+				F00000000000000000000007 /* Embed App Extensions */,
+			);
+			buildRules = ();
+			dependencies = (
+				D20000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = JourneyControl;
+			packageProductDependencies = (
+				900000000000000000000002 /* CocoaMQTT */,
+			);
+			productName = JourneyControl;
+			productReference = A0000000000000000000000D /* JourneyControl.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E00000000000000000000002 /* JourneyWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 800000000000000000000003 /* Build configuration list for PBXNativeTarget "JourneyWidgetExtension" */;
+			buildPhases = (
+				F00000000000000000000004 /* Sources */,
+				F00000000000000000000005 /* Frameworks */,
+				F00000000000000000000006 /* Resources */,
+			);
+			buildRules = ();
+			dependencies = ();
+			name = JourneyWidgetExtension;
+			packageProductDependencies = ();
+			productName = JourneyWidget;
+			productReference = A00000000000000000000019 /* JourneyWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					E00000000000000000000001 = { CreatedOnToolsVersion = 16.0; };
+					E00000000000000000000002 = { CreatedOnToolsVersion = 16.0; };
+				};
+			};
+			buildConfigurationList = 800000000000000000000001 /* Build configuration list for PBXProject "JourneyControl" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = C00000000000000000000001;
+			packageReferences = (
+				900000000000000000000001 /* XCRemoteSwiftPackageReference "CocoaMQTT" */,
+			);
+			productRefGroup = C00000000000000000000006 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E00000000000000000000001 /* JourneyControl */,
+				E00000000000000000000002 /* JourneyWidgetExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F00000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0000000000000000000000D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F00000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F00000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000001 /* JourneyControlApp.swift in Sources */,
+				B00000000000000000000002 /* DeviceProfile.swift in Sources */,
+				B00000000000000000000003 /* VehicleCommand.swift in Sources */,
+				B00000000000000000000004 /* VehicleState.swift in Sources */,
+				B00000000000000000000005 /* AppConfig.swift in Sources */,
+				B00000000000000000000006 /* DeviceStore.swift in Sources */,
+				B00000000000000000000007 /* MQTTService.swift in Sources */,
+				B00000000000000000000008 /* ProximityMonitor.swift in Sources */,
+				B00000000000000000000009 /* CarVisualView.swift in Sources */,
+				B0000000000000000000000A /* ContentView.swift in Sources */,
+				B0000000000000000000000B /* ManageDevicesView.swift in Sources */,
+				B0000000000000000000000E /* HomeScreenShortcutRouter.swift in Sources */,
+				B0000000000000000000000F /* FaceIDAuthenticator.swift in Sources */,
+				B00000000000000000000010 /* AIInsight.swift in Sources */,
+				B00000000000000000000011 /* AIAnalysisService.swift in Sources */,
+				B00000000000000000000012 /* NFCCredential.swift in Sources */,
+				B00000000000000000000013 /* NFCCredentialStore.swift in Sources */,
+				B00000000000000000000014 /* NFCLaunchRouter.swift in Sources */,
+				B00000000000000000000015 /* NFCAccessView.swift in Sources */,
+				B00000000000000000000018 /* VehicleNotificationService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F00000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000016 /* JourneyWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D20000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E00000000000000000000002 /* JourneyWidgetExtension */;
+			targetProxy = D10000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		700000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		700000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		700000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6778LWD4ZB;
+				CURRENT_PROJECT_VERSION = 36;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JourneyControl/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 2.4.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		700000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6778LWD4ZB;
+				CURRENT_PROJECT_VERSION = 36;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JourneyControl/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 2.4.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		700000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6778LWD4ZB;
+				CURRENT_PROJECT_VERSION = 36;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JourneyWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 2.4.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.widget;
+				PRODUCT_NAME = JourneyWidget;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		700000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6778LWD4ZB;
+				CURRENT_PROJECT_VERSION = 36;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JourneyWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = 2.4.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.widget;
+				PRODUCT_NAME = JourneyWidget;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		800000000000000000000001 /* Build configuration list for PBXProject "JourneyControl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (700000000000000000000001, 700000000000000000000002);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		800000000000000000000002 /* Build configuration list for PBXNativeTarget "JourneyControl" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (700000000000000000000003, 700000000000000000000004);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		800000000000000000000003 /* Build configuration list for PBXNativeTarget "JourneyWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				700000000000000000000005 /* Debug */,
+				700000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		900000000000000000000001 /* XCRemoteSwiftPackageReference "CocoaMQTT" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/emqx/CocoaMQTT.git";
+			requirement = { kind = upToNextMajorVersion; minimumVersion = 2.1.0; };
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		900000000000000000000002 /* CocoaMQTT */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 900000000000000000000001 /* XCRemoteSwiftPackageReference "CocoaMQTT" */;
+			productName = CocoaMQTT;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = D00000000000000000000001 /* Project object */;
+}

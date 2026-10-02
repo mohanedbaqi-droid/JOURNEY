@@ -1,0 +1,54 @@
+workflows:
+  journey-ios-sideloadly:
+    name: JOURNEY iOS (Sideloadly / free Apple ID)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: 16.0
+    scripts:
+      - name: Resolve Swift packages
+        script: |
+          cd ios
+          xcodebuild -resolvePackageDependencies -project JourneyControl.xcodeproj -scheme JourneyControl
+      - name: Build IPA for Sideloadly
+        script: |
+          cd ios
+          xcodebuild -project JourneyControl.xcodeproj -scheme JourneyControl -configuration Release -sdk iphoneos -derivedDataPath "$CM_BUILD_DIR/DerivedData" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          APP="$CM_BUILD_DIR/DerivedData/Build/Products/Release-iphoneos/JourneyControl.app"
+          test -f "$APP/Info.plist"
+          test -d "$APP/PlugIns/JourneyWidget.appex"
+          mkdir -p "$CM_BUILD_DIR/ipa/Payload"
+          cp -R "$APP" "$CM_BUILD_DIR/ipa/Payload/"
+          cd "$CM_BUILD_DIR/ipa"
+          ditto -c -k --sequesterRsrc --keepParent Payload "$CM_BUILD_DIR/JOURNEY-iOS-v2.4.5-B36-v12.58.ipa"
+          unzip -Z1 "$CM_BUILD_DIR/JOURNEY-iOS-v2.4.5-B36-v12.58.ipa" | grep -qx "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist"
+    artifacts:
+      - JOURNEY-iOS-v2.4.5-B36-v12.58.ipa
+
+  journey-final-ios:
+    name: JOURNEY Final iOS (signed IPA)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      # In Codemagic, link the Apple Developer / App Store Connect key to this workflow.
+      # Use an Ad Hoc profile that contains the target iPhone UDID.
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.abuseif.journey
+      xcode: 16.0
+    scripts:
+      - name: Resolve Swift packages
+        script: |
+          cd ios
+          xcodebuild -resolvePackageDependencies -project JourneyControl.xcodeproj -scheme JourneyControl
+      - name: Apply Apple signing profiles
+        script: |
+          xcode-project use-profiles --project "$CM_BUILD_DIR/ios/JourneyControl.xcodeproj"
+      - name: Build signed iPhone IPA and verify widget
+        script: |
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/ios/JourneyControl.xcodeproj" \
+            --scheme JourneyControl
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log

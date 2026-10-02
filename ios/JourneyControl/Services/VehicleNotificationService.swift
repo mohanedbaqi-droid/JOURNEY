@@ -1,0 +1,147 @@
+import Foundation
+import UserNotifications
+
+/// Sends one concise local notification for meaningful vehicle-state changes.
+/// MQTT remains the source of truth: a command is only announced after the ESP
+/// publishes the updated state back to the app.
+@MainActor
+final class VehicleNotificationService {
+    static let shared = VehicleNotificationService()
+
+    private init() {}
+
+    @discardableResult
+    func notifyVehicleEvent(id: String, type: String, text: String, vehicleName: String) -> Bool {
+        guard !id.isEmpty else { return false }
+        let key = "journey.vehicle.event.delivered.\(id)"
+        if UserDefaults.standard.bool(forKey: key) { return true }
+
+        let content = UNMutableNotificationContent()
+        content.title = vehicleName
+        content.body = text.isEmpty ? eventText(for: type) : text
+        content.sound = .default
+        content.threadIdentifier = "journey.vehicle.events"
+        content.categoryIdentifier = "JOURNEY_VEHICLE"
+        let request = UNNotificationRequest(identifier: "journey.event.\(id)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+        UserDefaults.standard.set(true, forKey: key)
+        return true
+    }
+
+    private func eventText(for type: String) -> String {
+        switch type {
+        case "engine_started_obd": return "تم تشغيل السيارة"
+        case "engine_stopped_obd": return "تم إطفاء السيارة"
+        case "coolant_high": return "تحذير: حرارة المحرك مرتفعة"
+        case "battery_low": return "تحذير: فولت بطارية السيارة منخفض"
+        case "keyless_presence_near": return "اقتربت من السيارة — تم اكتشاف الهاتف"
+        case "keyless_presence_far": return "ابتعدت عن السيارة — خرج الهاتف من نطاق القرب"
+        case "keyless_unlock": return "اقتربت من السيارة — تم فتح السيارة"
+        case "keyless_lock", "keyless_lock_departure": return "ابتعدت عن السيارة — تم قفل السيارة"
+        default: return "يوجد تحديث جديد من السيارة"
+        }
+    }
+
+    func notifyChanges(from old: VehicleState?, to new: VehicleState, vehicleName: String) {
+        // The first packet only establishes the baseline; it is not an event.
+        guard let old else { return }
+
+        var changes: [String] = []
+        // v12.51: notify on the actual proximity transition even when lock state
+        // does not change (for example manual-lock latch or remote already on).
+        if old.lastEvent != new.lastEvent {
+            if new.lastEvent == "keyless_presence_near" {
+                changes.append("اقتربت من السيارة — تم اكتشاف الهاتف")
+            } else if new.lastEvent == "keyless_presence_far" {
+                changes.append("ابتعدت عن السيارة — خرج الهاتف من نطاق القرب")
+            }
+        }
+        if old.simulatedLocked != new.simulatedLocked {
+            if new.lastEvent == "keyless_unlock" {
+                changes.append("اقتربت من السيارة — تم فتح السيارة")
+            } else if new.lastEvent == "keyless_lock_departure" || new.lastEvent == "keyless_lock" {
+                changes.append("ابتعدت عن السيارة — تم قفل السيارة")
+            } else {
+                changes.append(new.simulatedLocked ? "تم قفل السيارة" : "تم فتح السيارة")
+            }
+        }
+        if old.lastEvent != new.lastEvent, new.lastEvent == "keyless_lock_disconnect_confirm" {
+            changes.append("انقطع BLE — تم تأكيد قفل السيارة مرة ثانية")
+        }
+        if old.simulatedDoorsOpen != new.simulatedDoorsOpen {
+            changes.append(new.simulatedDoorsOpen ? "الباب مفتوح" : "الأبواب مغلقة")
+        }
+        if old.simulatedEngineRunning != new.simulatedEngineRunning {
+            changes.append(new.simulatedEngineRunning ? "المحرك اشتغل" : "المحرك انطفأ")
+        }
+        if old.remotePowered != new.remotePowered {
+            changes.append(new.remotePowered ? "الريموت اشتغل" : "الريموت انطفأ بعد تنفيذ المهمة")
+        }
+        if old.headlightsOn != new.headlightsOn {
+            changes.append(new.headlightsOn ? "اللايت اشتغل" : "اللايت انطفأ")
+        }
+        if old.leftSignalOn != new.leftSignalOn || old.rightSignalOn != new.rightSignalOn {
+            changes.append(signalText(left: new.leftSignalOn, right: new.rightSignalOn))
+        }
+        if old.hornActive != new.hornActive, new.hornActive {
+            changes.append("الإنذار يعمل")
+        }
+        if old.obdConnected != new.obdConnected {
+            changes.append(new.obdConnected ? "OBD متصل" : "OBD انقطع")
+        }
+        if old.online != new.online {
+            changes.append(new.online ? "السيارة متاحة" : "اتصال السيارة انقطع")
+        }
+        if old.diagnosticCodes != new.diagnosticCodes, !new.diagnosticCodes.isEmpty {
+            changes.append("ظهر كود فحص جديد")
+        }
+        if old.coolantC < 105, new.coolantC >= 105 {
+            changes.append("تحذير: حرارة المحرك مرتفعة")
+        }
+        if old.batteryVoltage >= 11.7, new.batteryVoltage > 0, new.batteryVoltage < 11.7 {
+            changes.append("تحذير: بطارية السيارة منخفضة")
+        }
+
+        guard !changes.isEmpty else { return }
+        let content = UNMutableNotificationContent()
+        content.title = vehicleName
+        content.body = changes.prefix(3).joined(separator: " • ")
+        content.sound = .default
+        content.threadIdentifier = "journey.vehicle"
+        content.categoryIdentifier = "JOURNEY_VEHICLE"
+
+        let request = UNNotificationRequest(
+            identifier: "journey.vehicle.\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+
+    func notifyKeylessDeparture(vehicleName: String, lockDelaySeconds: Int) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["journey.keyless.departure"])
+        let content = UNMutableNotificationContent()
+        content.title = vehicleName
+        content.body = "ابتعد الهاتف أو انقطع BLE. سيقفل ESP السيارة بعد \(lockDelaySeconds) ثانية إذا لم يرجع اتصال القرب."
+        content.sound = .default
+        content.threadIdentifier = "journey.keyless"
+        let request = UNNotificationRequest(identifier: "journey.keyless.departure", content: content, trigger: nil)
+        center.add(request)
+    }
+
+    func clearKeylessDepartureNotice() {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["journey.keyless.departure"])
+        center.removeDeliveredNotifications(withIdentifiers: ["journey.keyless.departure"])
+    }
+    private func signalText(left: Bool, right: Bool) -> String {
+        switch (left, right) {
+        case (true, true): return "الإشارتان تعملان"
+        case (true, false): return "إشارة اليسار تعمل"
+        case (false, true): return "إشارة اليمين تعمل"
+        case (false, false): return "الإشارات انطفأت"
+        }
+    }
+}
