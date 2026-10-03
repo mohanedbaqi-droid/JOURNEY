@@ -26,6 +26,26 @@ struct ContentView: View {
     @State private var showingKeylessEntry = false
     @State private var faceIDError: String?
     @State private var selectedTab = 0
+    @AppStorage("journey.settings.appearance") private var appAppearance = "dark"
+    @AppStorage("journey.settings.textSize") private var appTextSize = "normal"
+    @AppStorage("journey.settings.language") private var appLanguage = "ar"
+
+    private var preferredScheme: ColorScheme? {
+        switch appAppearance {
+        case "light": return .light
+        case "system": return nil
+        default: return .dark
+        }
+    }
+
+    private var preferredDynamicType: DynamicTypeSize {
+        switch appTextSize {
+        case "small": return .small
+        case "large": return .xLarge
+        case "xlarge": return .xxLarge
+        default: return .large
+        }
+    }
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -223,7 +243,10 @@ struct ContentView: View {
                 Text(faceIDError ?? "")
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(preferredScheme)
+        .dynamicTypeSize(preferredDynamicType)
+        .environment(\.layoutDirection, appLanguage == "en" ? .leftToRight : .rightToLeft)
+        .environment(\.locale, Locale(identifier: appLanguage == "en" ? "en" : "ar"))
         .tint(.cyan)
     }
 
@@ -2044,15 +2067,94 @@ private struct KeylessEntrySettingsView: View {
 private struct MQTTSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var mqtt: MQTTService
+
     @State private var host = ""
     @State private var port = "8883"
     @State private var username = ""
     @State private var password = ""
     @State private var errorText: String?
 
+    @AppStorage("journey.settings.appearance") private var appearance = "dark"
+    @AppStorage("journey.settings.textSize") private var textSize = "normal"
+    @AppStorage("journey.settings.language") private var language = "ar"
+    @AppStorage("journey.settings.showEnglishLabels") private var showEnglishLabels = true
+    @AppStorage("journey.settings.speedUnit") private var speedUnit = "kmh"
+    @AppStorage("journey.settings.temperatureUnit") private var temperatureUnit = "c"
+    @AppStorage("journey.settings.batteryATRV") private var batteryATRV = true
+    @AppStorage("journey.settings.notifyEngine") private var notifyEngine = true
+    @AppStorage("journey.settings.notifyKeyless") private var notifyKeyless = true
+    @AppStorage("journey.settings.notifyLocks") private var notifyLocks = true
+    @AppStorage("journey.settings.notifyOBD") private var notifyOBD = false
+    @AppStorage("journey.settings.developerMode") private var developerMode = false
+    @AppStorage("journey.settings.canBCM") private var canBCM = true
+
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("المظهر", selection: $appearance) {
+                        Text("داكن").tag("dark")
+                        Text("فاتح").tag("light")
+                        Text("حسب النظام").tag("system")
+                    }
+                    Picker("حجم الخط", selection: $textSize) {
+                        Text("صغير").tag("small")
+                        Text("عادي").tag("normal")
+                        Text("كبير").tag("large")
+                        Text("أكبر").tag("xlarge")
+                    }
+                    Picker("اللغة", selection: $language) {
+                        Text("العربية").tag("ar")
+                        Text("English").tag("en")
+                    }
+                    Toggle("إظهار الوصف الإنكليزي تحت الأزرار", isOn: $showEnglishLabels)
+                } header: {
+                    Label("المظهر واللغة", systemImage: "paintbrush.pointed.fill")
+                }
+
+                Section {
+                    Picker("وحدة السرعة", selection: $speedUnit) {
+                        Text("km/h").tag("kmh")
+                        Text("mph").tag("mph")
+                    }
+                    Picker("درجة الحرارة", selection: $temperatureUnit) {
+                        Text("°C").tag("c")
+                        Text("°F").tag("f")
+                    }
+                    Toggle("قراءة فولت البطارية دائماً عبر ATRV", isOn: $batteryATRV)
+                    Text("ATRV يحتاج دعم Firmware الجديد حتى يبقى الفولت Live عندما ينام CAN.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Label("السيارة والقراءات", systemImage: "car.fill")
+                }
+
+                Section {
+                    Toggle("تشغيل وإطفاء المحرك", isOn: $notifyEngine)
+                    Toggle("الاقتراب والابتعاد", isOn: $notifyKeyless)
+                    Toggle("القفل والفتح", isOn: $notifyLocks)
+                    Toggle("حالة OBD", isOn: $notifyOBD)
+                    Label("مضافة حماية من إشعار إطفاء كاذب أثناء الحركة ومن تكرار إشعار الاقتراب.", systemImage: "checkmark.shield.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.green)
+                } header: {
+                    Label("الإشعارات", systemImage: "bell.badge.fill")
+                }
+
+                Section {
+                    Toggle("تفعيل BCM / Body CAN", isOn: $canBCM)
+                    Toggle("Developer Mode", isOn: $developerMode)
+                    if developerMode {
+                        LabeledContent("حالة BLE", value: mqtt.bluetoothStatus)
+                        LabeledContent("MQTT", value: mqtt.connection.rawValue)
+                        Text("وضع المطور للـLogs وCAN/OBD والفحص، ولا يغيّر مخارج السيارة وحده.")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Label("التشخيص وCAN", systemImage: "waveform.path.ecg.rectangle.fill")
+                }
+
                 Section("اتصال MQTT المشفّر") {
                     TextField("عنوان السيرفر", text: $host)
                         .textInputAutocapitalization(.never)
@@ -2063,27 +2165,31 @@ private struct MQTTSettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     SecureField("كلمة المرور", text: $password)
+                    Label("TLS فقط، وكلمة المرور محفوظة في Keychain داخل الآيفون.", systemImage: "lock.shield.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
+
                 Section {
-                    Label("الاتصال TLS فقط، وكلمة المرور محفوظة في Keychain داخل الآيفون.", systemImage: "lock.shield.fill")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text("استخدم نفس السيرفر والحساب الموجودين في firmware/include/config.h.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    NavigationLink {
+                        SettingsAboutView()
+                    } label: {
+                        Label("النظام والتحديث", systemImage: "gearshape.2.fill")
+                    }
                 }
+
                 if let errorText {
                     Section { Text(errorText).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("إعداد اتصال ESP")
+            .navigationTitle("الإعدادات")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("إلغاء") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("حفظ واتصال") { save() }
+                    Button("حفظ") { save() }
                 }
             }
             .onAppear {
@@ -2097,17 +2203,34 @@ private struct MQTTSettingsView: View {
     }
 
     private func save() {
-        guard !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorText = "أدخل عنوان السيرفر"
+        let cleanHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanHost.isEmpty {
+            dismiss()
             return
         }
         guard let value = UInt16(port), value > 0 else {
             errorText = "رقم المنفذ غير صحيح"
             return
         }
-        mqtt.saveSettings(host: host, port: value, username: username, password: password)
+        mqtt.saveSettings(host: cleanHost, port: value, username: username, password: password)
         mqtt.connect()
         dismiss()
+    }
+}
+
+private struct SettingsAboutView: View {
+    var body: some View {
+        List {
+            Section("JOURNEY") {
+                LabeledContent("إصدار التطبيق", value: "2.4.6 (37)")
+                LabeledContent("Firmware المطلوب", value: "v12.59")
+            }
+            Section("التحديث") {
+                Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
+                Label("إعدادات الواجهة تُحفظ محلياً وتبقى بعد إعادة تشغيل التطبيق.", systemImage: "internaldrive.fill")
+            }
+        }
+        .navigationTitle("النظام والتحديث")
     }
 }
 
