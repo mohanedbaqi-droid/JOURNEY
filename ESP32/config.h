@@ -1,10 +1,7 @@
 #pragma once
 
-// Wi‑Fi is only an optional service/setup transport. Daily control is BLE
-// nearby and cellular MQTT once the SIM/APN/broker fields are configured.
-// v12.60 runtime Wi-Fi is controlled from the iPhone and defaults OFF.
-// This legacy constant is retained only for source compatibility.
-constexpr bool ENABLE_WIFI = false;
+// General Wi-Fi is controlled at runtime from the iPhone and persisted in NVS.
+// No compile-time ENABLE_WIFI switch is used.
 // Local Wi-Fi used only for firmware updates from the iPhone.
 constexpr bool ENABLE_LOCAL_OTA_AP = true;
 constexpr char OTA_AP_PASSWORD[] = "CHANGE_ME";
