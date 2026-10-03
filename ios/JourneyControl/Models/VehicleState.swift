@@ -42,6 +42,10 @@ struct VehicleState: Codable {
     var cellularDataAttached = false
     var cellularAPN = ""
     var cellularStatus = "off"
+    var hotspotEnabled = false
+    var hotspotRunning = false
+    var hotspotSSID = ""
+    var internetRoute = "NONE"
     /// Bluetooth RSSI measured by the ESP / phone proximity link.
     var bluetoothRSSI = -58
     var espSleeping = false
@@ -137,7 +141,7 @@ struct VehicleState: Codable {
     enum CodingKeys: String, CodingKey {
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
         case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn
-        case cellularNetwork, cellularSignalDBm, cellularEnabled, cellularRegistered, cellularDataAttached, cellularAPN, cellularStatus, bluetoothRSSI, espSleeping
+        case cellularNetwork, cellularSignalDBm, cellularEnabled, cellularRegistered, cellularDataAttached, cellularAPN, cellularStatus, hotspotEnabled, hotspotRunning, hotspotSSID, internetRoute, bluetoothRSSI, espSleeping
         case gpsValid, latitude, longitude, obdConnected, obdStatus, obdResponseRate, obdTotalResponses, obdScanProgress, obdScannedPids, obdSupportedPids, obdStandardScanComplete, obdCurrentPid, obdLastReply, obdAdapterName, obdDiscoveredAdapters, obdDiscoveredWifiNetworks, obdDiscoveryKind, obdDiscoveryReset, obdDiscoveryDone, obdClearInProgress
         case rpm, speedKph, coolantC, intakeAirC, engineLoadPercent, throttlePercent, fuelLevelPercent, fuelLevelValid, engineRuntimeSeconds, controlVoltage
         case batteryVoltage, canAwake, ignitionState, diagnosticCodes
@@ -191,6 +195,10 @@ struct VehicleState: Codable {
         cellularDataAttached = try box.decodeIfPresent(Bool.self, forKey: .cellularDataAttached) ?? false
         cellularAPN = try box.decodeIfPresent(String.self, forKey: .cellularAPN) ?? ""
         cellularStatus = try box.decodeIfPresent(String.self, forKey: .cellularStatus) ?? "off"
+        hotspotEnabled = try box.decodeIfPresent(Bool.self, forKey: .hotspotEnabled) ?? false
+        hotspotRunning = try box.decodeIfPresent(Bool.self, forKey: .hotspotRunning) ?? false
+        hotspotSSID = try box.decodeIfPresent(String.self, forKey: .hotspotSSID) ?? ""
+        internetRoute = try box.decodeIfPresent(String.self, forKey: .internetRoute) ?? "NONE"
         bluetoothRSSI = try box.decodeIfPresent(Int.self, forKey: .bluetoothRSSI) ?? -120
         espSleeping = try box.decodeIfPresent(Bool.self, forKey: .espSleeping) ?? false
         latitude = try box.decodeIfPresent(Double.self, forKey: .latitude) ?? 0
