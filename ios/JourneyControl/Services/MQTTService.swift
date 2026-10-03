@@ -72,9 +72,8 @@ final class MQTTService: ObservableObject {
             .sink { [weak self] now in
                 guard let self else { return }
                 for (deviceID, seenAt) in self.lastStateAt where now.timeIntervalSince(seenAt) > 4.0 {
-                    // BLE transport state is authoritative for iPhone <-> ESP connectivity.
-                    // A stale state packet or command timeout must never mark an actually
-                    // connected CBPeripheral as disconnected.
+                    // Keep the car online through either route:
+                    // nearby BLE, or fresh ESP->MQTT cloud telemetry over Wi-Fi.
                     if self.bluetooth.isConnected(to: deviceID) {
                         if var state = self.vehicles[deviceID], !state.online {
                             state.online = true
@@ -538,6 +537,7 @@ final class MQTTService: ObservableObject {
                 merged.wifiRSSI = state.wifiRSSI
                 merged.wifiIP = state.wifiIP
                 merged.wifiStatus = state.wifiStatus
+                merged.cloudConnected = state.cloudConnected
                 if !state.otaAddress.isEmpty || !state.wifiConnected { merged.otaAddress = state.otaAddress }
                 if state.wifiDiscoveryReset { merged.wifiDiscoveredNetworks = "" }
                 if !state.wifiDiscoveredNetworks.isEmpty {
@@ -603,6 +603,12 @@ final class MQTTService: ObservableObject {
         }
 
         var merged = state
+        // A fresh full state received from the broker proves the ESP is reachable
+        // through the Internet even when BLE is out of range.
+        if connection == .connected && !bluetooth.isConnected(to: deviceID) {
+            merged.online = true
+            merged.cloudConnected = true
+        }
         // Every non-partial ESP/MQTT state is authoritative for owner fields.
         merged.ownerStateKnown = true
         if let rssi = bluetoothRSSIByDevice[deviceID] { merged.bluetoothRSSI = rssi }
