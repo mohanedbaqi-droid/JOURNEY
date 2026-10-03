@@ -531,6 +531,23 @@ final class MQTTService: ObservableObject {
                 // Keep event-driven feedback authoritative. Compact packets from
                 // older firmware omit these booleans and otherwise clear feedback instantly.
                 if !state.lastEvent.isEmpty && state.lastEvent != "waiting" { merged.lastEvent = state.lastEvent }
+            } else if state.wifiStatePacket {
+                merged.wifiEnabled = state.wifiEnabled
+                merged.wifiConnected = state.wifiConnected
+                if !state.wifiSSID.isEmpty { merged.wifiSSID = state.wifiSSID }
+                merged.wifiRSSI = state.wifiRSSI
+                merged.wifiIP = state.wifiIP
+                merged.wifiStatus = state.wifiStatus
+                if !state.otaAddress.isEmpty || !state.wifiConnected { merged.otaAddress = state.otaAddress }
+                if state.wifiDiscoveryReset { merged.wifiDiscoveredNetworks = "" }
+                if !state.wifiDiscoveredNetworks.isEmpty {
+                    let current = Set(merged.wifiDiscoveredNetworks.components(separatedBy: " | ").filter { !$0.isEmpty })
+                    let additions = state.wifiDiscoveredNetworks.components(separatedBy: " | ").filter { !$0.isEmpty && !current.contains($0) }
+                    if !additions.isEmpty {
+                        if !merged.wifiDiscoveredNetworks.isEmpty { merged.wifiDiscoveredNetworks += " | " }
+                        merged.wifiDiscoveredNetworks += additions.joined(separator: " | ")
+                    }
+                }
             } else if state.obdTelemetryPacket {
                 merged.obdConnected = state.obdConnected
                 merged.obdStatus = state.obdStatus
