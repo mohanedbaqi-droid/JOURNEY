@@ -9,6 +9,7 @@ struct VehicleState: Codable {
     var coreStatePacket = false
     var obdTelemetryPacket = false
     var wifiStatePacket = false
+    var cellularStatePacket = false
     var vehicleEventPacket = false
     var vehicleEventId = ""
     var vehicleEventType = ""
@@ -36,6 +37,11 @@ struct VehicleState: Codable {
     /// Published by the 4G/3G modem on the ESP when available.
     var cellularNetwork = "غير متاح"
     var cellularSignalDBm = -120
+    var cellularEnabled = false
+    var cellularRegistered = false
+    var cellularDataAttached = false
+    var cellularAPN = ""
+    var cellularStatus = "off"
     /// Bluetooth RSSI measured by the ESP / phone proximity link.
     var bluetoothRSSI = -58
     var espSleeping = false
@@ -129,9 +135,9 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
+        case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
         case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn
-        case cellularNetwork, cellularSignalDBm, bluetoothRSSI, espSleeping
+        case cellularNetwork, cellularSignalDBm, cellularEnabled, cellularRegistered, cellularDataAttached, cellularAPN, cellularStatus, bluetoothRSSI, espSleeping
         case gpsValid, latitude, longitude, obdConnected, obdStatus, obdResponseRate, obdTotalResponses, obdScanProgress, obdScannedPids, obdSupportedPids, obdStandardScanComplete, obdCurrentPid, obdLastReply, obdAdapterName, obdDiscoveredAdapters, obdDiscoveredWifiNetworks, obdDiscoveryKind, obdDiscoveryReset, obdDiscoveryDone, obdClearInProgress
         case rpm, speedKph, coolantC, intakeAirC, engineLoadPercent, throttlePercent, fuelLevelPercent, fuelLevelValid, engineRuntimeSeconds, controlVoltage
         case batteryVoltage, canAwake, ignitionState, diagnosticCodes
@@ -152,7 +158,8 @@ struct VehicleState: Codable {
         let compactObdTelemetryPacket = (try compact.decodeIfPresent(Int.self, forKey: .obdTelemetry) ?? 0) == 1
         obdTelemetryPacket = fullObdTelemetryPacket || compactObdTelemetryPacket
         wifiStatePacket = try box.decodeIfPresent(Bool.self, forKey: .wifiStatePacket) ?? false
-        if obdTelemetryPacket || wifiStatePacket { partialState = true }
+        cellularStatePacket = try box.decodeIfPresent(Bool.self, forKey: .cellularStatePacket) ?? false
+        if obdTelemetryPacket || wifiStatePacket || cellularStatePacket { partialState = true }
         vehicleEventPacket = try box.decodeIfPresent(Bool.self, forKey: .vehicleEventPacket) ?? false
         vehicleEventId = try box.decodeIfPresent(String.self, forKey: .vehicleEventId) ?? ""
         vehicleEventType = try box.decodeIfPresent(String.self, forKey: .vehicleEventType) ?? ""
@@ -177,8 +184,13 @@ struct VehicleState: Codable {
         leftSignalOn = try box.decodeIfPresent(Bool.self, forKey: .leftSignalOn) ?? false
         rightSignalOn = try box.decodeIfPresent(Bool.self, forKey: .rightSignalOn) ?? false
         gpsValid = try box.decodeIfPresent(Bool.self, forKey: .gpsValid) ?? false
-        cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? "4G"
+        cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? "غير متاح"
         cellularSignalDBm = try box.decodeIfPresent(Int.self, forKey: .cellularSignalDBm) ?? -120
+        cellularEnabled = try box.decodeIfPresent(Bool.self, forKey: .cellularEnabled) ?? false
+        cellularRegistered = try box.decodeIfPresent(Bool.self, forKey: .cellularRegistered) ?? false
+        cellularDataAttached = try box.decodeIfPresent(Bool.self, forKey: .cellularDataAttached) ?? false
+        cellularAPN = try box.decodeIfPresent(String.self, forKey: .cellularAPN) ?? ""
+        cellularStatus = try box.decodeIfPresent(String.self, forKey: .cellularStatus) ?? "off"
         bluetoothRSSI = try box.decodeIfPresent(Int.self, forKey: .bluetoothRSSI) ?? -120
         espSleeping = try box.decodeIfPresent(Bool.self, forKey: .espSleeping) ?? false
         latitude = try box.decodeIfPresent(Double.self, forKey: .latitude) ?? 0
