@@ -44,6 +44,7 @@ final class MQTTService: ObservableObject {
     private let defaults = UserDefaults.standard
     private let passwordAccount = "mqtt-password"
     private var bluetoothRSSIByDevice: [String: Int] = [:]
+    private var feedbackGeneration: [String: UUID] = [:]
     private var cancellables: Set<AnyCancellable> = []
 
     init() {
@@ -403,19 +404,39 @@ final class MQTTService: ObservableObject {
     }
 
     private func updateButtonFeedback(event: String, deviceID: String) {
-        var active = buttonFeedback[deviceID] ?? []
+        func set(_ button: String, active isActive: Bool) {
+            var buttons = buttonFeedback[deviceID] ?? []
+            let key = "\(deviceID)|\(button)"
+            if isActive {
+                buttons.insert(button)
+                let token = UUID()
+                feedbackGeneration[key] = token
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(2.2))
+                    guard let self, self.feedbackGeneration[key] == token else { return }
+                    var latest = self.buttonFeedback[deviceID] ?? []
+                    latest.remove(button)
+                    self.buttonFeedback[deviceID] = latest
+                    self.feedbackGeneration.removeValue(forKey: key)
+                }
+            } else {
+                buttons.remove(button)
+                feedbackGeneration.removeValue(forKey: key)
+            }
+            buttonFeedback[deviceID] = buttons
+        }
+
         switch event {
-        case "remote_button_lock_on": active.insert("lock")
-        case "remote_button_lock_off": active.remove("lock")
-        case "remote_button_unlock_on": active.insert("unlock")
-        case "remote_button_unlock_off": active.remove("unlock")
-        case "remote_button_start_on": active.insert("start")
-        case "remote_button_start_off": active.remove("start")
-        case "remote_button_alarm_on": active.insert("alarm")
-        case "remote_button_alarm_off": active.remove("alarm")
+        case "remote_button_lock_on": set("lock", active: true)
+        case "remote_button_lock_off": set("lock", active: false)
+        case "remote_button_unlock_on": set("unlock", active: true)
+        case "remote_button_unlock_off": set("unlock", active: false)
+        case "remote_button_start_on": set("start", active: true)
+        case "remote_button_start_off": set("start", active: false)
+        case "remote_button_alarm_on": set("alarm", active: true)
+        case "remote_button_alarm_off": set("alarm", active: false)
         default: break
         }
-        buttonFeedback[deviceID] = active
     }
 
     private func receive(_ state: VehicleState, from deviceID: String) {
@@ -424,6 +445,30 @@ final class MQTTService: ObservableObject {
         if !state.lastEvent.isEmpty { updateButtonFeedback(event: state.lastEvent, deviceID: deviceID) }
 
         if state.vehicleEventPacket {
+            updateButtonFeedback(event: state.vehicleEventType, deviceID: deviceID)
+
+            if state.vehicleEventType == "engine_stopped_obd", (previous?.speedKph ?? 0) > 5 {
+                if !state.vehicleEventId.isEmpty {
+                    _ = sendESPCommand(
+                        VehicleCommand(action: .eventAck, ownerTarget: state.vehicleEventId),
+                        to: deviceID
+                    )
+                }
+                lastStateAt[deviceID] = Date()
+                return
+            }
+
+            if state.vehicleEventType == "engine_started_obd", (previous?.rpm ?? 0) > 300 {
+                if !state.vehicleEventId.isEmpty {
+                    _ = sendESPCommand(
+                        VehicleCommand(action: .eventAck, ownerTarget: state.vehicleEventId),
+                        to: deviceID
+                    )
+                }
+                lastStateAt[deviceID] = Date()
+                return
+            }
+
             // BLE event delivery works without Internet. The ESP keeps this
             // event in NVS and replays it until this iPhone acknowledges it.
             let accepted = VehicleNotificationService.shared.notifyVehicleEvent(
@@ -483,12 +528,8 @@ final class MQTTService: ObservableObject {
                 merged.feedbackUnlock = state.feedbackUnlock
                 merged.feedbackStart = state.feedbackStart
                 merged.feedbackAlarm = state.feedbackAlarm
-                var active = Set<String>()
-                if state.feedbackLock { active.insert("lock") }
-                if state.feedbackUnlock { active.insert("unlock") }
-                if state.feedbackStart { active.insert("start") }
-                if state.feedbackAlarm { active.insert("alarm") }
-                buttonFeedback[deviceID] = active
+                // Keep event-driven feedback authoritative. Compact packets from
+                // older firmware omit these booleans and otherwise clear feedback instantly.
                 if !state.lastEvent.isEmpty && state.lastEvent != "waiting" { merged.lastEvent = state.lastEvent }
             } else if state.obdTelemetryPacket {
                 merged.obdConnected = state.obdConnected
