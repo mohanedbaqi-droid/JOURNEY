@@ -441,7 +441,7 @@ struct ContentView: View {
                         .tracking(5)
                     Text(device.name).font(.headline)
                     Label(
-                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains("متصل") ? "ONLINE • Wi-Fi" : device.deviceID) : "غير متصل",
+                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains("متصل") ? (vehicle.internetRoute == "CELLULAR" ? "ONLINE • 4G" : "ONLINE • Wi-Fi") : device.deviceID) : "غير متصل",
                         systemImage: vehicle.cloudConnected ? "cloud.fill" : "location.fill"
                     )
                         .font(.caption)
@@ -460,8 +460,8 @@ struct ContentView: View {
         Button { showingMQTTSettings = true } label: {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
-                    Image(systemName: state.cloudConnected ? "wifi" : "cellularbars")
-                    Text(state.cloudConnected ? "NET" : (state.cellularNetwork == "غير متاح" ? "—" : state.cellularNetwork.uppercased()))
+                    Image(systemName: state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "cellularbars" : "wifi") : "cellularbars")
+                    Text(state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "4G" : "NET") : (state.cellularNetwork == "غير متاح" ? "—" : state.cellularNetwork.uppercased()))
                 }
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(state.cloudConnected ? .green : networkColor(for: state.cellularSignalDBm))
@@ -2296,7 +2296,7 @@ private struct MQTTSettingsView: View {
                             .autocorrectionDisabled()
                         SecureField("كلمة مرور نقطة الاتصال", text: $hotspotPassword)
                         HStack {
-                            Label(vehicle.hotspotRunning ? "نقطة الاتصال شغالة" : "نقطة الاتصال متوقفة", systemImage: vehicle.hotspotRunning ? "personalhotspot" : "personalhotspot.slash")
+                            Label(vehicle.hotspotRunning ? "نقطة الاتصال شغالة" : "نقطة الاتصال متوقفة", systemImage: vehicle.hotspotRunning ? "personalhotspot" : "wifi.slash")
                                 .foregroundStyle(vehicle.hotspotRunning ? .green : .secondary)
                             Spacer()
                             if vehicle.hotspotRunning {
