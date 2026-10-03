@@ -44,6 +44,7 @@ enum BenchAction: String, Codable, Hashable {
     case cellularConfig = "cellular_config"
     case cellularTest = "cellular_test"
     case cellularForget = "cellular_forget"
+    case connectionPriority = "connection_priority"
 }
 
 struct KeylessEntryConfig: Codable, Equatable {
@@ -76,6 +77,7 @@ struct VehicleCommand: Codable {
     let ownerTarget: String?
     let wifiSettings: ESPWiFiSettings?
     let cellularSettings: ESPCellularSettings?
+    let connectionPriority: ESPConnectionPriority?
 
     /// BLE commands must stay compact.  Encoding Swift optionals with the
     /// compiler-generated encoder writes every unused field as `null`, which
@@ -84,10 +86,10 @@ struct VehicleCommand: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, phoneID, action, schema, timestamp
         case keyless, presence, espSettings, firmwareURL, maintenanceMode
-        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings, cellularSettings
+        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings, cellularSettings, connectionPriority
     }
 
-    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil) {
+    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil, connectionPriority: ESPConnectionPriority? = nil) {
         self.id = UUID().uuidString
         self.phoneID = AppConfig.phoneID
         self.action = action
@@ -104,6 +106,7 @@ struct VehicleCommand: Codable {
         self.ownerTarget = ownerTarget
         self.wifiSettings = wifiSettings
         self.cellularSettings = cellularSettings
+        self.connectionPriority = connectionPriority
     }
 
     func encode(to encoder: Encoder) throws {
@@ -124,7 +127,12 @@ struct VehicleCommand: Codable {
         try container.encodeIfPresent(ownerTarget, forKey: .ownerTarget)
         try container.encodeIfPresent(wifiSettings, forKey: .wifiSettings)
         try container.encodeIfPresent(cellularSettings, forKey: .cellularSettings)
+        try container.encodeIfPresent(connectionPriority, forKey: .connectionPriority)
     }
+}
+
+struct ESPConnectionPriority: Codable, Equatable {
+    var order: [String]
 }
 
 struct ESPCellularSettings: Codable, Equatable {
@@ -302,6 +310,9 @@ struct BenchEvent: Identifiable, Equatable {
         case .cellularForget:
             title = "مسح إعدادات الشريحة"
             icon = "simcard"
+        case .connectionPriority:
+            title = "تحديث أولوية الاتصال"
+            icon = "arrow.up.arrow.down"
         }
     }
 
