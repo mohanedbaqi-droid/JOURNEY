@@ -85,6 +85,7 @@ struct VehicleState: Codable {
     var wifiRSSI = -120
     var wifiIP = ""
     var wifiStatus = "off"
+    var cloudConnected = false
     var wifiDiscoveredNetworks = ""
     var wifiDiscoveryReset = false
     var wifiDiscoveryDone = false
@@ -134,7 +135,7 @@ struct VehicleState: Codable {
         case gpsValid, latitude, longitude, obdConnected, obdStatus, obdResponseRate, obdTotalResponses, obdScanProgress, obdScannedPids, obdSupportedPids, obdStandardScanComplete, obdCurrentPid, obdLastReply, obdAdapterName, obdDiscoveredAdapters, obdDiscoveredWifiNetworks, obdDiscoveryKind, obdDiscoveryReset, obdDiscoveryDone, obdClearInProgress
         case rpm, speedKph, coolantC, intakeAirC, engineLoadPercent, throttlePercent, fuelLevelPercent, fuelLevelValid, engineRuntimeSeconds, controlVoltage
         case batteryVoltage, canAwake, ignitionState, diagnosticCodes
-        case lastEvent, uptimeSeconds, remotePulseMs, remoteWakeDelayMs, remotePowerOffDelayMs, hudBrightness, otaAddress, wifiEnabled, wifiConnected, wifiSSID, wifiRSSI, wifiIP, wifiStatus, wifiDiscoveredNetworks, wifiDiscoveryReset, wifiDiscoveryDone, maintenanceMode, powerSaveMode, powerSaveIdleMinutes, powerSaveActive
+        case lastEvent, uptimeSeconds, remotePulseMs, remoteWakeDelayMs, remotePowerOffDelayMs, hudBrightness, otaAddress, wifiEnabled, wifiConnected, wifiSSID, wifiRSSI, wifiIP, wifiStatus, cloudConnected, wifiDiscoveredNetworks, wifiDiscoveryReset, wifiDiscoveryDone, maintenanceMode, powerSaveMode, powerSaveIdleMinutes, powerSaveActive
     }
 
     init() {}
@@ -226,6 +227,7 @@ struct VehicleState: Codable {
         wifiRSSI = try box.decodeIfPresent(Int.self, forKey: .wifiRSSI) ?? -120
         wifiIP = try box.decodeIfPresent(String.self, forKey: .wifiIP) ?? ""
         wifiStatus = try box.decodeIfPresent(String.self, forKey: .wifiStatus) ?? "off"
+        cloudConnected = try box.decodeIfPresent(Bool.self, forKey: .cloudConnected) ?? false
         wifiDiscoveredNetworks = try box.decodeIfPresent(String.self, forKey: .wifiDiscoveredNetworks) ?? ""
         wifiDiscoveryReset = try box.decodeIfPresent(Bool.self, forKey: .wifiDiscoveryReset) ?? false
         wifiDiscoveryDone = try box.decodeIfPresent(Bool.self, forKey: .wifiDiscoveryDone) ?? false
