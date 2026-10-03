@@ -21,8 +21,8 @@ targets:
         SWIFT_VERSION: 5.9
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
-        MARKETING_VERSION: 2.4.5
-        CURRENT_PROJECT_VERSION: 36
+        MARKETING_VERSION: 2.4.6
+        CURRENT_PROJECT_VERSION: 37
     dependencies:
       - package: CocoaMQTT
       - target: JourneyWidgetExtension
@@ -41,5 +41,5 @@ targets:
         SWIFT_VERSION: 5.9
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
-        MARKETING_VERSION: 2.4.5
-        CURRENT_PROJECT_VERSION: 36
+        MARKETING_VERSION: 2.4.6
+        CURRENT_PROJECT_VERSION: 37
