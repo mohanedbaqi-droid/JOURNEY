@@ -133,6 +133,9 @@ struct ESPCellularSettings: Codable, Equatable {
     var username: String
     var password: String
     var simPin: String
+    var hotspotEnabled: Bool
+    var hotspotSSID: String
+    var hotspotPassword: String
 }
 
 struct ESPWiFiSettings: Codable, Equatable {
