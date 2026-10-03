@@ -2050,61 +2050,6 @@ private struct KeylessEntrySettingsView: View {
         .padding(.vertical, 3)
     }
 
-    private func searchWifi() {
-        guard let id = selectedDeviceID else {
-            wifiMessage = "ماكو ESP محدد"
-            return
-        }
-        wifiMessage = "تم إرسال أمر البحث للـESP"
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiSearch), to: id)
-    }
-
-    private func setWifiEnabled(_ enabled: Bool) {
-        guard let id = selectedDeviceID else { return }
-        let settings = ESPWiFiSettings(enabled: enabled, ssid: wifiSSID, password: wifiPassword)
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
-        wifiMessage = enabled ? "تم إرسال أمر تشغيل Wi-Fi" : "تم إرسال أمر إطفاء Wi-Fi"
-    }
-
-    private func connectWifi() {
-        let ssid = wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !ssid.isEmpty else {
-            wifiMessage = "اختار الشبكة أولاً"
-            return
-        }
-        guard let id = selectedDeviceID else {
-            wifiMessage = "ماكو ESP محدد"
-            return
-        }
-        wifiEnabled = true
-        let settings = ESPWiFiSettings(enabled: true, ssid: ssid, password: wifiPassword)
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
-        wifiMessage = "جاري اتصال ESP بالشبكة"
-    }
-
-    private func forgetWifi() {
-        guard let id = selectedDeviceID else { return }
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiForget), to: id)
-        wifiEnabled = false
-        wifiSSID = ""
-        wifiPassword = ""
-        wifiMessage = "تم إرسال أمر نسيان الشبكة"
-    }
-
-    private func wifiStatusText(_ status: String) -> String {
-        switch status {
-        case "connecting": return "جاري الاتصال"
-        case "searching": return "جاري البحث"
-        case "networks_found": return "تم العثور على شبكات"
-        case "networks_not_found": return "ما لكه شبكات"
-        case "scan_failed": return "فشل البحث"
-        case "network_required": return "اختار شبكة"
-        case "forgotten": return "تم نسيان الشبكة"
-        case "disconnected": return "غير متصل"
-        default: return "Wi-Fi مطفأ"
-        }
-    }
-
     private func save() {
         lockDistance = effectiveLockDistance
         let config = KeylessEntryConfig(
@@ -2136,6 +2081,12 @@ private struct MQTTSettingsView: View {
     @State private var wifiSSID = ""
     @State private var wifiPassword = ""
     @State private var wifiMessage: String?
+    @State private var cellularEnabled = false
+    @State private var cellularAPN = "internet"
+    @State private var cellularUsername = ""
+    @State private var cellularPassword = ""
+    @State private var cellularSimPin = ""
+    @State private var cellularMessage: String?
 
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
     @AppStorage("journey.settings.textSize") private var textSize = "normal"
@@ -2298,6 +2249,80 @@ private struct MQTTSettingsView: View {
                 }
 
                 Section {
+                    Toggle("تشغيل الشريحة / 4G", isOn: $cellularEnabled)
+                        .tint(.green)
+                        .onChange(of: cellularEnabled) { _, enabled in
+                            if !enabled { setCellularEnabled(false) }
+                        }
+
+                    HStack {
+                        Label(cellularStatusText(vehicle.cellularStatus),
+                              systemImage: vehicle.cellularRegistered ? "antenna.radiowaves.left.and.right" : "simcard")
+                            .foregroundStyle(vehicle.cellularRegistered ? .green : .secondary)
+                        Spacer()
+                        if vehicle.cellularRegistered {
+                            Text(vehicle.cellularNetwork)
+                                .font(.caption.bold())
+                                .foregroundStyle(.green)
+                        }
+                    }
+
+                    if vehicle.cellularSignalDBm > -120 {
+                        LabeledContent("قوة الإشارة", value: "\(vehicle.cellularSignalDBm) dBm")
+                    }
+                    LabeledContent("تسجيل الشبكة", value: vehicle.cellularRegistered ? "مسجل" : "غير مسجل")
+                    LabeledContent("بيانات الإنترنت", value: vehicle.cellularDataAttached ? "متصلة" : "غير متصلة")
+
+                    TextField("APN", text: $cellularAPN)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("اسم مستخدم APN - اختياري", text: $cellularUsername)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    SecureField("كلمة مرور APN - اختيارية", text: $cellularPassword)
+                    SecureField("SIM PIN - إذا الشريحة تحتاجه", text: $cellularSimPin)
+                        .keyboardType(.numberPad)
+
+                    HStack {
+                        Button {
+                            saveCellular()
+                        } label: {
+                            Label("حفظ واتصال", systemImage: "simcard.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!cellularEnabled || cellularAPN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedDeviceID == nil)
+
+                        Spacer()
+
+                        Button {
+                            testCellular()
+                        } label: {
+                            Label("فحص", systemImage: "waveform.path.ecg")
+                        }
+                        .disabled(selectedDeviceID == nil)
+                    }
+
+                    Button(role: .destructive) {
+                        forgetCellular()
+                    } label: {
+                        Label("مسح إعدادات الشريحة", systemImage: "trash")
+                    }
+                    .disabled(selectedDeviceID == nil)
+
+                    if let cellularMessage {
+                        Text(cellularMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("الـAPN الافتراضي مضبوط على internet. اسم المستخدم وكلمة المرور وSIM PIN اختيارية حسب شركة الشريحة.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Label("الشريحة والـ4G", systemImage: "simcard.fill")
+                }
+
+                Section {
                     Toggle("تفعيل BCM / Body CAN", isOn: $canBCM)
                     Toggle("Developer Mode", isOn: $developerMode)
                     if developerMode {
@@ -2356,7 +2381,131 @@ private struct MQTTSettingsView: View {
                 password = saved.password
                 wifiEnabled = vehicle.wifiEnabled
                 if wifiSSID.isEmpty { wifiSSID = vehicle.wifiSSID }
+                cellularEnabled = vehicle.cellularEnabled
+                if !vehicle.cellularAPN.isEmpty { cellularAPN = vehicle.cellularAPN }
             }
+        }
+    }
+
+    private func searchWifi() {
+        guard let id = selectedDeviceID else {
+            wifiMessage = "ماكو ESP محدد"
+            return
+        }
+        wifiMessage = "تم إرسال أمر البحث للـESP"
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiSearch), to: id)
+    }
+
+    private func setWifiEnabled(_ enabled: Bool) {
+        guard let id = selectedDeviceID else { return }
+        let settings = ESPWiFiSettings(enabled: enabled, ssid: wifiSSID, password: wifiPassword)
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
+        wifiMessage = enabled ? "تم إرسال أمر تشغيل Wi-Fi" : "تم إرسال أمر إطفاء Wi-Fi"
+    }
+
+    private func connectWifi() {
+        let ssid = wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ssid.isEmpty else {
+            wifiMessage = "اختار الشبكة أولاً"
+            return
+        }
+        guard let id = selectedDeviceID else {
+            wifiMessage = "ماكو ESP محدد"
+            return
+        }
+        wifiEnabled = true
+        let settings = ESPWiFiSettings(enabled: true, ssid: ssid, password: wifiPassword)
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
+        wifiMessage = "جاري اتصال ESP بالشبكة"
+    }
+
+    private func forgetWifi() {
+        guard let id = selectedDeviceID else { return }
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiForget), to: id)
+        wifiEnabled = false
+        wifiSSID = ""
+        wifiPassword = ""
+        wifiMessage = "تم إرسال أمر نسيان الشبكة"
+    }
+
+    private func wifiStatusText(_ status: String) -> String {
+        switch status {
+        case "connecting": return "جاري الاتصال"
+        case "searching": return "جاري البحث"
+        case "networks_found": return "تم العثور على شبكات"
+        case "networks_not_found": return "ما لكه شبكات"
+        case "scan_failed": return "فشل البحث"
+        case "network_required": return "اختار شبكة"
+        case "forgotten": return "تم نسيان الشبكة"
+        case "disconnected": return "غير متصل"
+        default: return "Wi-Fi مطفأ"
+        }
+    }
+
+    private func setCellularEnabled(_ enabled: Bool) {
+        guard let id = selectedDeviceID else { return }
+        let settings = ESPCellularSettings(
+            enabled: enabled,
+            apn: cellularAPN,
+            username: cellularUsername,
+            password: cellularPassword,
+            simPin: cellularSimPin
+        )
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
+        cellularMessage = enabled ? "تم إرسال أمر تشغيل الشريحة" : "تم إرسال أمر إطفاء بيانات الشريحة"
+    }
+
+    private func saveCellular() {
+        let apn = cellularAPN.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apn.isEmpty else {
+            cellularMessage = "أدخل APN"
+            return
+        }
+        guard let id = selectedDeviceID else {
+            cellularMessage = "ماكو ESP محدد"
+            return
+        }
+        cellularEnabled = true
+        let settings = ESPCellularSettings(
+            enabled: true,
+            apn: apn,
+            username: cellularUsername,
+            password: cellularPassword,
+            simPin: cellularSimPin
+        )
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
+        cellularMessage = "تم حفظ إعدادات الشريحة وجاري الفحص"
+    }
+
+    private func testCellular() {
+        guard let id = selectedDeviceID else { return }
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularTest), to: id)
+        cellularMessage = "جاري فحص الشريحة والشبكة"
+    }
+
+    private func forgetCellular() {
+        guard let id = selectedDeviceID else { return }
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularForget), to: id)
+        cellularEnabled = false
+        cellularAPN = "internet"
+        cellularUsername = ""
+        cellularPassword = ""
+        cellularSimPin = ""
+        cellularMessage = "تم إرسال أمر مسح إعدادات الشريحة"
+    }
+
+    private func cellularStatusText(_ status: String) -> String {
+        switch status {
+        case "ready": return "الشريحة جاهزة"
+        case "registered": return "مسجلة على الشبكة"
+        case "data_attached": return "الإنترنت متصل"
+        case "checking": return "جاري الفحص"
+        case "pin_required": return "تحتاج SIM PIN"
+        case "sim_missing": return "الشريحة غير موجودة"
+        case "registration_failed": return "فشل تسجيل الشبكة"
+        case "data_failed": return "فشل اتصال البيانات"
+        case "disabled": return "الشريحة مطفأة"
+        default: return "بانتظار الفحص"
         }
     }
 
@@ -2380,8 +2529,8 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.9 (40)")
-                LabeledContent("Firmware المطلوب", value: "v12.61")
+                LabeledContent("إصدار التطبيق", value: "2.4.10 (41)")
+                LabeledContent("Firmware المطلوب", value: "v12.62")
             }
             Section("التحديث") {
                 Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
