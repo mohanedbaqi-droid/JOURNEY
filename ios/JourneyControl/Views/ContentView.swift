@@ -2222,7 +2222,7 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.6 (37)")
+                LabeledContent("إصدار التطبيق", value: "2.4.7 (38)")
                 LabeledContent("Firmware المطلوب", value: "v12.59")
             }
             Section("التحديث") {
