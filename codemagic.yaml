@@ -20,10 +20,10 @@ workflows:
           mkdir -p "$CM_BUILD_DIR/ipa/Payload"
           cp -R "$APP" "$CM_BUILD_DIR/ipa/Payload/"
           cd "$CM_BUILD_DIR/ipa"
-          ditto -c -k --sequesterRsrc --keepParent Payload "$CM_BUILD_DIR/JOURNEY-iOS-v2.4.8-B39-v12.60.ipa"
-          unzip -Z1 "$CM_BUILD_DIR/JOURNEY-iOS-v2.4.8-B39-v12.60.ipa" | grep -qx "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist"
+          ditto -c -k --sequesterRsrc --keepParent Payload "$CM_BUILD_DIR/JOURNEY-iOS-v2.4.9-B40-v12.61.ipa"
+          unzip -Z1 "$CM_BUILD_DIR/JOURNEY-iOS-v2.4.9-B40-v12.61.ipa" | grep -qx "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist"
     artifacts:
-      - JOURNEY-iOS-v2.4.8-B39-v12.60.ipa
+      - JOURNEY-iOS-v2.4.9-B40-v12.61.ipa
 
   journey-final-ios:
     name: JOURNEY Final iOS (signed IPA)
