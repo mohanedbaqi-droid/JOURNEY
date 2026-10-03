@@ -38,6 +38,9 @@ enum BenchAction: String, Codable, Hashable {
     case obdScanDTC = "obd_scan_dtc"
     case obdClearDTC = "obd_clear_dtc"
     case eventAck = "event_ack"
+    case wifiConfig = "wifi_config"
+    case wifiSearch = "wifi_search"
+    case wifiForget = "wifi_forget"
 }
 
 struct KeylessEntryConfig: Codable, Equatable {
@@ -68,6 +71,7 @@ struct VehicleCommand: Codable {
     let obdAdapter: OBDAdapterSelection?
     let obdClearConfirmed: Bool?
     let ownerTarget: String?
+    let wifiSettings: ESPWiFiSettings?
 
     /// BLE commands must stay compact.  Encoding Swift optionals with the
     /// compiler-generated encoder writes every unused field as `null`, which
@@ -76,10 +80,10 @@ struct VehicleCommand: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, phoneID, action, schema, timestamp
         case keyless, presence, espSettings, firmwareURL, maintenanceMode
-        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget
+        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings
     }
 
-    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil) {
+    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil) {
         self.id = UUID().uuidString
         self.phoneID = AppConfig.phoneID
         self.action = action
@@ -94,6 +98,7 @@ struct VehicleCommand: Codable {
         self.obdAdapter = obdAdapter
         self.obdClearConfirmed = obdClearConfirmed
         self.ownerTarget = ownerTarget
+        self.wifiSettings = wifiSettings
     }
 
     func encode(to encoder: Encoder) throws {
@@ -112,7 +117,14 @@ struct VehicleCommand: Codable {
         try container.encodeIfPresent(obdAdapter, forKey: .obdAdapter)
         try container.encodeIfPresent(obdClearConfirmed, forKey: .obdClearConfirmed)
         try container.encodeIfPresent(ownerTarget, forKey: .ownerTarget)
+        try container.encodeIfPresent(wifiSettings, forKey: .wifiSettings)
     }
+}
+
+struct ESPWiFiSettings: Codable, Equatable {
+    var enabled: Bool
+    var ssid: String
+    var password: String
 }
 
 struct KeylessPresence: Codable, Equatable {
@@ -255,6 +267,15 @@ struct BenchEvent: Identifiable, Equatable {
         case .eventAck:
             title = "تأكيد استلام حدث ESP"
             icon = "checkmark.circle.fill"
+        case .wifiConfig:
+            title = "تحديث Wi-Fi للـESP"
+            icon = "wifi"
+        case .wifiSearch:
+            title = "بحث شبكات Wi-Fi"
+            icon = "magnifyingglass"
+        case .wifiForget:
+            title = "نسيان شبكة Wi-Fi"
+            icon = "wifi.slash"
         }
     }
 
