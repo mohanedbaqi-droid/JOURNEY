@@ -440,9 +440,12 @@ struct ContentView: View {
                         .font(.system(size: 23, weight: .black, design: .rounded))
                         .tracking(5)
                     Text(device.name).font(.headline)
-                    Label(vehicle.online ? device.deviceID : "غير متصل", systemImage: "location.fill")
+                    Label(
+                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains("متصل") ? "ONLINE • Wi-Fi" : device.deviceID) : "غير متصل",
+                        systemImage: vehicle.cloudConnected ? "cloud.fill" : "location.fill"
+                    )
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.52))
+                        .foregroundStyle(vehicle.cloudConnected ? .green.opacity(0.82) : .white.opacity(0.52))
                 }
                 .fixedSize(horizontal: true, vertical: false)
                 Spacer()
@@ -457,11 +460,11 @@ struct ContentView: View {
         Button { showingMQTTSettings = true } label: {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
-                    Image(systemName: "cellularbars")
-                    Text(state.cellularNetwork == "غير متاح" ? "—" : state.cellularNetwork.uppercased())
+                    Image(systemName: state.cloudConnected ? "wifi" : "cellularbars")
+                    Text(state.cloudConnected ? "NET" : (state.cellularNetwork == "غير متاح" ? "—" : state.cellularNetwork.uppercased()))
                 }
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(networkColor(for: state.cellularSignalDBm))
+                .foregroundStyle(state.cloudConnected ? .green : networkColor(for: state.cellularSignalDBm))
                 bluetoothDotIndicator(rssi: state.bluetoothRSSI)
             }
             .frame(width: 58, height: 58)
@@ -2237,6 +2240,8 @@ private struct MQTTSettingsView: View {
                     if !vehicle.wifiIP.isEmpty {
                         LabeledContent("IP", value: vehicle.wifiIP)
                     }
+                    LabeledContent("التحكم عن بُعد", value: vehicle.cloudConnected ? "ONLINE عبر الإنترنت" : "غير متصل بالسحابة")
+                        .foregroundStyle(vehicle.cloudConnected ? .green : .secondary)
 
                     Button {
                         searchWifi()
@@ -2375,8 +2380,8 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.8 (39)")
-                LabeledContent("Firmware المطلوب", value: "v12.60")
+                LabeledContent("إصدار التطبيق", value: "2.4.9 (40)")
+                LabeledContent("Firmware المطلوب", value: "v12.61")
             }
             Section("التحديث") {
                 Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
