@@ -538,6 +538,10 @@ final class MQTTService: ObservableObject {
                 merged.cellularNetwork = state.cellularNetwork
                 merged.cellularSignalDBm = state.cellularSignalDBm
                 merged.cellularStatus = state.cellularStatus
+                merged.hotspotEnabled = state.hotspotEnabled
+                merged.hotspotRunning = state.hotspotRunning
+                merged.hotspotSSID = state.hotspotSSID
+                merged.internetRoute = state.internetRoute
             } else if state.wifiStatePacket {
                 merged.wifiEnabled = state.wifiEnabled
                 merged.wifiConnected = state.wifiConnected
