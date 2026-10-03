@@ -242,7 +242,7 @@ constexpr uint32_t GENERAL_WIFI_RETRY_MS = 10000;
 // ESP cloud uplink priority remains cellular PPP first, then Wi-Fi STA.
 bool hotspotEnabled = false;
 String hotspotSsid = "JOURNEY-4G";
-String hotspotPassword = "Journey2017";
+String hotspotPassword = "";
 bool hotspotRunning = false;
 enum class InternetRoute : uint8_t { NONE, CELLULAR, WIFI };
 InternetRoute activeInternetRoute = InternetRoute::NONE;
@@ -388,7 +388,7 @@ void applyHotspot() {
     return;
   }
   if (hotspotRunning) return;
-  if (hotspotPassword.length() < 8) hotspotPassword = "Journey2017";
+  if (hotspotPassword.length() < 8) { Serial0.println("[HOTSPOT] password_required"); return; }
   IPAddress ap_ip(192, 168, 8, 1);
   IPAddress ap_mask(255, 255, 255, 0);
   IPAddress lease(192, 168, 8, 2);
@@ -1682,6 +1682,11 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
       lastEvent = "obd_transport_invalid";
     } else if (name.isEmpty()) {
       lastEvent = "obd_adapter_name_required";
+    } else if (transport == "WIFI" && generalWifiEnabled) {
+      // ESP32 has one Wi-Fi STA interface. Do not let an OBD Wi-Fi adapter
+      // steal the STA connection used for the normal Internet/MQTT uplink.
+      lastEvent = "obd_wifi_conflicts_with_general_wifi";
+      Serial0.println("[OBD WIFI] rejected: disable general Wi-Fi first (cellular/BLE remain available)");
     } else {
       obd.setPreferredAdapter(name, transport, password, host, port);
       lastEvent = "obd_adapter_saved";
@@ -1864,6 +1869,15 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     String ssid = doc["wifiSettings"]["ssid"] | "";
     String password = doc["wifiSettings"]["password"] | "";
     ssid.trim();
+    // OBD Wi-Fi and normal Internet Wi-Fi cannot use different SSIDs at
+    // the same time because ESP32 exposes a single STA interface.
+    if (enabled && String(obd.statusText()).startsWith("wifi_")) {
+      lastCommandId = id;
+      lastEvent = "general_wifi_conflicts_with_obd_wifi";
+      Serial0.println("[WIFI] rejected: OBD Wi-Fi owns STA; select BLE OBD or forget OBD Wi-Fi first");
+      publishState();
+      return;
+    }
     generalWifiEnabled = enabled;
     if (!ssid.isEmpty()) {
       generalWifiSsid = ssid;
@@ -2151,7 +2165,7 @@ void setup() {
   cellularSimPin = preferences.getString("cellPin", "");
   hotspotEnabled = preferences.getBool("hotspotEnabled", false);
   hotspotSsid = preferences.getString("hotspotSsid", "JOURNEY-4G");
-  hotspotPassword = preferences.getString("hotspotPass", "Journey2017");
+  hotspotPassword = preferences.getString("hotspotPass", "");
   connectionPriorityCsv = preferences.getString("connPriority", "CELLULAR,WIFI,BLE");
   if (!validConnectionPriority(connectionPriorityCsv)) connectionPriorityCsv = "CELLULAR,WIFI,BLE";
   cellularStatus = cellularEnabled ? "checking" : "disabled";
