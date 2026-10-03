@@ -2245,6 +2245,9 @@ private struct MQTTSettingsView: View {
                     }
 
                     Text("البحث يدوي فقط، وماكو Scan مستمر. بهالشكل نقلل تأثير Wi-Fi على BLE أثناء الاستخدام الطبيعي.")
+                    Text("إذا الإنترنت شغال، أوامر السيارة تروح MQTT عبر الشريحة أو Wi-Fi؛ BLE يبقى للدخول الذكي، ويرجع fallback محلي فقط إذا انقطع الإنترنت.")
+                        .font(.footnote)
+                        .foregroundStyle(.green)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
@@ -2564,8 +2567,8 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.11 (42)")
-                LabeledContent("Firmware المطلوب", value: "v12.63")
+                LabeledContent("إصدار التطبيق", value: "2.4.12 (43)")
+                LabeledContent("Firmware المطلوب", value: "v12.64")
             }
             Section("التحديث") {
                 Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
