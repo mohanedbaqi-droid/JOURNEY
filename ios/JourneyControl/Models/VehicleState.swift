@@ -8,6 +8,7 @@ struct VehicleState: Codable {
     var ownerStateKnown = false
     var coreStatePacket = false
     var obdTelemetryPacket = false
+    var wifiStatePacket = false
     var vehicleEventPacket = false
     var vehicleEventId = ""
     var vehicleEventType = ""
@@ -78,6 +79,15 @@ struct VehicleState: Codable {
     var remotePowerOffDelayMs = 2000
     var hudBrightness = 5
     var otaAddress = ""
+    var wifiEnabled = false
+    var wifiConnected = false
+    var wifiSSID = ""
+    var wifiRSSI = -120
+    var wifiIP = ""
+    var wifiStatus = "off"
+    var wifiDiscoveredNetworks = ""
+    var wifiDiscoveryReset = false
+    var wifiDiscoveryDone = false
     var maintenanceMode = false
     var powerSaveMode = 0
     var powerSaveIdleMinutes = 30
@@ -118,13 +128,13 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
+        case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
         case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn
         case cellularNetwork, cellularSignalDBm, bluetoothRSSI, espSleeping
         case gpsValid, latitude, longitude, obdConnected, obdStatus, obdResponseRate, obdTotalResponses, obdScanProgress, obdScannedPids, obdSupportedPids, obdStandardScanComplete, obdCurrentPid, obdLastReply, obdAdapterName, obdDiscoveredAdapters, obdDiscoveredWifiNetworks, obdDiscoveryKind, obdDiscoveryReset, obdDiscoveryDone, obdClearInProgress
         case rpm, speedKph, coolantC, intakeAirC, engineLoadPercent, throttlePercent, fuelLevelPercent, fuelLevelValid, engineRuntimeSeconds, controlVoltage
         case batteryVoltage, canAwake, ignitionState, diagnosticCodes
-        case lastEvent, uptimeSeconds, remotePulseMs, remoteWakeDelayMs, remotePowerOffDelayMs, hudBrightness, otaAddress, maintenanceMode, powerSaveMode, powerSaveIdleMinutes, powerSaveActive
+        case lastEvent, uptimeSeconds, remotePulseMs, remoteWakeDelayMs, remotePowerOffDelayMs, hudBrightness, otaAddress, wifiEnabled, wifiConnected, wifiSSID, wifiRSSI, wifiIP, wifiStatus, wifiDiscoveredNetworks, wifiDiscoveryReset, wifiDiscoveryDone, maintenanceMode, powerSaveMode, powerSaveIdleMinutes, powerSaveActive
     }
 
     init() {}
@@ -140,7 +150,8 @@ struct VehicleState: Codable {
         let fullObdTelemetryPacket = try box.decodeIfPresent(Bool.self, forKey: .obdTelemetryPacket) ?? false
         let compactObdTelemetryPacket = (try compact.decodeIfPresent(Int.self, forKey: .obdTelemetry) ?? 0) == 1
         obdTelemetryPacket = fullObdTelemetryPacket || compactObdTelemetryPacket
-        if obdTelemetryPacket { partialState = true }
+        wifiStatePacket = try box.decodeIfPresent(Bool.self, forKey: .wifiStatePacket) ?? false
+        if obdTelemetryPacket || wifiStatePacket { partialState = true }
         vehicleEventPacket = try box.decodeIfPresent(Bool.self, forKey: .vehicleEventPacket) ?? false
         vehicleEventId = try box.decodeIfPresent(String.self, forKey: .vehicleEventId) ?? ""
         vehicleEventType = try box.decodeIfPresent(String.self, forKey: .vehicleEventType) ?? ""
@@ -209,6 +220,15 @@ struct VehicleState: Codable {
         remotePowerOffDelayMs = try box.decodeIfPresent(Int.self, forKey: .remotePowerOffDelayMs) ?? 2000
         hudBrightness = try box.decodeIfPresent(Int.self, forKey: .hudBrightness) ?? 5
         otaAddress = try box.decodeIfPresent(String.self, forKey: .otaAddress) ?? ""
+        wifiEnabled = try box.decodeIfPresent(Bool.self, forKey: .wifiEnabled) ?? false
+        wifiConnected = try box.decodeIfPresent(Bool.self, forKey: .wifiConnected) ?? false
+        wifiSSID = try box.decodeIfPresent(String.self, forKey: .wifiSSID) ?? ""
+        wifiRSSI = try box.decodeIfPresent(Int.self, forKey: .wifiRSSI) ?? -120
+        wifiIP = try box.decodeIfPresent(String.self, forKey: .wifiIP) ?? ""
+        wifiStatus = try box.decodeIfPresent(String.self, forKey: .wifiStatus) ?? "off"
+        wifiDiscoveredNetworks = try box.decodeIfPresent(String.self, forKey: .wifiDiscoveredNetworks) ?? ""
+        wifiDiscoveryReset = try box.decodeIfPresent(Bool.self, forKey: .wifiDiscoveryReset) ?? false
+        wifiDiscoveryDone = try box.decodeIfPresent(Bool.self, forKey: .wifiDiscoveryDone) ?? false
         maintenanceMode = try box.decodeIfPresent(Bool.self, forKey: .maintenanceMode) ?? false
         powerSaveMode = try box.decodeIfPresent(Int.self, forKey: .powerSaveMode) ?? 0
         powerSaveIdleMinutes = try box.decodeIfPresent(Int.self, forKey: .powerSaveIdleMinutes) ?? 30
