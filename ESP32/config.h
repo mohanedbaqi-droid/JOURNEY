@@ -7,7 +7,7 @@
 constexpr bool ENABLE_WIFI = false;
 // Local Wi-Fi used only for firmware updates from the iPhone.
 constexpr bool ENABLE_LOCAL_OTA_AP = true;
-constexpr char OTA_AP_PASSWORD[] = "Journey2017";
+constexpr char OTA_AP_PASSWORD[] = "CHANGE_ME";
 constexpr bool ENABLE_CELLULAR = true;
 // APN for downloading a firmware URL through the SIM7670/SIM7600 modem.
 constexpr char CELLULAR_APN[] = "internet";
