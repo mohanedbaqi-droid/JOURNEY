@@ -188,6 +188,43 @@ final class MQTTService: ObservableObject {
         return cachedOwnerState(for: deviceID) ?? VehicleState()
     }
 
+    private func cloudPathAvailable(for deviceID: String) -> Bool {
+        guard connection == .connected, client != nil,
+              let state = vehicles[deviceID],
+              state.cloudConnected,
+              let seenAt = lastStateAt[deviceID],
+              Date().timeIntervalSince(seenAt) <= 6.0
+        else { return false }
+        return true
+    }
+
+    private func isKeylessAction(_ action: BenchAction) -> Bool {
+        switch action {
+        case .keylessUnlock, .keylessLock, .keylessPresence, .keylessConfig:
+            return true
+        default:
+            return false
+        }
+    }
+
+    @discardableResult
+    private func publishCloud(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        guard cloudPathAvailable(for: deviceID), let client else { return false }
+        do {
+            let data = try JSONEncoder().encode(command)
+            guard let json = String(data: data, encoding: .utf8) else { return false }
+            client.publish(AppConfig.commandTopic(for: deviceID), withString: json, qos: .qos1, retained: false)
+            lastCommand = command.action
+            lastCommandAt = Date()
+            record(command.action)
+            lastError = nil
+            return true
+        } catch {
+            lastError = error.localizedDescription
+            return false
+        }
+    }
+
     /// Registers the selected ESP32 for BLE background reconnection.
     func prepareBluetooth(for deviceID: String) {
         restoreCachedOwnerStateIfNeeded(for: deviceID)
@@ -204,46 +241,34 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     func send(_ action: BenchAction, to deviceID: String) -> Bool {
-        // A broker may be connected while the ESP is offline. Prefer the
-        // confirmed nearby BLE command channel in that case.
-        if bluetooth.isConnected(to: deviceID), bluetooth.send(action, to: deviceID) {
-            // Do not fake button feedback locally. Wait for the ESP event/state.
-            lastCommand = action
-            lastCommandAt = Date()
-            record(action)
-            lastError = nil
-            return true
-        }
-        guard connection == .connected, let client else {
-            if bluetooth.send(action, to: deviceID) {
-                // Command is queued while BLE reconnects. Feedback comes only
-                // from the ESP after the real remote output becomes active.
+        let command = VehicleCommand(action: action)
+
+        // New routing policy:
+        // - Keyless stays on BLE for the lowest latency.
+        // - Every other control uses Internet/MQTT whenever the ESP has a live cloud path.
+        // - BLE is only an emergency local fallback when the Internet path is actually down.
+        if isKeylessAction(action) {
+            if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
                 lastCommand = action
                 lastCommandAt = Date()
                 record(action)
                 lastError = nil
                 return true
             }
-            lastError = "لا يوجد إنترنت ولا اتصال BLE؛ فعّل البلوتوث واقترب من السيارة"
-            return false
+            if publishCloud(command, to: deviceID) { return true }
+        } else {
+            if publishCloud(command, to: deviceID) { return true }
+            if bluetooth.send(command, to: deviceID) {
+                lastCommand = action
+                lastCommandAt = Date()
+                record(action)
+                lastError = nil
+                return true
+            }
         }
 
-        do {
-            let data = try JSONEncoder().encode(VehicleCommand(action: action))
-            guard let json = String(data: data, encoding: .utf8) else {
-                lastError = "تعذر تجهيز الأمر"
-                return false
-            }
-            client.publish(AppConfig.commandTopic(for: deviceID), withString: json, qos: .qos1, retained: false)
-            lastCommand = action
-            lastCommandAt = Date()
-            record(action)
-            lastError = nil
-            return true
-        } catch {
-            lastError = error.localizedDescription
-            return false
-        }
+        lastError = "لا يوجد مسار إنترنت فعّال، وBLE المحلي غير متاح"
+        return false
     }
 
     /// Saves the desired smart-entry behaviour in the ESP32.  The ESP32 must
@@ -252,118 +277,36 @@ final class MQTTService: ObservableObject {
     func sendKeylessConfig(_ config: KeylessEntryConfig, to deviceID: String) -> Bool {
         bluetooth.configureKeyless(config, for: deviceID)
         let command = VehicleCommand(action: .keylessConfig, keyless: config)
-        // Registration must be delivered to the live local ESP, even when
-        // the phone's MQTT connection is also active.
-        if bluetooth.isConnected(to: deviceID), bluetooth.send(VehicleCommand(action: .ownerRegister), to: deviceID) {
-            lastCommand = .keylessConfig
-            lastCommandAt = Date()
-            record(.keylessConfig)
-            lastError = nil
-            return true
-        }
-        guard connection == .connected, let client else {
-            if bluetooth.send(command, to: deviceID) {
-                lastCommand = .keylessConfig
-                lastCommandAt = Date()
-                record(.keylessConfig)
-                lastError = nil
-                return true
-            }
-            lastError = "لا يوجد إنترنت ولا اتصال BLE؛ فعّل البلوتوث واقترب من السيارة"
-            return false
-        }
 
-        do {
-            let data = try JSONEncoder().encode(command)
-            guard let json = String(data: data, encoding: .utf8) else {
-                lastError = "تعذر تجهيز إعدادات الدخول الذكي"
-                return false
-            }
-            client.publish(AppConfig.commandTopic(for: deviceID), withString: json, qos: .qos1, retained: false)
+        // Keyless configuration remains BLE-first by design.
+        if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
             lastCommand = .keylessConfig
             lastCommandAt = Date()
             record(.keylessConfig)
             lastError = nil
             return true
-        } catch {
-            lastError = error.localizedDescription
-            return false
         }
+        if publishCloud(command, to: deviceID) { return true }
+
+        lastError = "تعذر إرسال إعدادات الدخول الذكي"
+        return false
     }
 
     @discardableResult
     func sendESPSettings(_ settings: ESPRuntimeSettings, to deviceID: String) -> Bool {
-        let command = VehicleCommand(action: .espSettings, espSettings: settings)
-        guard connection == .connected, let client else {
-            if bluetooth.send(command, to: deviceID) {
-                lastCommand = .espSettings
-                lastCommandAt = Date()
-                record(.espSettings)
-                lastError = nil
-                return true
-            }
-            lastError = "تعذر الاتصال بـ ESP عبر BLE أو الإنترنت"
-            return false
-        }
-        do {
-            let data = try JSONEncoder().encode(command)
-            guard let json = String(data: data, encoding: .utf8) else { return false }
-            client.publish(AppConfig.commandTopic(for: deviceID), withString: json, qos: .qos1, retained: false)
-            lastCommand = .espSettings
-            lastCommandAt = Date()
-            record(.espSettings)
-            lastError = nil
-            return true
-        } catch {
-            lastError = error.localizedDescription
-            return false
-        }
+        sendESPCommand(VehicleCommand(action: .espSettings, espSettings: settings), to: deviceID)
     }
 
     @discardableResult
     func sendFirmwareURL(_ url: String, to deviceID: String) -> Bool {
-        let command = VehicleCommand(action: .otaURL, firmwareURL: url)
-        guard connection == .connected, let client else {
-            if bluetooth.send(command, to: deviceID) {
-                lastCommand = .otaURL
-                lastCommandAt = Date()
-                record(.otaURL)
-                lastError = nil
-                return true
-            }
-            lastError = "تعذر إرسال رابط التحديث"
-            return false
-        }
-        do {
-            let data = try JSONEncoder().encode(command)
-            guard let json = String(data: data, encoding: .utf8) else { return false }
-            client.publish(AppConfig.commandTopic(for: deviceID), withString: json, qos: .qos1, retained: false)
-            lastCommand = .otaURL
-            lastCommandAt = Date()
-            record(.otaURL)
-            lastError = nil
-            return true
-        } catch {
-            lastError = error.localizedDescription
-            return false
-        }
+        sendESPCommand(VehicleCommand(action: .otaURL, firmwareURL: url), to: deviceID)
     }
 
     @discardableResult
     func sendESPCommand(_ command: VehicleCommand, to deviceID: String) -> Bool {
-        // OBD setup must reach the nearby ESP immediately. A remembered or
-        // stale MQTT session must not steal this command from the BLE link.
-        if bluetooth.send(command, to: deviceID) {
-            // Show the first-owner action immediately after the GATT write.
-            // The following ESP state notification remains authoritative.
-            applyLocal(command.action, to: deviceID)
-            lastCommand = command.action
-            lastCommandAt = Date()
-            record(command.action)
-            lastError = nil
-            return true
-        }
-        guard connection == .connected, let client else {
+        // Keep BLE bandwidth for keyless. Settings/OBD/owner/event ACK use the
+        // live Internet path first and fall back to BLE only when cloud is down.
+        if isKeylessAction(command.action) {
             if bluetooth.send(command, to: deviceID) {
                 applyLocal(command.action, to: deviceID)
                 lastCommand = command.action
@@ -372,22 +315,21 @@ final class MQTTService: ObservableObject {
                 lastError = nil
                 return true
             }
-            lastError = "تعذر الاتصال بـ ESP"
-            return false
+            if publishCloud(command, to: deviceID) { return true }
+        } else {
+            if publishCloud(command, to: deviceID) { return true }
+            if bluetooth.send(command, to: deviceID) {
+                applyLocal(command.action, to: deviceID)
+                lastCommand = command.action
+                lastCommandAt = Date()
+                record(command.action)
+                lastError = nil
+                return true
+            }
         }
-        do {
-            let data = try JSONEncoder().encode(command)
-            guard let json = String(data: data, encoding: .utf8) else { return false }
-            client.publish(AppConfig.commandTopic(for: deviceID), withString: json, qos: .qos1, retained: false)
-            lastCommand = command.action
-            lastCommandAt = Date()
-            record(command.action)
-            lastError = nil
-            return true
-        } catch {
-            lastError = error.localizedDescription
-            return false
-        }
+
+        lastError = "تعذر الاتصال بـ ESP"
+        return false
     }
 
     /// v12.37: commands never fake vehicle/remote state locally.
