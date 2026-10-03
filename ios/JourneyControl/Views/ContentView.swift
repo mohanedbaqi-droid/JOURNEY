@@ -2090,6 +2090,8 @@ private struct MQTTSettingsView: View {
     @State private var hotspotSSID = "JOURNEY-4G"
     @State private var hotspotPassword = "Journey2017"
     @State private var cellularMessage: String?
+    @State private var connectionPriority: [String] = ["CELLULAR", "WIFI", "BLE"]
+    @State private var priorityMessage: String?
 
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
     @AppStorage("journey.settings.textSize") private var textSize = "normal"
@@ -2168,6 +2170,56 @@ private struct MQTTSettingsView: View {
                         .foregroundStyle(.green)
                 } header: {
                     Label("الإشعارات", systemImage: "bell.badge.fill")
+                }
+
+                Section {
+                    ForEach(Array(connectionPriority.enumerated()), id: \.element) { index, route in
+                        HStack(spacing: 12) {
+                            Text("\(index + 1)")
+                                .font(.caption.bold())
+                                .frame(width: 24, height: 24)
+                                .background(.cyan.opacity(0.16), in: Circle())
+
+                            Label(priorityTitle(route), systemImage: priorityIcon(route))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            Button {
+                                movePriority(at: index, offset: -1)
+                            } label: {
+                                Image(systemName: "arrow.up")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(index == 0)
+
+                            Button {
+                                movePriority(at: index, offset: 1)
+                            } label: {
+                                Image(systemName: "arrow.down")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(index == connectionPriority.count - 1)
+                        }
+                    }
+
+                    Button {
+                        saveConnectionPriority()
+                    } label: {
+                        Label("حفظ ترتيب الأولوية", systemImage: "checkmark.circle.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selectedDeviceID == nil)
+
+                    if let priorityMessage {
+                        Text(priorityMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("ارفع أو نزّل أي مسار. الأوامر العادية تتبع هذا التسلسل، بينما الدخول الذكي Keyless يبقى BLE أولاً حتى يظل سريع.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Label("أولوية الاتصال", systemImage: "arrow.up.arrow.down")
                 }
 
                 Section {
@@ -2412,7 +2464,56 @@ private struct MQTTSettingsView: View {
                 if !vehicle.cellularAPN.isEmpty { cellularAPN = vehicle.cellularAPN }
                 hotspotEnabled = vehicle.hotspotEnabled
                 if !vehicle.hotspotSSID.isEmpty { hotspotSSID = vehicle.hotspotSSID }
+                loadConnectionPriority()
             }
+        }
+    }
+
+    private func loadConnectionPriority() {
+        let raw = UserDefaults.standard.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,WIFI,BLE"
+        let values = raw.split(separator: ",").map(String.init)
+        if values.count == 3 && Set(values) == Set(["BLE", "CELLULAR", "WIFI"]) {
+            connectionPriority = values
+        } else {
+            connectionPriority = ["CELLULAR", "WIFI", "BLE"]
+        }
+    }
+
+    private func movePriority(at index: Int, offset: Int) {
+        let target = index + offset
+        guard connectionPriority.indices.contains(index),
+              connectionPriority.indices.contains(target) else { return }
+        connectionPriority.swapAt(index, target)
+        priorityMessage = nil
+    }
+
+    private func saveConnectionPriority() {
+        guard let id = selectedDeviceID else {
+            priorityMessage = "ماكو ESP محدد"
+            return
+        }
+        if mqtt.saveConnectionPriority(connectionPriority, to: id) {
+            priorityMessage = "انحفظ الترتيب بالآيفون وانرسل للـESP"
+        } else {
+            priorityMessage = mqtt.lastError ?? "تعذر حفظ الأولوية"
+        }
+    }
+
+    private func priorityTitle(_ route: String) -> String {
+        switch route {
+        case "BLE": return "Bluetooth BLE"
+        case "CELLULAR": return "الشريحة / 4G"
+        case "WIFI": return "Wi-Fi"
+        default: return route
+        }
+    }
+
+    private func priorityIcon(_ route: String) -> String {
+        switch route {
+        case "BLE": return "bolt.horizontal.circle"
+        case "CELLULAR": return "cellularbars"
+        case "WIFI": return "wifi"
+        default: return "questionmark.circle"
         }
     }
 
@@ -2567,8 +2668,8 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.12 (43)")
-                LabeledContent("Firmware المطلوب", value: "v12.64")
+                LabeledContent("إصدار التطبيق", value: "2.4.13 (44)")
+                LabeledContent("Firmware المطلوب", value: "v12.65")
             }
             Section("التحديث") {
                 Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
