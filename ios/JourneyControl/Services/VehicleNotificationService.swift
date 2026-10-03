@@ -8,13 +8,30 @@ import UserNotifications
 final class VehicleNotificationService {
     static let shared = VehicleNotificationService()
 
+    private let defaults = UserDefaults.standard
+    private let proximityNearKey = "journey.notification.proximity.near"
+
     private init() {}
 
     @discardableResult
     func notifyVehicleEvent(id: String, type: String, text: String, vehicleName: String) -> Bool {
         guard !id.isEmpty else { return false }
         let key = "journey.vehicle.event.delivered.\(id)"
-        if UserDefaults.standard.bool(forKey: key) { return true }
+        if defaults.bool(forKey: key) { return true }
+
+        if type == "keyless_presence_near" {
+            if defaults.bool(forKey: proximityNearKey) {
+                defaults.set(true, forKey: key)
+                return true
+            }
+            defaults.set(true, forKey: proximityNearKey)
+        } else if type == "keyless_presence_far" {
+            if !defaults.bool(forKey: proximityNearKey) {
+                defaults.set(true, forKey: key)
+                return true
+            }
+            defaults.set(false, forKey: proximityNearKey)
+        }
 
         let content = UNMutableNotificationContent()
         content.title = vehicleName
@@ -24,7 +41,7 @@ final class VehicleNotificationService {
         content.categoryIdentifier = "JOURNEY_VEHICLE"
         let request = UNNotificationRequest(identifier: "journey.event.\(id)", content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
-        UserDefaults.standard.set(true, forKey: key)
+        defaults.set(true, forKey: key)
         return true
     }
 
@@ -71,9 +88,8 @@ final class VehicleNotificationService {
         if old.simulatedDoorsOpen != new.simulatedDoorsOpen {
             changes.append(new.simulatedDoorsOpen ? "الباب مفتوح" : "الأبواب مغلقة")
         }
-        if old.simulatedEngineRunning != new.simulatedEngineRunning {
-            changes.append(new.simulatedEngineRunning ? "المحرك اشتغل" : "المحرك انطفأ")
-        }
+        // Engine start/stop notifications come only from explicit OBD events.
+        // Transient OBD timeouts must not generate false shutdown/start alerts.
         if old.remotePowered != new.remotePowered {
             changes.append(new.remotePowered ? "الريموت اشتغل" : "الريموت انطفأ بعد تنفيذ المهمة")
         }
