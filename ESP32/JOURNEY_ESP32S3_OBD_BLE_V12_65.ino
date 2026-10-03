@@ -249,6 +249,9 @@ InternetRoute activeInternetRoute = InternetRoute::NONE;
 // v12.65: user-configurable priority for normal vehicle commands/uplink.
 // Keyless/proximity remains BLE-first regardless of this list.
 String connectionPriorityCsv = "CELLULAR,WIFI,BLE";
+// True while a Wi-Fi OBD adapter owns the single STA interface. General Wi-Fi
+// settings stay saved and resume automatically when OBD returns to BLE.
+bool obdWifiStaReserved = false;
 enum class CommandSource : uint8_t { BLE, MQTT };
 
 bool settingsReady() {
@@ -1682,14 +1685,21 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
       lastEvent = "obd_transport_invalid";
     } else if (name.isEmpty()) {
       lastEvent = "obd_adapter_name_required";
-    } else if (transport == "WIFI" && generalWifiEnabled) {
-      // ESP32 has one Wi-Fi STA interface. Do not let an OBD Wi-Fi adapter
-      // steal the STA connection used for the normal Internet/MQTT uplink.
-      lastEvent = "obd_wifi_conflicts_with_general_wifi";
-      Serial0.println("[OBD WIFI] rejected: disable general Wi-Fi first (cellular/BLE remain available)");
     } else {
+      obdWifiStaReserved = (transport == "WIFI");
+      if (obdWifiStaReserved) {
+        // Preserve router credentials/settings, but give the only STA to OBD.
+        mqtt.disconnect();
+        WiFi.disconnect(false, false);
+        generalWifiStatus = "paused_for_obd_wifi";
+        Serial0.println("[OBD WIFI] STA reserved; general Wi-Fi paused (settings preserved)");
+      } else if (generalWifiEnabled && !generalWifiSsid.isEmpty()) {
+        // Returning to BLE releases STA and restores normal Internet Wi-Fi.
+        generalWifiLastConnectAttemptAt = 0;
+        generalWifiStatus = "disconnected";
+      }
       obd.setPreferredAdapter(name, transport, password, host, port);
-      lastEvent = "obd_adapter_saved";
+      lastEvent = obdWifiStaReserved ? "obd_wifi_saved_general_wifi_paused" : "obd_adapter_saved";
     }
     lastCommandId = id;
     publishState();
@@ -1705,6 +1715,11 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   }
   if (action == "obd_forget") {
     obd.forgetPreferredAdapter();
+    obdWifiStaReserved = false;
+    if (generalWifiEnabled && !generalWifiSsid.isEmpty()) {
+      generalWifiLastConnectAttemptAt = 0;
+      generalWifiStatus = "disconnected";
+    }
     lastCommandId = id;
     lastEvent = "obd_adapter_forgotten";
     publishState();
@@ -2039,6 +2054,7 @@ void handleCommand(char* topic, byte* bytes, unsigned int length) {
 }
 
 void connectWifi() {
+  if (obdWifiStaReserved) { generalWifiStatus = "paused_for_obd_wifi"; return; }
   if (!generalWifiEnabled || generalWifiSsid.isEmpty()) return;
   if (WiFi.status() == WL_CONNECTED) return;
   if (millis() - generalWifiLastConnectAttemptAt < GENERAL_WIFI_RETRY_MS) return;
@@ -2050,6 +2066,16 @@ void connectWifi() {
 }
 
 void pollGeneralWifi() {
+  if (obdWifiStaReserved) {
+    if (generalWifiScanRequested || generalWifiScanActive) {
+      generalWifiScanRequested = false;
+      generalWifiScanActive = false;
+      WiFi.scanDelete();
+      generalWifiDiscoveryDirty = true;
+    }
+    generalWifiStatus = "paused_for_obd_wifi";
+    return;
+  }
   if (generalWifiScanRequested && !generalWifiScanActive) {
     generalWifiScanRequested = false;
     WiFi.mode(hotspotEnabled ? WIFI_AP_STA : WIFI_STA);
