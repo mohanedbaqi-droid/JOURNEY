@@ -2086,6 +2086,9 @@ private struct MQTTSettingsView: View {
     @State private var cellularUsername = ""
     @State private var cellularPassword = ""
     @State private var cellularSimPin = ""
+    @State private var hotspotEnabled = false
+    @State private var hotspotSSID = "JOURNEY-4G"
+    @State private var hotspotPassword = "Journey2017"
     @State private var cellularMessage: String?
 
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
@@ -2272,6 +2275,8 @@ private struct MQTTSettingsView: View {
                     }
                     LabeledContent("تسجيل الشبكة", value: vehicle.cellularRegistered ? "مسجل" : "غير مسجل")
                     LabeledContent("بيانات الإنترنت", value: vehicle.cellularDataAttached ? "متصلة" : "غير متصلة")
+                    LabeledContent("مسار الإنترنت", value: vehicle.internetRoute == "CELLULAR" ? "الشريحة" : (vehicle.internetRoute == "WIFI" ? "Wi-Fi" : "غير متصل"))
+                        .foregroundStyle(vehicle.internetRoute == "CELLULAR" ? .green : .secondary)
 
                     TextField("APN", text: $cellularAPN)
                         .textInputAutocapitalization(.never)
@@ -2282,6 +2287,25 @@ private struct MQTTSettingsView: View {
                     SecureField("كلمة مرور APN - اختيارية", text: $cellularPassword)
                     SecureField("SIM PIN - إذا الشريحة تحتاجه", text: $cellularSimPin)
                         .keyboardType(.numberPad)
+
+                    Toggle("بث نت الشريحة كنقطة اتصال", isOn: $hotspotEnabled)
+                        .tint(.green)
+                    if hotspotEnabled {
+                        TextField("اسم نقطة الاتصال", text: $hotspotSSID)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        SecureField("كلمة مرور نقطة الاتصال", text: $hotspotPassword)
+                        HStack {
+                            Label(vehicle.hotspotRunning ? "نقطة الاتصال شغالة" : "نقطة الاتصال متوقفة", systemImage: vehicle.hotspotRunning ? "personalhotspot" : "personalhotspot.slash")
+                                .foregroundStyle(vehicle.hotspotRunning ? .green : .secondary)
+                            Spacer()
+                            if vehicle.hotspotRunning {
+                                Text(vehicle.hotspotSSID)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
 
                     HStack {
                         Button {
@@ -2383,6 +2407,8 @@ private struct MQTTSettingsView: View {
                 if wifiSSID.isEmpty { wifiSSID = vehicle.wifiSSID }
                 cellularEnabled = vehicle.cellularEnabled
                 if !vehicle.cellularAPN.isEmpty { cellularAPN = vehicle.cellularAPN }
+                hotspotEnabled = vehicle.hotspotEnabled
+                if !vehicle.hotspotSSID.isEmpty { hotspotSSID = vehicle.hotspotSSID }
             }
         }
     }
@@ -2449,7 +2475,10 @@ private struct MQTTSettingsView: View {
             apn: cellularAPN,
             username: cellularUsername,
             password: cellularPassword,
-            simPin: cellularSimPin
+            simPin: cellularSimPin,
+            hotspotEnabled: hotspotEnabled,
+            hotspotSSID: hotspotSSID,
+            hotspotPassword: hotspotPassword
         )
         _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
         cellularMessage = enabled ? "تم إرسال أمر تشغيل الشريحة" : "تم إرسال أمر إطفاء بيانات الشريحة"
@@ -2471,7 +2500,10 @@ private struct MQTTSettingsView: View {
             apn: apn,
             username: cellularUsername,
             password: cellularPassword,
-            simPin: cellularSimPin
+            simPin: cellularSimPin,
+            hotspotEnabled: hotspotEnabled,
+            hotspotSSID: hotspotSSID,
+            hotspotPassword: hotspotPassword
         )
         _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
         cellularMessage = "تم حفظ إعدادات الشريحة وجاري الفحص"
@@ -2491,6 +2523,9 @@ private struct MQTTSettingsView: View {
         cellularUsername = ""
         cellularPassword = ""
         cellularSimPin = ""
+        hotspotEnabled = false
+        hotspotSSID = "JOURNEY-4G"
+        hotspotPassword = "Journey2017"
         cellularMessage = "تم إرسال أمر مسح إعدادات الشريحة"
     }
 
@@ -2529,8 +2564,8 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.10 (41)")
-                LabeledContent("Firmware المطلوب", value: "v12.62")
+                LabeledContent("إصدار التطبيق", value: "2.4.11 (42)")
+                LabeledContent("Firmware المطلوب", value: "v12.63")
             }
             Section("التحديث") {
                 Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
