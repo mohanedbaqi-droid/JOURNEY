@@ -530,6 +530,14 @@ final class MQTTService: ObservableObject {
                 // Keep event-driven feedback authoritative. Compact packets from
                 // older firmware omit these booleans and otherwise clear feedback instantly.
                 if !state.lastEvent.isEmpty && state.lastEvent != "waiting" { merged.lastEvent = state.lastEvent }
+            } else if state.cellularStatePacket {
+                merged.cellularEnabled = state.cellularEnabled
+                merged.cellularRegistered = state.cellularRegistered
+                merged.cellularDataAttached = state.cellularDataAttached
+                merged.cellularAPN = state.cellularAPN
+                merged.cellularNetwork = state.cellularNetwork
+                merged.cellularSignalDBm = state.cellularSignalDBm
+                merged.cellularStatus = state.cellularStatus
             } else if state.wifiStatePacket {
                 merged.wifiEnabled = state.wifiEnabled
                 merged.wifiConnected = state.wifiConnected
