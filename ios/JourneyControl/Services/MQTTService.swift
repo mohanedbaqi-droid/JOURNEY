@@ -207,6 +207,79 @@ final class MQTTService: ObservableObject {
         }
     }
 
+    private var connectionPriorityOrder: [String] {
+        let raw = defaults.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,WIFI,BLE"
+        let parsed = raw.split(separator: ",").map { String($0) }
+        let allowed = ["BLE", "CELLULAR", "WIFI"]
+        let clean = parsed.filter { allowed.contains($0) }
+        return clean.count == 3 && Set(clean).count == 3 ? clean : ["CELLULAR", "WIFI", "BLE"]
+    }
+
+    private func cloudRouteMatches(_ route: String, deviceID: String) -> Bool {
+        guard cloudPathAvailable(for: deviceID), let state = vehicles[deviceID] else { return false }
+        return state.internetRoute == route
+    }
+
+    @discardableResult
+    private func sendByConfiguredPriority(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        // Keyless remains BLE-first regardless of the configurable order.
+        if isKeylessAction(command.action) {
+            if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
+                lastCommand = command.action
+                lastCommandAt = Date()
+                record(command.action)
+                lastError = nil
+                return true
+            }
+            if publishCloud(command, to: deviceID) { return true }
+            return false
+        }
+
+        for route in connectionPriorityOrder {
+            switch route {
+            case "BLE":
+                if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
+                    lastCommand = command.action
+                    lastCommandAt = Date()
+                    record(command.action)
+                    lastError = nil
+                    return true
+                }
+            case "CELLULAR", "WIFI":
+                if cloudRouteMatches(route, deviceID: deviceID), publishCloud(command, to: deviceID) {
+                    return true
+                }
+            default:
+                break
+            }
+        }
+
+        // If the configured Internet route has just changed but state has not
+        // caught up yet, use any confirmed cloud path before giving up.
+        if publishCloud(command, to: deviceID) { return true }
+        if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
+            lastCommand = command.action
+            lastCommandAt = Date()
+            record(command.action)
+            lastError = nil
+            return true
+        }
+        return false
+    }
+
+    func saveConnectionPriority(_ order: [String], to deviceID: String) -> Bool {
+        guard order.count == 3, Set(order) == Set(["BLE", "CELLULAR", "WIFI"]) else {
+            lastError = "ترتيب الاتصال غير صحيح"
+            return false
+        }
+        defaults.set(order.joined(separator: ","), forKey: "journey.settings.connectionPriority")
+        let command = VehicleCommand(
+            action: .connectionPriority,
+            connectionPriority: ESPConnectionPriority(order: order)
+        )
+        return sendByConfiguredPriority(command, to: deviceID)
+    }
+
     @discardableResult
     private func publishCloud(_ command: VehicleCommand, to deviceID: String) -> Bool {
         guard cloudPathAvailable(for: deviceID), let client else { return false }
@@ -242,32 +315,8 @@ final class MQTTService: ObservableObject {
     @discardableResult
     func send(_ action: BenchAction, to deviceID: String) -> Bool {
         let command = VehicleCommand(action: action)
-
-        // New routing policy:
-        // - Keyless stays on BLE for the lowest latency.
-        // - Every other control uses Internet/MQTT whenever the ESP has a live cloud path.
-        // - BLE is only an emergency local fallback when the Internet path is actually down.
-        if isKeylessAction(action) {
-            if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
-                lastCommand = action
-                lastCommandAt = Date()
-                record(action)
-                lastError = nil
-                return true
-            }
-            if publishCloud(command, to: deviceID) { return true }
-        } else {
-            if publishCloud(command, to: deviceID) { return true }
-            if bluetooth.send(command, to: deviceID) {
-                lastCommand = action
-                lastCommandAt = Date()
-                record(action)
-                lastError = nil
-                return true
-            }
-        }
-
-        lastError = "لا يوجد مسار إنترنت فعّال، وBLE المحلي غير متاح"
+        if sendByConfiguredPriority(command, to: deviceID) { return true }
+        lastError = "لا يوجد مسار اتصال متاح حسب الأولوية المحددة"
         return false
     }
 
@@ -304,31 +353,11 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     func sendESPCommand(_ command: VehicleCommand, to deviceID: String) -> Bool {
-        // Keep BLE bandwidth for keyless. Settings/OBD/owner/event ACK use the
-        // live Internet path first and fall back to BLE only when cloud is down.
-        if isKeylessAction(command.action) {
-            if bluetooth.send(command, to: deviceID) {
-                applyLocal(command.action, to: deviceID)
-                lastCommand = command.action
-                lastCommandAt = Date()
-                record(command.action)
-                lastError = nil
-                return true
-            }
-            if publishCloud(command, to: deviceID) { return true }
-        } else {
-            if publishCloud(command, to: deviceID) { return true }
-            if bluetooth.send(command, to: deviceID) {
-                applyLocal(command.action, to: deviceID)
-                lastCommand = command.action
-                lastCommandAt = Date()
-                record(command.action)
-                lastError = nil
-                return true
-            }
+        if sendByConfiguredPriority(command, to: deviceID) {
+            applyLocal(command.action, to: deviceID)
+            return true
         }
-
-        lastError = "تعذر الاتصال بـ ESP"
+        lastError = "تعذر الاتصال بـ ESP حسب الأولوية المحددة"
         return false
     }
 
