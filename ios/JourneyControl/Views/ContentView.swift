@@ -2047,6 +2047,61 @@ private struct KeylessEntrySettingsView: View {
         .padding(.vertical, 3)
     }
 
+    private func searchWifi() {
+        guard let id = selectedDeviceID else {
+            wifiMessage = "ماكو ESP محدد"
+            return
+        }
+        wifiMessage = "تم إرسال أمر البحث للـESP"
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiSearch), to: id)
+    }
+
+    private func setWifiEnabled(_ enabled: Bool) {
+        guard let id = selectedDeviceID else { return }
+        let settings = ESPWiFiSettings(enabled: enabled, ssid: wifiSSID, password: wifiPassword)
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
+        wifiMessage = enabled ? "تم إرسال أمر تشغيل Wi-Fi" : "تم إرسال أمر إطفاء Wi-Fi"
+    }
+
+    private func connectWifi() {
+        let ssid = wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ssid.isEmpty else {
+            wifiMessage = "اختار الشبكة أولاً"
+            return
+        }
+        guard let id = selectedDeviceID else {
+            wifiMessage = "ماكو ESP محدد"
+            return
+        }
+        wifiEnabled = true
+        let settings = ESPWiFiSettings(enabled: true, ssid: ssid, password: wifiPassword)
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
+        wifiMessage = "جاري اتصال ESP بالشبكة"
+    }
+
+    private func forgetWifi() {
+        guard let id = selectedDeviceID else { return }
+        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiForget), to: id)
+        wifiEnabled = false
+        wifiSSID = ""
+        wifiPassword = ""
+        wifiMessage = "تم إرسال أمر نسيان الشبكة"
+    }
+
+    private func wifiStatusText(_ status: String) -> String {
+        switch status {
+        case "connecting": return "جاري الاتصال"
+        case "searching": return "جاري البحث"
+        case "networks_found": return "تم العثور على شبكات"
+        case "networks_not_found": return "ما لكه شبكات"
+        case "scan_failed": return "فشل البحث"
+        case "network_required": return "اختار شبكة"
+        case "forgotten": return "تم نسيان الشبكة"
+        case "disconnected": return "غير متصل"
+        default: return "Wi-Fi مطفأ"
+        }
+    }
+
     private func save() {
         lockDistance = effectiveLockDistance
         let config = KeylessEntryConfig(
@@ -2067,12 +2122,17 @@ private struct KeylessEntrySettingsView: View {
 private struct MQTTSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var mqtt: MQTTService
+    @EnvironmentObject private var devices: DeviceStore
 
     @State private var host = ""
     @State private var port = "8883"
     @State private var username = ""
     @State private var password = ""
     @State private var errorText: String?
+    @State private var wifiEnabled = false
+    @State private var wifiSSID = ""
+    @State private var wifiPassword = ""
+    @State private var wifiMessage: String?
 
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
     @AppStorage("journey.settings.textSize") private var textSize = "normal"
@@ -2087,6 +2147,18 @@ private struct MQTTSettingsView: View {
     @AppStorage("journey.settings.notifyOBD") private var notifyOBD = false
     @AppStorage("journey.settings.developerMode") private var developerMode = false
     @AppStorage("journey.settings.canBCM") private var canBCM = true
+
+    private var selectedDeviceID: String? { devices.selectedDevice?.deviceID }
+    private var vehicle: VehicleState {
+        guard let id = selectedDeviceID else { return VehicleState() }
+        return mqtt.state(for: id)
+    }
+    private var wifiNetworks: [String] {
+        vehicle.wifiDiscoveredNetworks
+            .components(separatedBy: " | ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
 
     var body: some View {
         NavigationStack {
@@ -2139,6 +2211,85 @@ private struct MQTTSettingsView: View {
                         .foregroundStyle(.green)
                 } header: {
                     Label("الإشعارات", systemImage: "bell.badge.fill")
+                }
+
+                Section {
+                    Toggle("تشغيل Wi-Fi بالـESP", isOn: $wifiEnabled)
+                        .tint(.cyan)
+                        .onChange(of: wifiEnabled) { _, enabled in
+                            if !enabled { setWifiEnabled(false) }
+                        }
+
+                    HStack {
+                        Label(
+                            vehicle.wifiConnected ? "متصل: \(vehicle.wifiSSID)" : wifiStatusText(vehicle.wifiStatus),
+                            systemImage: vehicle.wifiConnected ? "wifi" : "wifi.slash"
+                        )
+                        .foregroundStyle(vehicle.wifiConnected ? .green : .secondary)
+                        Spacer()
+                        if vehicle.wifiConnected {
+                            Text("\(vehicle.wifiRSSI) dBm")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if !vehicle.wifiIP.isEmpty {
+                        LabeledContent("IP", value: vehicle.wifiIP)
+                    }
+
+                    Button {
+                        searchWifi()
+                    } label: {
+                        Label(vehicle.wifiStatus == "searching" ? "جاري البحث..." : "بحث عن الشبكات", systemImage: "magnifyingglass")
+                    }
+                    .disabled(vehicle.wifiStatus == "searching" || selectedDeviceID == nil)
+
+                    if !wifiNetworks.isEmpty {
+                        Picker("الشبكة", selection: $wifiSSID) {
+                            Text("اختر شبكة").tag("")
+                            ForEach(wifiNetworks, id: \.self) { network in
+                                Text(network).tag(network)
+                            }
+                        }
+                    } else {
+                        TextField("اسم الشبكة SSID", text: $wifiSSID)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+
+                    SecureField("كلمة مرور الشبكة", text: $wifiPassword)
+
+                    HStack {
+                        Button {
+                            connectWifi()
+                        } label: {
+                            Label("اتصال", systemImage: "wifi")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!wifiEnabled || wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedDeviceID == nil)
+
+                        Spacer()
+
+                        Button(role: .destructive) {
+                            forgetWifi()
+                        } label: {
+                            Label("نسيان الشبكة", systemImage: "trash")
+                        }
+                        .disabled(selectedDeviceID == nil)
+                    }
+
+                    if let wifiMessage {
+                        Text(wifiMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("البحث يدوي فقط، وماكو Scan مستمر. بهالشكل نقلل تأثير Wi-Fi على BLE أثناء الاستخدام الطبيعي.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Label("Wi-Fi الـESP", systemImage: "wifi")
                 }
 
                 Section {
@@ -2198,6 +2349,8 @@ private struct MQTTSettingsView: View {
                 port = String(saved.port)
                 username = saved.username
                 password = saved.password
+                wifiEnabled = vehicle.wifiEnabled
+                if wifiSSID.isEmpty { wifiSSID = vehicle.wifiSSID }
             }
         }
     }
@@ -2222,8 +2375,8 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.7 (38)")
-                LabeledContent("Firmware المطلوب", value: "v12.59")
+                LabeledContent("إصدار التطبيق", value: "2.4.8 (39)")
+                LabeledContent("Firmware المطلوب", value: "v12.60")
             }
             Section("التحديث") {
                 Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
