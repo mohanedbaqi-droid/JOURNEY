@@ -16,6 +16,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var faceID = FaceIDAuthenticator()
     @State private var confirmStart = false
+    @State private var pressedControlToken: String?
     @State private var showingDevices = false
     @State private var showingLocalDiagnostics = false
     @State private var showingOBDStatus = false
@@ -677,10 +678,10 @@ struct ContentView: View {
     private func mainControls(_ device: DeviceProfile, state: VehicleState) -> some View {
         VStack(spacing: 12) {
             LazyVGrid(columns: columns, spacing: 12) {
-                largeControl("قفل", subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID)) { mqtt.send(.lock, to: device.deviceID) }
-                largeControl("فتح", subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID)) { mqtt.send(.unlock, to: device.deviceID) }
-                largeControl("تشغيل", subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID)) { confirmStart = true }
-                largeControl("إنذار", subtitle: "Alarm", icon: "bell.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID)) { mqtt.send(.horn, to: device.deviceID) }
+                largeControl("قفل", subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID), feedbackKey: "lock") { mqtt.send(.lock, to: device.deviceID) }
+                largeControl("فتح", subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID), feedbackKey: "unlock") { mqtt.send(.unlock, to: device.deviceID) }
+                largeControl("تشغيل", subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID), feedbackKey: "start") { confirmStart = true }
+                largeControl("إنذار", subtitle: "Alarm", icon: "bell.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID), feedbackKey: "alarm") { mqtt.send(.horn, to: device.deviceID) }
             }
             // زر الطاقة تحت الأزرار وبعرض صف كامل، مثل حجم زرين متجاورين.
             largeControl(
@@ -689,7 +690,8 @@ struct ContentView: View {
                 icon: state.remotePowered ? "key.fill" : "key",
                 tint: state.remotePowered ? .green : .orange,
                 status: state.remotePowered ? "مشتغل" : "طافي",
-                statusActive: state.remotePowered
+                statusActive: state.remotePowered,
+                feedbackKey: "remotePower"
             ) { authenticateRemotePower(device, state: state) }
         }
         // Vehicle controls stay tappable while offline. A tap queues the command
@@ -704,12 +706,20 @@ struct ContentView: View {
         tint: Color,
         status: String? = nil,
         statusActive: Bool = false,
+        feedbackKey: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button {
             let impact = UIImpactFeedbackGenerator(style: .medium)
             impact.prepare()
             impact.impactOccurred()
+            if let feedbackKey {
+                pressedControlToken = feedbackKey
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(320))
+                    if pressedControlToken == feedbackKey { pressedControlToken = nil }
+                }
+            }
             action()
         } label: {
             HStack(spacing: 13) {
@@ -738,11 +748,13 @@ struct ContentView: View {
                         .background(statusActive ? .green.opacity(0.14) : .white.opacity(0.07), in: Capsule())
                 }
             }
-            .foregroundStyle(statusActive ? .green : .cyan)
+            .foregroundStyle((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? .green : .cyan)
             .padding(13)
             .frame(maxWidth: .infinity, minHeight: 78)
-            .background((statusActive ? Color.green : Color.cyan).opacity(statusActive ? 0.16 : 0.07), in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke((statusActive ? Color.green : Color.cyan).opacity(0.55)))
+            .background(((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? Color.green : Color.cyan).opacity((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? 0.16 : 0.07), in: RoundedRectangle(cornerRadius: 18))
+            .scaleEffect(feedbackKey != nil && pressedControlToken == feedbackKey ? 0.975 : 1.0)
+            .animation(.easeOut(duration: 0.12), value: pressedControlToken)
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke(((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? Color.green : Color.cyan).opacity(0.55)))
         }
         .buttonStyle(.plain)
     }
@@ -2678,7 +2690,7 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.15 (46)")
+                LabeledContent("إصدار التطبيق", value: "2.4.16 (47)")
                 LabeledContent("Firmware المطلوب", value: "v12.66")
             }
             Section("التحديث") {
