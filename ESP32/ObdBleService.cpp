@@ -263,9 +263,9 @@ bool ObdBleService::startAutoBcmSlice() {
   char filter[16];
   snprintf(filter, sizeof(filter), "ATCF%03X\r", id);
   const char* setup[] = {"ATSP6\r", "ATH1\r", "ATCAF0\r", "ATCM7FF\r"};
-  for (const char* cmd : setup) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(35); }
+  for (const char* cmd : setup) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(85); }
   writeChar_->writeValue((uint8_t*)filter, strlen(filter), false);
-  delay(35);
+  delay(85);
   canLineBuffer_ = "";
   reply_ = "";
   const char* monitor = "ATMA\r";
