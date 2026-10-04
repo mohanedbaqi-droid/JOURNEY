@@ -261,7 +261,7 @@ bool ObdBleService::startAutoBcmSlice() {
   // One short unfiltered passive window catches short BCM frames. The parser
   // accepts only confirmed BCM IDs, so unrelated CAN traffic is ignored.
   const char* setup[] = {"ATSP6\r", "ATH1\r", "ATCAF0\r", "ATCM000\r", "ATCF000\r"};
-  for (const char* cmd : setup) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(85); }
+  for (const char* cmd : setup) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(40); }
   canLineBuffer_ = ""; reply_ = "";
   const char* monitor = "ATMA\r";
   writeChar_->writeValue((uint8_t*)monitor, strlen(monitor), false);
@@ -274,11 +274,11 @@ void ObdBleService::stopAutoBcmSlice() {
   if (!autoBcmSliceActive_ || !writeChar_) return;
   const char* stop = "\r";
   writeChar_->writeValue((uint8_t*)stop, 1, false);
-  delay(90);
+  delay(50);
   canMonitorActive_ = false; autoBcmSliceActive_ = false; canLineBuffer_ = ""; reply_ = "";
   commandPending_ = false; activePid_ = 0; data_.currentPid = "";
   setupStep_ = 0; mode_ = QueryMode::ResumeLive; status_ = "bcm_resuming_obd";
-  nextActionAt_ = millis() + 350; nextAutoBcmSliceAt_ = millis() + 8000;
+  nextActionAt_ = millis() + 350; nextAutoBcmSliceAt_ = millis() + 2000;
 }
 
 bool ObdBleService::matchesAdapter(BLEAdvertisedDevice& device) const {
@@ -801,7 +801,7 @@ void ObdBleService::consumeReply() {
 void ObdBleService::poll() {
   const uint32_t now = millis();
   if (canMonitorActive_) {
-    if (autoBcmSliceActive_ && now - autoBcmSliceStartedAt_ >= 260) stopAutoBcmSlice();
+    if (autoBcmSliceActive_ && now - autoBcmSliceStartedAt_ >= 220) stopAutoBcmSlice();
     return;
   }
 
