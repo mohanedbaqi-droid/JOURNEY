@@ -221,6 +221,15 @@ bool ObdBleService::startCanMonitor() {
   // It does not transmit vehicle-control frames.
   reply_ = "";
   canLineBuffer_ = "";
+  // Exact analyzer proved the BCM traffic on ISO15765 11-bit/500k. Normal OBD
+  // runs with ATH0/CAF defaults, so configure a passive raw monitor explicitly.
+  // No vehicle-control CAN frames are transmitted.
+  const char* monitorSetup[] = {"ATSP6\r", "ATH1\r", "ATCAF0\r"};
+  for (const char* raw : monitorSetup) {
+    writeChar_->writeValue(reinterpret_cast<uint8_t*>(const_cast<char*>(raw)), strlen(raw), writeChar_->canWrite());
+    delay(180);
+  }
+  reply_ = "";
   String cmd = "ATMA\r";
   writeChar_->writeValue(reinterpret_cast<uint8_t*>(const_cast<char*>(cmd.c_str())), cmd.length(), writeChar_->canWrite());
   canMonitorActive_ = true;
