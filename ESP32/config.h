@@ -20,6 +20,9 @@ constexpr uint8_t OBD_SCAN_SECONDS = 20; // manual discovery only
 constexpr uint32_t OBD_RESCAN_DELAY_MS = 6000;
 constexpr uint32_t OBD_RECONNECT_DELAY_MS = 4000;
 constexpr uint32_t OBD_COMMAND_GAP_MS = 80;
+// KONNWEI BLE adapters can lose standard PID replies after automatic ATMA/BCM
+// monitor slices. Leave this off for dependable continuous RPM/speed telemetry.
+constexpr bool ENABLE_AUTO_BCM_SLICES = false;
 // فعّلها فقط بعد تحديد المخارج وفحص كل قناة بالأفوميتر.
 constexpr bool ENABLE_OUTPUTS = true;
 // غيّرها إلى true لرفعة واحدة فقط إذا بدّلت الآيفون، ثم أرجعها false.
