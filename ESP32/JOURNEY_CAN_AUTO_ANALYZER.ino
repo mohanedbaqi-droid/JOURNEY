@@ -90,6 +90,12 @@ struct Candidate {
   uint8_t closed2[MAX_DATA] = {0};
   float stability = 0.0f;
 };
+
+// Explicit prototypes here prevent Arduino's auto-prototype generator
+// from placing Candidate-dependent declarations before the struct.
+float computeCandidate(uint16_t id, Candidate &o);
+void printChangedBits(const Candidate &c);
+
 float computeCandidate(uint16_t id,Candidate&o){IdState*a=findId(closedSet,closedIds,id),*b=findId(openSet,openIds,id),*c=findId(closed2Set,closed2Ids,id);if(!a||!b||!c)return-1;uint8_t l=modalLength(a);if(!l||l!=modalLength(b)||l!=modalLength(c))return-1;o.id=id;o.len=l;float score=0,ss=0;for(uint8_t i=0;i<l;i++){uint8_t x=modalByte(a,i,l),y=modalByte(b,i,l),z=modalByte(c,i,l);o.closed[i]=x;o.open[i]=y;o.closed2[i]=z;o.changedMask[i]=0;float st=(byteStability(a,i,l)+byteStability(b,i,l)+byteStability(c,i,l))/3;ss+=st;if(x==z&&x!=y){o.changedBytes++;o.changedMask[i]=x^y;score+=34+16*st;uint8_t d=x^y,bits=0;for(uint8_t k=0;k<8;k++)if(d&(1<<k))bits++;score+=bits==1?14:bits==2?8:bits<=4?3:0;}else if(x!=y&&y!=z)score-=12;else if(x!=z)score-=10;}o.stability=ss/l;if(!o.changedBytes)return-1;score+=o.changedBytes==1?18:o.changedBytes==2?7:-(o.changedBytes-2)*5;if(a->frameCount>=3&&b->frameCount>=3&&c->frameCount>=3)score+=8;score+=10*o.stability;if(score<0)score=0;if(score>100)score=100;o.score=score;return score;}
 void printBytes(const uint8_t*d,uint8_t l){for(uint8_t i=0;i<l;i++){if(i)Serial.print(' ');if(d[i]<16)Serial.print('0');Serial.print(d[i],HEX);}}
 void printChangedBits(const Candidate&c){for(uint8_t i=0;i<c.len;i++){uint8_t m=c.changedMask[i];if(!m)continue;Serial.printf("  Byte %u: %02X -> %02X -> %02X | changed bits:",i,c.closed[i],c.open[i],c.closed2[i]);for(uint8_t b=0;b<8;b++)if(m&(1<<b))Serial.printf(" b%u(%u->%u)",b,(c.closed[i]>>b)&1,(c.open[i]>>b)&1);Serial.println();}}
