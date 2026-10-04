@@ -86,42 +86,6 @@ bool headlightsOn = false;
 bool leftSignalOn = false;
 bool rightSignalOn = false;
 
-// v12.66: confirmed 2017 Journey BCM map from repeated exact-ID tests.
-// Byte indexes are zero-based, matching JOURNEY_CAN_EXACT40_ANALYZER.
-constexpr uint16_t BCM_ID_DOORS       = 0x202; // Byte5 bit0: 1 = any door open
-constexpr uint16_t BCM_ID_TURNS       = 0x318; // Byte0 bit0=left, bit1=right
-constexpr uint16_t BCM_ID_HEADLIGHT   = 0x304; // Byte0: 0x21=off, 0x22=on
-constexpr uint16_t BCM_ID_LOCK        = 0x14C; // Byte6 bit4: 0=unlock, 1=lock
-constexpr uint8_t  BCM_DOORS_MASK     = 0x01;
-constexpr uint8_t  BCM_LEFT_MASK      = 0x01;
-constexpr uint8_t  BCM_RIGHT_MASK     = 0x02;
-constexpr uint8_t  BCM_LOCK_MASK      = 0x10;
-constexpr uint8_t  BCM_HEADLIGHT_OFF  = 0x21;
-constexpr uint8_t  BCM_HEADLIGHT_ON   = 0x22;
-
-// Single authoritative decoder for the BCM states already confirmed on this car.
-// The OBD transport can feed exact CAN frames here without duplicating bit logic.
-bool applyConfirmedBcmFrame(uint16_t canId, const uint8_t* data, uint8_t len) {
-  if (!data) return false;
-  bool handled = false;
-  if (canId == BCM_ID_DOORS && len > 5) {
-    doorsOpen = (data[5] & BCM_DOORS_MASK) != 0;
-    handled = true;
-  } else if (canId == BCM_ID_TURNS && len > 0) {
-    leftSignalOn = (data[0] & BCM_LEFT_MASK) != 0;
-    rightSignalOn = (data[0] & BCM_RIGHT_MASK) != 0;
-    handled = true;
-  } else if (canId == BCM_ID_HEADLIGHT && len > 0) {
-    if (data[0] == BCM_HEADLIGHT_ON) headlightsOn = true;
-    else if (data[0] == BCM_HEADLIGHT_OFF) headlightsOn = false;
-    else return false; // preserve last known state for untested encoded values
-    handled = true;
-  } else if (canId == BCM_ID_LOCK && len > 6) {
-    locked = (data[6] & BCM_LOCK_MASK) != 0;
-    handled = true;
-  }
-  return handled;
-}
 bool gpsValid = false;
 double latitude = 0;
 double longitude = 0;
@@ -1178,13 +1142,21 @@ void publishState() {
   JsonDocument doc;
   doc["online"] = true;
   doc["benchMode"] = false;
-  doc["simulatedLocked"] = locked;
+  // v12.66: body UI now uses confirmed BCM readings whenever available.
+  // Manual/keyless state remains the fallback until the BCM reader has a valid frame.
+  const bool liveLocked = c.bcmStateValid ? c.locked : locked;
+  const bool liveDoorsOpen = c.bcmStateValid ? c.doorsOpen : doorsOpen;
+  const bool liveHeadlightsOn = c.bcmStateValid ? c.headlightsOn : headlightsOn;
+  const bool liveLeftSignalOn = c.bcmStateValid ? c.leftSignalOn : leftSignalOn;
+  const bool liveRightSignalOn = c.bcmStateValid ? c.rightSignalOn : rightSignalOn;
+  doc["simulatedLocked"] = liveLocked;
   doc["simulatedEngineRunning"] = c.connected && c.engineRunning;
-  doc["simulatedDoorsOpen"] = doorsOpen;
+  doc["simulatedDoorsOpen"] = liveDoorsOpen;
   doc["hornActive"] = hornActive;
-  doc["headlightsOn"] = headlightsOn;
-  doc["leftSignalOn"] = leftSignalOn;
-  doc["rightSignalOn"] = rightSignalOn;
+  doc["headlightsOn"] = liveHeadlightsOn;
+  doc["leftSignalOn"] = liveLeftSignalOn;
+  doc["rightSignalOn"] = liveRightSignalOn;
+  doc["bcmStateValid"] = c.bcmStateValid;
   doc["gpsValid"] = gpsValid && millis() - gpsFixAt < GPS_FIX_MAX_AGE_MS;
   doc["latitude"] = latitude;
   doc["longitude"] = longitude;
@@ -1266,8 +1238,12 @@ void publishState() {
     coreDoc["coreStatePacket"] = true;
     coreDoc["online"] = true;
     coreDoc["remotePowered"] = remotePowered;
-    coreDoc["simulatedLocked"] = locked;
-    coreDoc["simulatedDoorsOpen"] = doorsOpen;
+    coreDoc["simulatedLocked"] = liveLocked;
+    coreDoc["simulatedDoorsOpen"] = liveDoorsOpen;
+    coreDoc["headlightsOn"] = liveHeadlightsOn;
+    coreDoc["leftSignalOn"] = liveLeftSignalOn;
+    coreDoc["rightSignalOn"] = liveRightSignalOn;
+    coreDoc["bcmStateValid"] = c.bcmStateValid;
     coreDoc["simulatedEngineRunning"] = c.connected && c.engineRunning;
     coreDoc["lastEvent"] = lastEvent;
     coreDoc["keylessSessionOpen"] = keylessSessionOpen;
