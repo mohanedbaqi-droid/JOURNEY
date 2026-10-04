@@ -51,14 +51,9 @@ jobs:
           test -f "$APP/JourneyControl"
           test -f "$WIDGET_INFO"
 
-          # Xcode 16 omits these entries in the generated plists.
-          # iOS aborts immediately when CoreBluetooth is initialized without this key.
-          /usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string Journey يحتاج البلوتوث للاتصال بوحدة ESP32 وتشخيص السيارة." "$APP_INFO"
-          /usr/libexec/PlistBuddy -c "Add :NSBluetoothPeripheralUsageDescription string Journey يحتاج البلوتوث للاتصال بوحدة ESP32 وتشخيص السيارة." "$APP_INFO"
+          # These are now compiled from the source plist, not patched afterwards.
           /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$APP_INFO"
-
-          /usr/libexec/PlistBuddy -c "Add :NSExtension dict" "$WIDGET_INFO"
-          /usr/libexec/PlistBuddy -c "Add :NSExtension:NSExtensionPointIdentifier string com.apple.widgetkit-extension" "$WIDGET_INFO"
+          /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
 
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
