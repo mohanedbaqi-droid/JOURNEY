@@ -29,6 +29,8 @@ struct ContentView: View {
     @AppStorage("journey.settings.appearance") private var appAppearance = "dark"
     @AppStorage("journey.settings.textSize") private var appTextSize = "normal"
     @AppStorage("journey.settings.language") private var appLanguage = "ar"
+    @AppStorage("journey.settings.speedUnit") private var appSpeedUnit = "kmh"
+    @AppStorage("journey.settings.temperatureUnit") private var appTemperatureUnit = "c"
 
     private var preferredScheme: ColorScheme? {
         switch appAppearance {
@@ -755,8 +757,8 @@ struct ContentView: View {
             Divider().overlay(.white.opacity(0.08))
             HStack {
                 metric("RPM", value: "\(state.rpm)")
-                metric("السرعة", value: "\(state.speedKph) km/h")
-                metric("الحرارة", value: state.obdConnected ? "\(state.coolantC)°" : "—")
+                metric("السرعة", value: appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
+                metric("الحرارة", value: state.obdConnected ? (appTemperatureUnit == "f" ? "\(Int((Double(state.coolantC) * 9.0 / 5.0 + 32.0).rounded()))°F" : "\(state.coolantC)°C") : "—")
             }
             HStack {
                 metric("فولت البطارية", value: state.batteryVoltage > 0 ? String(format: "%.2f V", state.batteryVoltage) : "—")
@@ -955,6 +957,8 @@ private struct HUDControlView: View {
     @AppStorage("hud.temperatureAlert") private var temperatureAlert = 105
     @AppStorage("hud.rpmAlert") private var rpmAlert = 4000
     @AppStorage("hud.useLiveData") private var useLiveData = true
+    @AppStorage("journey.settings.speedUnit") private var speedUnit = "kmh"
+    @AppStorage("journey.settings.temperatureUnit") private var temperatureUnit = "c"
 
     @State private var testSpeed = 48
     @State private var testTemperature = 91
@@ -966,11 +970,13 @@ private struct HUDControlView: View {
     }
 
     private var speed: Int {
-        useLiveData ? vehicle.speedKph : testSpeed
+        let kph = useLiveData ? vehicle.speedKph : testSpeed
+        return speedUnit == "mph" ? Int((Double(kph) * 0.621371).rounded()) : kph
     }
 
     private var temperature: Int {
-        useLiveData && vehicle.coolantC > 0 ? vehicle.coolantC : testTemperature
+        let c = useLiveData && vehicle.coolantC > 0 ? vehicle.coolantC : testTemperature
+        return temperatureUnit == "f" ? Int((Double(c) * 9.0 / 5.0 + 32.0).rounded()) : c
     }
 
     private var rpm: Int {
@@ -993,7 +999,7 @@ private struct HUDControlView: View {
         case .speed:
             return String(format: "%4d", min(max(speed, 0), 9999))
         case .temperature:
-            return String(format: "%3dC", min(max(temperature, 0), 999))
+            return String(format: "%3d%@", min(max(temperature, 0), 999), temperatureUnit == "f" ? "F" : "C")
         case .rpm:
             return String(format: "%4d", min(max(rpm, 0), 9999))
         case .gear:
@@ -1004,8 +1010,8 @@ private struct HUDControlView: View {
     private var displayCaption: String {
         switch effectiveMode {
         case .automatic: return "تلقائي"
-        case .speed: return "السرعة km/h"
-        case .temperature: return "حرارة ماء المحرك °C"
+        case .speed: return speedUnit == "mph" ? "السرعة mph" : "السرعة km/h"
+        case .temperature: return temperatureUnit == "f" ? "حرارة ماء المحرك °F" : "حرارة ماء المحرك °C"
         case .rpm: return "دورات المحرك RPM"
         case .gear: return "نمرة الكير"
         }
@@ -1189,6 +1195,7 @@ private extension View {
 
 private struct ESPStatusView: View {
     @EnvironmentObject private var mqtt: MQTTService
+    @AppStorage("journey.settings.speedUnit") private var speedUnit = "kmh"
     let vehicle: VehicleState
     let bluetoothStatus: String
     let deviceID: String?
@@ -1216,7 +1223,7 @@ private struct ESPStatusView: View {
             }
             Section("OBD عبر BLE") {
                 statusRow("قطعة OBD", vehicle.obdConnected ? "متصلة" : "بانتظار الاتصال")
-                statusRow("السرعة", "\(vehicle.speedKph) km/h")
+                statusRow("السرعة", speedUnit == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
                 statusRow("الردود/ث", "\(vehicle.obdResponseRate)")
                 statusRow("آخر حدث", vehicle.lastEvent)
             }
@@ -1408,7 +1415,7 @@ private struct OBDStatusView: View {
                         obdRow("PID الحالي", vehicle.obdCurrentPid.isEmpty ? "—" : vehicle.obdCurrentPid)
                         obdRow("مجموع الردود", "\(vehicle.obdTotalResponses)")
                         obdRow("RPM", "\(vehicle.rpm)")
-                        obdRow("السرعة", "\(vehicle.speedKph) km/h")
+                        obdRow("السرعة", UserDefaults.standard.string(forKey: "journey.settings.speedUnit") == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
                         obdRow("فولت البطارية", vehicle.batteryVoltage > 0 ? String(format: "%.2f V", vehicle.batteryVoltage) : "—")
                         obdRow("حالة السويتش / ACC", ignitionStateArabic(vehicle.ignitionState))
                         obdRow("حالة CAN", vehicle.canAwake ? "صاحي" : "نايم / بانتظار الاستيقاظ")
@@ -2666,7 +2673,7 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.14 (45)")
+                LabeledContent("إصدار التطبيق", value: "2.4.15 (46)")
                 LabeledContent("Firmware المطلوب", value: "v12.66")
             }
             Section("التحديث") {
