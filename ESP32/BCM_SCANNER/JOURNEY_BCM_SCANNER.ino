@@ -25,6 +25,7 @@ BLERemoteCharacteristic* rx=nullptr;
 String buf;
 bool monitor=false, connected=false;
 bool burstStopping=false;
+int currentBank=16;
 uint32_t monitorStarted=0, stopRequestedAt=0, nextMonitorAt=0;
 
 // KONNWEI/ELM buffer is small on a busy Journey CAN-C bus.
@@ -125,7 +126,7 @@ void waitPrompt(uint32_t ms=2200){
 void initElm(){
   const char* a[]={"ATE0","ATL0","ATS1","ATH1","ATCAF0","ATSP6","ATDP","ATDPN"};
   for(auto c:a){sendElm(c);waitPrompt();delay(100);}
-  Serial.println("\n[READY] Protocol 6 / CAN 11-500. Type MON for IDs 100-13F. Then STOP, BANK5 for 140-17F.");
+  Serial.println("\n[READY] 16-ID filter. MON starts 100-10F. NEXT/PREV changes bank.");
 }
 
 void beginBurst(){
@@ -163,7 +164,7 @@ void startFilteredMonitor(String cf="100", String cm="700"){
   sendElm("ATCM"+cm);waitPrompt();
   nextMonitorAt=0; burstStopping=false;
   Serial.printf("\n[FILTER] CF=%s CM=%s\n",cf.c_str(),cm.c_str());
-  Serial.println("[MON] FILTERED passive monitor. Type STOP first before changing bank.");
+  Serial.println("[MON] FILTERED monitor. Use NEXT/PREV or STOP.");
   buf=""; monitor=true; monitorStarted=millis();
   String x="ATMA\r";
   tx->writeValue((uint8_t*)x.c_str(),x.length(),tx->canWrite());
@@ -175,6 +176,7 @@ void startBank(int n){
   unsigned int base=(unsigned int)n*0x10;
   char cf[4]; snprintf(cf,sizeof(cf),"%03X",base);
   char label[48]; snprintf(label,sizeof(label),"IDs %03X-%03X",base,base+0x0F);
+  currentBank=n;
   Serial.printf("[BANK %d] %s\n",n,label);
   startFilteredMonitor(String(cf),"7F0");
 }
@@ -203,7 +205,7 @@ void stopMonitor(){
 void setup(){
   Serial.begin(115200);
   delay(800);
-  Serial.println("\n=== JOURNEY 2017 BCM READ-ONLY SCANNER v5 FILTERED-64 ===");
+  Serial.println("\n=== JOURNEY 2017 BCM READ-ONLY SCANNER v6 FILTERED-16 AUTO-NEXT ===");
   BLEDevice::init("JOURNEY-BCM-SCANNER");
   if(!link(OBD_MAC)&&!fallback()){
     Serial.println("[FAIL] KONNWEI not found/unsupported GATT");
@@ -213,20 +215,34 @@ void setup(){
   initElm();
 }
 
+void changeBank(int delta){
+  if(monitor||burstStopping) stopMonitor();
+  int n=currentBank+delta;
+  if(n<0)n=0;
+  if(n>127)n=127;
+  delay(120);
+  startBank(n);
+}
+
 void loop(){
   if(Serial.available()){
-    String s=Serial.readStringUntil('\n');s.trim();if(!s.length())return;
+    String s=Serial.readStringUntil('\n');
+    s.trim();
+    if(!s.length())return;
     String u=s;u.toUpperCase();
+
     if(u=="STOP") stopMonitor();
-    else if(monitor||burstStopping) Serial.println("[MON] type STOP first");
-    else if(u=="MON") startBank(4); // 100-13F
+    else if(u=="NEXT") changeBank(1);
+    else if(u=="PREV") changeBank(-1);
+    else if(monitor||burstStopping) Serial.println("[MON] use NEXT, PREV or STOP");
+    else if(u=="MON"){currentBank=16;startBank(currentBank);}
     else if(u.startsWith("BANK")){
       int n=u.substring(4).toInt();
       startBank(n);
     }
     else if(u.startsWith("ID")) startExact(u);
     else if(u=="INFO") initElm();
-    else Serial.println("[CMD] MON, BANK0..BANK31, IDxxx, STOP, INFO");
+    else Serial.println("[CMD] MON, NEXT, PREV, BANK0..BANK127, IDxxx, STOP, INFO");
   }
   delay(2);
 }
