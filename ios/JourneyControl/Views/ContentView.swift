@@ -32,6 +32,8 @@ struct ContentView: View {
     @AppStorage("journey.settings.speedUnit") private var appSpeedUnit = "kmh"
     @AppStorage("journey.settings.temperatureUnit") private var appTemperatureUnit = "c"
 
+    private func appText(_ ar: String, _ en: String) -> String { appLanguage == "en" ? en : ar }
+
     private var preferredScheme: ColorScheme? {
         switch appAppearance {
         case "light": return .light
@@ -344,7 +346,7 @@ struct ContentView: View {
         Button { selectedTab = 0 } label: {
             VStack(spacing: 3) {
                 Image(systemName: "house.fill").font(.system(size: 22, weight: .bold))
-                Text("الرئيسية").font(.system(size: 10, weight: .black))
+                Text(appText("الرئيسية", "Home")).font(.system(size: 10, weight: .black))
             }
             .foregroundStyle(.white)
             .frame(width: 74, height: 74)
@@ -536,7 +538,7 @@ struct ContentView: View {
                     .frame(width: 42, height: 42)
                     .background(.cyan.opacity(0.14), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("الدخول الذكي")
+                    Text(appText("الدخول الذكي", "Keyless"))
                         .font(.subheadline.bold())
                     Text("فتح عند الاقتراب وقفل عند الابتعاد — BLE")
                         .font(.caption)
@@ -750,15 +752,15 @@ struct ContentView: View {
     private func telemetryCard(_ state: VehicleState) -> some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack {
-                Text("بيانات السيارة").font(.headline)
+                Text(appText("بيانات السيارة", "Vehicle data")).font(.headline)
                 Spacer()
                 Text(vehicleStatusText(state)).font(.caption).foregroundStyle(.cyan.opacity(0.75))
             }
             Divider().overlay(.white.opacity(0.08))
             HStack {
                 metric("RPM", value: "\(state.rpm)")
-                metric("السرعة", value: appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
-                metric("الحرارة", value: state.obdConnected ? (appTemperatureUnit == "f" ? "\(Int((Double(state.coolantC) * 9.0 / 5.0 + 32.0).rounded()))°F" : "\(state.coolantC)°C") : "—")
+                metric(appText("السرعة", "Speed"), value: appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
+                metric(appText("الحرارة", "Temperature"), value: state.obdConnected ? (appTemperatureUnit == "f" ? "\(Int((Double(state.coolantC) * 9.0 / 5.0 + 32.0).rounded()))°F" : "\(state.coolantC)°C") : "—")
             }
             HStack {
                 metric("فولت البطارية", value: state.batteryVoltage > 0 ? String(format: "%.2f V", state.batteryVoltage) : "—")
@@ -787,7 +789,7 @@ struct ContentView: View {
                 Image(systemName: "sparkles")
                     .foregroundStyle(.cyan)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("المساعد الذكي").font(.headline)
+                    Text(appText("المساعد الذكي", "AI Assistant")).font(.headline)
                     Text("تحليل وشرح فقط — لا يتحكم بالمخارج ولا يمسح الأعطال")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.48))
@@ -847,7 +849,7 @@ struct ContentView: View {
             Image(systemName: "car.side.lock")
                 .font(.system(size: 58))
                 .foregroundStyle(.cyan)
-            Text("أضف أول جهاز").font(.title2.bold())
+            Text(appText("أضف أول جهاز", "Add your first device")).font(.title2.bold())
             Text("ابحث عن البورد القريب بالبلوتوث حتى يظهر هنا.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -881,7 +883,7 @@ private struct JourneyAppInfoView: View {
                         Text("JOURNEY")
                             .font(.system(size: 30, weight: .black, design: .rounded))
                             .tracking(5)
-                        Text("نظام التحكم والتشخيص الذكي للسيارة")
+                        Text(appText("نظام التحكم والتشخيص الذكي للسيارة", "Smart vehicle control and diagnostics"))
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.62))
                     }
