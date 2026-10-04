@@ -18,6 +18,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
+        INFOPLIST_FILE: JourneyControl/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: 5.9
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
@@ -38,6 +40,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
         PRODUCT_NAME: JourneyWidget
+        INFOPLIST_FILE: JourneyWidget/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         SWIFT_VERSION: 5.9
