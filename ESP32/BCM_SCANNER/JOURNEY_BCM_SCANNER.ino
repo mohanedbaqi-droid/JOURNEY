@@ -20,6 +20,9 @@ static const char* NUSTX="6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
 BLEClient* client=nullptr; BLERemoteCharacteristic* tx=nullptr; BLERemoteCharacteristic* rx=nullptr;
 String buf; bool monitor=false, connected=false;
+uint32_t monitorStarted=0, nextMonitorAt=0;
+static const uint32_t MON_BURST_MS=350;
+static const uint32_t MON_GAP_MS=120;
 
 void notifyCB(BLERemoteCharacteristic*,uint8_t* d,size_t n,bool){
   if(monitor){ Serial.print("[CAN] "); for(size_t i=0;i<n;i++)Serial.write(d[i]); if(!n||d[n-1]!='\n')Serial.println(); return; }
@@ -59,8 +62,23 @@ void initElm(){
  for(auto c:a){sendElm(c);waitPrompt();delay(120);}
  Serial.println("\n[READY] Headers ON. Type MON for passive traffic.");
 }
-void startMonitor(){sendElm("ATH1");waitPrompt();sendElm("ATS1");waitPrompt();buf="";String x="ATMA\r";monitor=true;Serial.println("\n[MON] PASSIVE CAN MONITOR. Change ONE item at a time: door/lock/indicator/light/ACC.");tx->writeValue((uint8_t*)x.c_str(),x.length(),tx->canWrite());}
-void stopMonitor(){if(!monitor)return;String x="\r";tx->writeValue((uint8_t*)x.c_str(),x.length(),tx->canWrite());monitor=false;delay(300);Serial.println("\n[MON] stopped");}
+void beginBurst(){
+ if(!connected||!tx)return;
+ buf=""; String x="ATMA\r"; monitor=true; monitorStarted=millis();
+ tx->writeValue((uint8_t*)x.c_str(),x.length(),tx->canWrite());
+}
+void endBurst(bool finalStop=false){
+ if(!monitor||!tx)return;
+ String x="\r"; tx->writeValue((uint8_t*)x.c_str(),x.length(),tx->canWrite());
+ monitor=false; nextMonitorAt=millis()+MON_GAP_MS;
+ if(finalStop) Serial.println("\n[MON] stopped");
+}
+void startMonitor(){
+ sendElm("ATH1");waitPrompt();sendElm("ATS1");waitPrompt();sendElm("ATCAF0");waitPrompt();sendElm("ATSP6");waitPrompt();
+ Serial.println("\n[MON] BURST PASSIVE MONITOR. Auto pause/resume prevents BUFFER FULL.");
+ beginBurst();
+}
+void stopMonitor(){endBurst(true); nextMonitorAt=0;}
 void setup(){
  Serial.begin(115200);delay(800);Serial.println("\n=== JOURNEY 2017 BCM READ-ONLY SCANNER ===");
  BLEDevice::init("JOURNEY-BCM-SCANNER");
@@ -68,8 +86,15 @@ void setup(){
  Serial.println("[OK] KONNWEI BLE connected");initElm();
 }
 void loop(){
- if(Serial.available()){String c=Serial.readStringUntil('\n');c.trim();if(!c.length())return;
-  if(c.equalsIgnoreCase("MON"))startMonitor();else if(c.equalsIgnoreCase("STOP"))stopMonitor();else if(c.equalsIgnoreCase("INFO"))initElm();else if(!monitor)sendElm(c);else Serial.println("[MON] type STOP first");
+ if(Serial.available()){
+  String cmd=Serial.readStringUntil('\n');cmd.trim();if(!cmd.length())return;
+  if(cmd.equalsIgnoreCase("MON"))startMonitor();
+  else if(cmd.equalsIgnoreCase("STOP"))stopMonitor();
+  else if(cmd.equalsIgnoreCase("INFO"))initElm();
+  else if(!monitor && nextMonitorAt==0)sendElm(cmd);
+  else Serial.println("[MON] type STOP first");
  }
- delay(5);
+ if(monitor && millis()-monitorStarted>=MON_BURST_MS) endBurst(false);
+ if(!monitor && nextMonitorAt && (int32_t)(millis()-nextMonitorAt)>=0){nextMonitorAt=0;beginBurst();}
+ delay(2);
 }
