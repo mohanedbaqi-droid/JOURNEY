@@ -2103,15 +2103,15 @@ private struct MQTTSettingsView: View {
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
     @AppStorage("journey.settings.textSize") private var textSize = "normal"
     @AppStorage("journey.settings.language") private var language = "ar"
-    @AppStorage("journey.settings.showEnglishLabels") private var showEnglishLabels = true
     @AppStorage("journey.settings.speedUnit") private var speedUnit = "kmh"
     @AppStorage("journey.settings.temperatureUnit") private var temperatureUnit = "c"
-    @AppStorage("journey.settings.batteryATRV") private var batteryATRV = true
     @AppStorage("journey.settings.notifyEngine") private var notifyEngine = true
     @AppStorage("journey.settings.notifyKeyless") private var notifyKeyless = true
     @AppStorage("journey.settings.notifyLocks") private var notifyLocks = true
     @AppStorage("journey.settings.notifyOBD") private var notifyOBD = false
     @AppStorage("journey.settings.developerMode") private var developerMode = false
+
+    private func tr(_ ar: String, _ en: String) -> String { language == "en" ? en : ar }
 
     private var selectedDeviceID: String? { devices.selectedDevice?.deviceID }
     private var vehicle: VehicleState {
@@ -2129,53 +2129,51 @@ private struct MQTTSettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("المظهر", selection: $appearance) {
-                        Text("داكن").tag("dark")
-                        Text("فاتح").tag("light")
-                        Text("حسب النظام").tag("system")
+                    Picker(tr("المظهر", "Appearance"), selection: $appearance) {
+                        Text(tr("داكن", "Dark")).tag("dark")
+                        Text(tr("فاتح", "Light")).tag("light")
+                        Text(tr("حسب النظام", "System")).tag("system")
                     }
-                    Picker("حجم الخط", selection: $textSize) {
-                        Text("صغير").tag("small")
-                        Text("عادي").tag("normal")
-                        Text("كبير").tag("large")
-                        Text("أكبر").tag("xlarge")
+                    Picker(tr("حجم الخط", "Text size"), selection: $textSize) {
+                        Text(tr("صغير", "Small")).tag("small")
+                        Text(tr("عادي", "Normal")).tag("normal")
+                        Text(tr("كبير", "Large")).tag("large")
+                        Text(tr("أكبر", "Extra large")).tag("xlarge")
                     }
-                    Picker("اللغة", selection: $language) {
-                        Text("العربية").tag("ar")
+                    Picker(tr("اللغة", "Language"), selection: $language) {
+                        Text(tr("العربية", "Arabic")).tag("ar")
                         Text("English").tag("en")
                     }
-                    Toggle("إظهار الوصف الإنكليزي تحت الأزرار", isOn: $showEnglishLabels)
                 } header: {
-                    Label("المظهر واللغة", systemImage: "paintbrush.pointed.fill")
+                    Label(tr("المظهر واللغة", "Appearance & Language"), systemImage: "paintbrush.pointed.fill")
                 }
 
                 Section {
-                    Picker("وحدة السرعة", selection: $speedUnit) {
+                    Picker(tr("وحدة السرعة", "Speed unit"), selection: $speedUnit) {
                         Text("km/h").tag("kmh")
                         Text("mph").tag("mph")
                     }
-                    Picker("درجة الحرارة", selection: $temperatureUnit) {
+                    Picker(tr("درجة الحرارة", "Temperature"), selection: $temperatureUnit) {
                         Text("°C").tag("c")
                         Text("°F").tag("f")
                     }
-                    Toggle("قراءة فولت البطارية دائماً عبر ATRV", isOn: $batteryATRV)
-                    Text("ATRV يحتاج دعم Firmware الجديد حتى يبقى الفولت Live عندما ينام CAN.")
+                    Text(language == "en" ? "Battery voltage is read automatically by the ESP firmware; there is no fake local switch." : "فولت البطارية يُقرأ تلقائياً من Firmware الـESP؛ ماكو مفتاح محلي وهمي.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Label("السيارة والقراءات", systemImage: "car.fill")
+                    Label(tr("السيارة والقراءات", "Vehicle & Readings"), systemImage: "car.fill")
                 }
 
                 Section {
-                    Toggle("تشغيل وإطفاء المحرك", isOn: $notifyEngine)
-                    Toggle("الاقتراب والابتعاد", isOn: $notifyKeyless)
-                    Toggle("القفل والفتح", isOn: $notifyLocks)
-                    Toggle("حالة OBD", isOn: $notifyOBD)
+                    Toggle(tr("تشغيل وإطفاء المحرك", "Engine start/stop"), isOn: $notifyEngine)
+                    Toggle(tr("الاقتراب والابتعاد", "Approach/departure"), isOn: $notifyKeyless)
+                    Toggle(tr("القفل والفتح", "Lock/unlock"), isOn: $notifyLocks)
+                    Toggle(tr("حالة OBD", "OBD status"), isOn: $notifyOBD)
                     Label("مضافة حماية من إشعار إطفاء كاذب أثناء الحركة ومن تكرار إشعار الاقتراب.", systemImage: "checkmark.shield.fill")
                         .font(.footnote)
                         .foregroundStyle(.green)
                 } header: {
-                    Label("الإشعارات", systemImage: "bell.badge.fill")
+                    Label(tr("الإشعارات", "Notifications"), systemImage: "bell.badge.fill")
                 }
 
                 Section {
@@ -2408,7 +2406,7 @@ private struct MQTTSettingsView: View {
                 }
 
                 Section {
-                    Toggle("Developer Mode", isOn: $developerMode)
+                    Toggle(tr("وضع المطور", "Developer Mode"), isOn: $developerMode)
                     if developerMode {
                         LabeledContent("حالة BLE", value: mqtt.bluetoothStatus)
                         LabeledContent("MQTT", value: mqtt.connection.rawValue)
