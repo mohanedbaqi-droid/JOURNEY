@@ -279,19 +279,37 @@ bool ObdBleService::startAutoBcmSlice() {
 
 void ObdBleService::stopAutoBcmSlice() {
   if (!autoBcmSliceActive_ || !writeChar_) return;
+  // Stop ATMA first, then fully restore ELM's normal PID mode.  The previous
+  // code left ATCF/ATCM active, which filtered out ECU replies and produced
+  // RPM=0 / PID="—" after the first BCM slice.
   const char* stop = "\r";
   writeChar_->writeValue((uint8_t*)stop, 1, false);
-  delay(35);
-  const char* restore[] = {"ATH0\r", "ATCAF1\r"};
-  for (const char* cmd : restore) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(35); }
+  delay(90);
+
+  const char* restore[] = {
+    "ATCF000\r",   // neutral filter value
+    "ATCM000\r",   // mask 000 disables the exact-ID filter
+    "ATH0\r",
+    "ATCAF1\r",
+    "ATSP6\r"
+  };
+  for (const char* cmd : restore) {
+    writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false);
+    delay(90);
+  }
+
   canMonitorActive_ = false;
   autoBcmSliceActive_ = false;
   canLineBuffer_ = "";
   reply_ = "";
   commandPending_ = false;
+  activePid_ = 0;
+  data_.currentPid = "";
   status_ = "obd_live";
-  nextActionAt_ = millis() + 80;
-  nextAutoBcmSliceAt_ = millis() + 550;
+  // Give KONNWEI time to leave monitor mode before the first 01xx request.
+  nextActionAt_ = millis() + 220;
+  // Keep engine telemetry dominant; BCM still gets regular short snapshots.
+  nextAutoBcmSliceAt_ = millis() + 1800;
 }
 
 bool ObdBleService::matchesAdapter(BLEAdvertisedDevice& device) const {
@@ -806,7 +824,7 @@ void ObdBleService::consumeReply() {
 void ObdBleService::poll() {
   const uint32_t now = millis();
   if (canMonitorActive_) {
-    if (autoBcmSliceActive_ && now - autoBcmSliceStartedAt_ >= 420) stopAutoBcmSlice();
+    if (autoBcmSliceActive_ && now - autoBcmSliceStartedAt_ >= 260) stopAutoBcmSlice();
     return;
   }
 
@@ -1057,7 +1075,7 @@ void ObdBleService::poll() {
   // v12.67: short BCM window between normal engine PID requests.
   if (preferredTransport_ == "BLE" && now >= nextAutoBcmSliceAt_) {
     if (startAutoBcmSlice()) return;
-    nextAutoBcmSliceAt_ = now + 250;
+    nextAutoBcmSliceAt_ = now + 500;
   }
 
   // v12.59: adapter-local battery voltage is sampled every 4 seconds even when
