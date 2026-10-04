@@ -125,7 +125,7 @@ void waitPrompt(uint32_t ms=2200){
 void initElm(){
   const char* a[]={"ATE0","ATL0","ATS1","ATH1","ATCAF0","ATSP6","ATDP","ATDPN"};
   for(auto c:a){sendElm(c);waitPrompt();delay(100);}
-  Serial.println("\n[READY] Protocol 6 / CAN 11-500. Type MON for filtered BANK1.");
+  Serial.println("\n[READY] Protocol 6 / CAN 11-500. Type MON for IDs 100-13F. Then STOP, BANK5 for 140-17F.");
 }
 
 void beginBurst(){
@@ -170,8 +170,13 @@ void startFilteredMonitor(String cf="100", String cm="700"){
 }
 void startMonitor(){ startFilteredMonitor("100","700"); }
 void startBank(int n){
-  char cf[4]; snprintf(cf,sizeof(cf),"%03X",(n&7)<<8);
-  startFilteredMonitor(String(cf),"700");
+  // 64-ID windows: mask 0x7C0. BANK4=100-13F, BANK5=140-17F, etc.
+  if(n<0||n>31){Serial.println("[ERR] BANK must be 0..31");return;}
+  unsigned int base=(unsigned int)n*0x40;
+  char cf[4]; snprintf(cf,sizeof(cf),"%03X",base);
+  char label[48]; snprintf(label,sizeof(label),"IDs %03X-%03X",base,base+0x3F);
+  Serial.printf("[BANK %d] %s\n",n,label);
+  startFilteredMonitor(String(cf),"7C0");
 }
 void startExact(String s){
   s.trim(); s.toUpperCase();
@@ -198,7 +203,7 @@ void stopMonitor(){
 void setup(){
   Serial.begin(115200);
   delay(800);
-  Serial.println("\n=== JOURNEY 2017 BCM READ-ONLY SCANNER v4 FILTERED ===");
+  Serial.println("\n=== JOURNEY 2017 BCM READ-ONLY SCANNER v5 FILTERED-64 ===");
   BLEDevice::init("JOURNEY-BCM-SCANNER");
   if(!link(OBD_MAC)&&!fallback()){
     Serial.println("[FAIL] KONNWEI not found/unsupported GATT");
@@ -210,22 +215,18 @@ void setup(){
 
 void loop(){
   if(Serial.available()){
-    String s=Serial.readStringUntil('\n'); s.trim();
-    if(!s.length()) return;
-    String u=s; u.toUpperCase();
+    String s=Serial.readStringUntil('\n');s.trim();if(!s.length())return;
+    String u=s;u.toUpperCase();
     if(u=="STOP") stopMonitor();
     else if(monitor||burstStopping) Serial.println("[MON] type STOP first");
-    else if(u=="MON"||u=="BANK1") startBank(1);
-    else if(u=="BANK0") startBank(0);
-    else if(u=="BANK2") startBank(2);
-    else if(u=="BANK3") startBank(3);
-    else if(u=="BANK4") startBank(4);
-    else if(u=="BANK5") startBank(5);
-    else if(u=="BANK6") startBank(6);
-    else if(u=="BANK7") startBank(7);
+    else if(u=="MON") startBank(4); // 100-13F
+    else if(u.startsWith("BANK")){
+      int n=u.substring(4).toInt();
+      startBank(n);
+    }
     else if(u.startsWith("ID")) startExact(u);
     else if(u=="INFO") initElm();
-    else Serial.println("[CMD] MON/BANK1, BANK0..BANK7, IDxxx, STOP, INFO");
+    else Serial.println("[CMD] MON, BANK0..BANK31, IDxxx, STOP, INFO");
   }
   delay(2);
 }
