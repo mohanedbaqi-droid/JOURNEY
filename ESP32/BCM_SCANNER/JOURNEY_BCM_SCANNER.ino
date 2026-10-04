@@ -29,8 +29,8 @@ uint32_t monitorStarted=0, stopRequestedAt=0, nextMonitorAt=0;
 
 // KONNWEI/ELM buffer is small on a busy Journey CAN-C bus.
 // Capture a very short slice, stop, fully drain to '>', then wait before next slice.
-static const uint32_t MON_BURST_MS=5;
-static const uint32_t MON_GAP_MS=1000;
+static const uint32_t MON_BURST_MS=0;
+static const uint32_t MON_GAP_MS=0;
 static const uint32_t STOP_DRAIN_TIMEOUT_MS=350;
 
 void notifyCB(BLERemoteCharacteristic*,uint8_t* d,size_t n,bool){
@@ -125,7 +125,7 @@ void waitPrompt(uint32_t ms=2200){
 void initElm(){
   const char* a[]={"ATE0","ATL0","ATS1","ATH1","ATCAF0","ATSP6","ATDP","ATDPN"};
   for(auto c:a){sendElm(c);waitPrompt();delay(100);}
-  Serial.println("\n[READY] Protocol 6 / CAN 11-500. Type MON.");
+  Serial.println("\n[READY] Protocol 6 / CAN 11-500. Type MON for filtered BANK1.");
 }
 
 void beginBurst(){
@@ -153,18 +153,34 @@ void forceDrainRecovery(){
   Serial.println("[MON] drain timeout -> recovery gap");
 }
 
-void startMonitor(){
+void startFilteredMonitor(String cf="100", String cm="700"){
   if(monitor||burstStopping){Serial.println("[MON] already running");return;}
+  sendElm("ATSP6");waitPrompt();
   sendElm("ATH1");waitPrompt();
   sendElm("ATS1");waitPrompt();
   sendElm("ATCAF0");waitPrompt();
-  sendElm("ATSP6");waitPrompt();
-  nextMonitorAt=0;
-  Serial.println("\n[MON] ULTRA-SHORT monitor: 5ms capture + full drain + 1000ms gap.");
-  Serial.println("[MON] Change ONE item at a time. Type STOP to finish.");
-  beginBurst();
+  sendElm("ATCF"+cf);waitPrompt();
+  sendElm("ATCM"+cm);waitPrompt();
+  nextMonitorAt=0; burstStopping=false;
+  Serial.printf("\n[FILTER] CF=%s CM=%s\n",cf.c_str(),cm.c_str());
+  Serial.println("[MON] FILTERED passive monitor. Type STOP first before changing bank.");
+  buf=""; monitor=true; monitorStarted=millis();
+  String x="ATMA\r";
+  tx->writeValue((uint8_t*)x.c_str(),x.length(),tx->canWrite());
 }
-
+void startMonitor(){ startFilteredMonitor("100","700"); }
+void startBank(int n){
+  char cf[4]; snprintf(cf,sizeof(cf),"%03X",(n&7)<<8);
+  startFilteredMonitor(String(cf),"700");
+}
+void startExact(String s){
+  s.trim(); s.toUpperCase();
+  if(s.startsWith("ID")) s=s.substring(2);
+  long id=strtol(s.c_str(),nullptr,16);
+  if(id<0||id>0x7FF){Serial.println("[ERR] use ID000..ID7FF");return;}
+  char cf[4]; snprintf(cf,sizeof(cf),"%03lX",id);
+  startFilteredMonitor(String(cf),"7FF");
+}
 void stopMonitor(){
   nextMonitorAt=0;
   if(monitor&&!burstStopping) requestBurstStop();
@@ -182,7 +198,7 @@ void stopMonitor(){
 void setup(){
   Serial.begin(115200);
   delay(800);
-  Serial.println("\n=== JOURNEY 2017 BCM READ-ONLY SCANNER v3 ===");
+  Serial.println("\n=== JOURNEY 2017 BCM READ-ONLY SCANNER v4 FILTERED ===");
   BLEDevice::init("JOURNEY-BCM-SCANNER");
   if(!link(OBD_MAC)&&!fallback()){
     Serial.println("[FAIL] KONNWEI not found/unsupported GATT");
@@ -194,27 +210,22 @@ void setup(){
 
 void loop(){
   if(Serial.available()){
-    String cmd=Serial.readStringUntil('\n');cmd.trim();
-    if(cmd.length()){
-      if(cmd.equalsIgnoreCase("MON"))startMonitor();
-      else if(cmd.equalsIgnoreCase("STOP"))stopMonitor();
-      else if(cmd.equalsIgnoreCase("INFO")&&!monitor&&!burstStopping)initElm();
-      else if(!monitor&&!burstStopping&&nextMonitorAt==0)sendElm(cmd);
-      else Serial.println("[MON] type STOP first");
-    }
+    String s=Serial.readStringUntil('\n'); s.trim();
+    if(!s.length()) return;
+    String u=s; u.toUpperCase();
+    if(u=="STOP") stopMonitor();
+    else if(monitor||burstStopping) Serial.println("[MON] type STOP first");
+    else if(u=="MON"||u=="BANK1") startBank(1);
+    else if(u=="BANK0") startBank(0);
+    else if(u=="BANK2") startBank(2);
+    else if(u=="BANK3") startBank(3);
+    else if(u=="BANK4") startBank(4);
+    else if(u=="BANK5") startBank(5);
+    else if(u=="BANK6") startBank(6);
+    else if(u=="BANK7") startBank(7);
+    else if(u.startsWith("ID")) startExact(u);
+    else if(u=="INFO") initElm();
+    else Serial.println("[CMD] MON/BANK1, BANK0..BANK7, IDxxx, STOP, INFO");
   }
-
-  if(monitor && !burstStopping && millis()-monitorStarted>=MON_BURST_MS)
-    requestBurstStop();
-
-  if(burstStopping && millis()-stopRequestedAt>=STOP_DRAIN_TIMEOUT_MS)
-    forceDrainRecovery();
-
-  if(!monitor && !burstStopping && nextMonitorAt &&
-     (int32_t)(millis()-nextMonitorAt)>=0){
-    nextMonitorAt=0;
-    beginBurst();
-  }
-
-  delay(1);
+  delay(2);
 }
