@@ -168,15 +168,15 @@ void startFilteredMonitor(String cf="100", String cm="700"){
   String x="ATMA\r";
   tx->writeValue((uint8_t*)x.c_str(),x.length(),tx->canWrite());
 }
-void startMonitor(){ startFilteredMonitor("100","700"); }
+void startMonitor(){ startBank(16); }
 void startBank(int n){
-  // 64-ID windows: mask 0x7C0. BANK4=100-13F, BANK5=140-17F, etc.
-  if(n<0||n>31){Serial.println("[ERR] BANK must be 0..31");return;}
-  unsigned int base=(unsigned int)n*0x40;
+  // 16-ID windows: mask 0x7F0. BANK16=100-10F, BANK17=110-11F, etc.
+  if(n<0||n>127){Serial.println("[ERR] BANK must be 0..127");return;}
+  unsigned int base=(unsigned int)n*0x10;
   char cf[4]; snprintf(cf,sizeof(cf),"%03X",base);
-  char label[48]; snprintf(label,sizeof(label),"IDs %03X-%03X",base,base+0x3F);
+  char label[48]; snprintf(label,sizeof(label),"IDs %03X-%03X",base,base+0x0F);
   Serial.printf("[BANK %d] %s\n",n,label);
-  startFilteredMonitor(String(cf),"7C0");
+  startFilteredMonitor(String(cf),"7F0");
 }
 void startExact(String s){
   s.trim(); s.toUpperCase();
