@@ -50,11 +50,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/JourneyControl.app"
           cd "$RUNNER_TEMP/ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/JOURNEY-2.4.16-47-unsigned.ipa" Payload
-          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-47-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" Payload
+          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
+          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" "Payload/JourneyControl.app/Info.plist" > "$RUNNER_TEMP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$RUNNER_TEMP/Info.plist"
+          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" | grep "Payload/JourneyControl.app/JourneyControl"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-2.4.16-47-unsigned-IPA
+          name: JOURNEY-2.4.16-48-unsigned-IPA
           path: JOURNEY-2.4.16-47-unsigned.ipa
           if-no-files-found: error
