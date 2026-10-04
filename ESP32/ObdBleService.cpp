@@ -254,6 +254,46 @@ bool ObdBleService::stopCanMonitor() {
   return true;
 }
 
+bool ObdBleService::startAutoBcmSlice() {
+  if (preferredTransport_ != "BLE" || !data_.connected || !writeChar_ ||
+      commandPending_ || canMonitorActive_ || mode_ != QueryMode::Normal) return false;
+  static const uint16_t ids[] = {0x318, 0x202, 0x318, 0x14C, 0x318, 0x304};
+  const uint16_t id = ids[autoBcmSliceIndex_ % 6];
+  autoBcmSliceIndex_ = (autoBcmSliceIndex_ + 1) % 6;
+  char filter[16];
+  snprintf(filter, sizeof(filter), "ATCF%03X\r", id);
+  const char* setup[] = {"ATSP6\r", "ATH1\r", "ATCAF0\r", "ATCM7FF\r"};
+  for (const char* cmd : setup) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(35); }
+  writeChar_->writeValue((uint8_t*)filter, strlen(filter), false);
+  delay(35);
+  canLineBuffer_ = "";
+  reply_ = "";
+  const char* monitor = "ATMA\r";
+  writeChar_->writeValue((uint8_t*)monitor, strlen(monitor), false);
+  canMonitorActive_ = true;
+  autoBcmSliceActive_ = true;
+  autoBcmSliceStartedAt_ = millis();
+  status_ = "bcm_engine_timeslice";
+  return true;
+}
+
+void ObdBleService::stopAutoBcmSlice() {
+  if (!autoBcmSliceActive_ || !writeChar_) return;
+  const char* stop = "\r";
+  writeChar_->writeValue((uint8_t*)stop, 1, false);
+  delay(35);
+  const char* restore[] = {"ATH0\r", "ATCAF1\r"};
+  for (const char* cmd : restore) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(35); }
+  canMonitorActive_ = false;
+  autoBcmSliceActive_ = false;
+  canLineBuffer_ = "";
+  reply_ = "";
+  commandPending_ = false;
+  status_ = "obd_live";
+  nextActionAt_ = millis() + 80;
+  nextAutoBcmSliceAt_ = millis() + 550;
+}
+
 bool ObdBleService::matchesAdapter(BLEAdvertisedDevice& device) const {
   String address = device.getAddress().toString().c_str();
   address.toUpperCase();
