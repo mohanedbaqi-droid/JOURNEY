@@ -370,7 +370,18 @@ final class MQTTService: ObservableObject {
     }
 
     func isButtonActive(_ button: String, for deviceID: String) -> Bool {
-        buttonFeedback[deviceID]?.contains(button) == true
+        // Prefer the explicit GPIO feedback bits from the ESP.  Event edges are
+        // retained as a fallback for older/partial packets.
+        if let state = vehicles[deviceID] {
+            switch button {
+            case "lock": if state.feedbackLock { return true }
+            case "unlock": if state.feedbackUnlock { return true }
+            case "start": if state.feedbackStart { return true }
+            case "alarm": if state.feedbackAlarm { return true }
+            default: break
+            }
+        }
+        return buttonFeedback[deviceID]?.contains(button) == true
     }
 
     private func updateButtonFeedback(event: String, deviceID: String) {
