@@ -1512,8 +1512,8 @@ void pollGnss() {
   if (cellularEnabled && PPP.started()) {
     if (millis() - lastGnssQueryAt >= GNSS_QUERY_INTERVAL_MS) {
       lastGnssQueryAt = millis();
-      String response;
-      if (PPP.cmd("AT+CGPSINFO", response, 5000)) {
+      const String response = PPP.cmd("AT+CGPSINFO", 5000);
+      if (!response.isEmpty()) {
         const int pos = response.indexOf("+CGPSINFO:");
         if (pos >= 0) parseGpsLine(response.substring(pos));
       }
@@ -2285,7 +2285,7 @@ void setup() {
   });
   if (cellularEnabled) {
     startCellularPpp();
-    if (ENABLE_GNSS && PPP.started()) { String r; PPP.cmd("AT+CGNSSPWR=1", r, 5000); }
+    if (ENABLE_GNSS && PPP.started()) PPP.cmd("AT+CGNSSPWR=1", 5000);
   } else if (ENABLE_GNSS) {
     modem.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
     delay(250);
