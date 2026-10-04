@@ -13,8 +13,6 @@ targets:
     platform: iOS
     sources:
       - JourneyControl
-    info:
-      path: JourneyControl/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
@@ -34,8 +32,6 @@ targets:
     platform: iOS
     sources:
       - JourneyWidget
-    info:
-      path: JourneyWidget/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
