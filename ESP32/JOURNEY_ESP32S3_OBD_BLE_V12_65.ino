@@ -246,6 +246,11 @@ String hotspotSsid = "JOURNEY-4G";
 String hotspotPassword = "";
 bool hotspotRunning = false;
 enum class InternetRoute : uint8_t { NONE, CELLULAR, WIFI };
+// Explicit prototypes are required by Arduino's .ino preprocessor because
+// InternetRoute is a sketch-local enum used as a function parameter/return type.
+String internetRouteName(InternetRoute route);
+InternetRoute chooseInternetRoute();
+void applyInternetPriority();
 InternetRoute activeInternetRoute = InternetRoute::NONE;
 // v12.65: user-configurable priority for normal vehicle commands/uplink.
 // Keyless/proximity remains BLE-first regardless of this list.
