@@ -47,6 +47,18 @@ int closedIds=0, openIds=0, closed2Ids=0;
 enum CaptureTarget:uint8_t {TARGET_NONE,TARGET_CLOSED,TARGET_OPEN,TARGET_CLOSED2};
 CaptureTarget activeTarget=TARGET_NONE;
 
+typedef struct {
+  uint16_t id;
+  float score;
+  uint8_t len;
+  uint8_t changedBytes;
+  uint8_t changedMask[MAX_DATA];
+  uint8_t closed[MAX_DATA];
+  uint8_t open[MAX_DATA];
+  uint8_t closed2[MAX_DATA];
+  float stability;
+} CanCandidate;
+
 class ClientCB: public BLEClientCallbacks {
  void onDisconnect(BLEClient*) override { connected=false; writeChar=nullptr; notifyChar=nullptr; monitorActive=false; Serial.println("\n[BLE] KONNWEI disconnected"); }
 };
@@ -79,22 +91,10 @@ void capture(CaptureTarget t){if(!connectKonnwei())return;clearCapture(t);elm("A
 uint8_t modalLength(const IdState*s){if(!s||!s->sampleCount)return 0;uint8_t c[9]{};for(uint8_t i=0;i<s->sampleCount;i++)if(s->samples[i].len<=8)c[s->samples[i].len]++;uint8_t bl=0,bc=0;for(uint8_t l=1;l<=8;l++)if(c[l]>bc){bc=c[l];bl=l;}return bl;}
 uint8_t modalByte(const IdState*s,uint8_t bi,uint8_t len){uint16_t h[256]{};if(!s)return 0;for(uint8_t i=0;i<s->sampleCount;i++)if(s->samples[i].len==len&&bi<len)h[s->samples[i].data[bi]]++;uint8_t bv=0;uint16_t bc=0;for(int v=0;v<256;v++)if(h[v]>bc){bc=h[v];bv=v;}return bv;}
 float byteStability(const IdState*s,uint8_t bi,uint8_t len){if(!s||!s->sampleCount)return 0;uint8_t m=modalByte(s,bi,len);uint16_t same=0,u=0;for(uint8_t i=0;i<s->sampleCount;i++)if(s->samples[i].len==len&&bi<len){u++;if(s->samples[i].data[bi]==m)same++;}return u?(float)same/u:0;}
-struct CanCandidate {
-  uint16_t id;
-  float score;
-  uint8_t len;
-  uint8_t changedBytes;
-  uint8_t changedMask[MAX_DATA];
-  uint8_t closed[MAX_DATA];
-  uint8_t open[MAX_DATA];
-  uint8_t closed2[MAX_DATA];
-  float stability;
-};
-
 float computeCandidate(uint16_t id, CanCandidate &o){IdState*a=findId(closedSet,closedIds,id),*b=findId(openSet,openIds,id),*c=findId(closed2Set,closed2Ids,id);if(!a||!b||!c)return-1;uint8_t l=modalLength(a);if(!l||l!=modalLength(b)||l!=modalLength(c))return-1;o.id=id;o.len=l;float score=0,ss=0;for(uint8_t i=0;i<l;i++){uint8_t x=modalByte(a,i,l),y=modalByte(b,i,l),z=modalByte(c,i,l);o.closed[i]=x;o.open[i]=y;o.closed2[i]=z;o.changedMask[i]=0;float st=(byteStability(a,i,l)+byteStability(b,i,l)+byteStability(c,i,l))/3;ss+=st;if(x==z&&x!=y){o.changedBytes++;o.changedMask[i]=x^y;score+=34+16*st;uint8_t d=x^y,bits=0;for(uint8_t k=0;k<8;k++)if(d&(1<<k))bits++;score+=bits==1?14:bits==2?8:bits<=4?3:0;}else if(x!=y&&y!=z)score-=12;else if(x!=z)score-=10;}o.stability=ss/l;if(!o.changedBytes)return-1;score+=o.changedBytes==1?18:o.changedBytes==2?7:-(o.changedBytes-2)*5;if(a->frameCount>=3&&b->frameCount>=3&&c->frameCount>=3)score+=8;score+=10*o.stability;if(score<0)score=0;if(score>100)score=100;o.score=score;return score;}
 void printBytes(const uint8_t*d,uint8_t l){for(uint8_t i=0;i<l;i++){if(i)Serial.print(' ');if(d[i]<16)Serial.print('0');Serial.print(d[i],HEX);}}
 void printChangedBits(const CanCandidate&c){for(uint8_t i=0;i<c.len;i++){uint8_t m=c.changedMask[i];if(!m)continue;Serial.printf("  Byte %u: %02X -> %02X -> %02X | changed bits:",i,c.closed[i],c.open[i],c.closed2[i]);for(uint8_t b=0;b<8;b++)if(m&(1<<b))Serial.printf(" b%u(%u->%u)",b,(c.closed[i]>>b)&1,(c.open[i]>>b)&1);Serial.println();}}
-void analyze(){if(!closedIds||!openIds||!closed2Ids){Serial.println("[AI] Need CLOSED, OPEN and CLOSED2 captures first.");return;}CanCandidate r[MAX_IDS];int n=0;for(int i=0;i<openIds;i++){struct CanCandidate c;float s=computeCandidate(openSet[i].id,c);if(s>=0&&n<MAX_IDS)r[n++]=c;}for(int i=0;i<n-1;i++)for(int j=i+1;j<n;j++)if(r[j].score>r[i].score){CanCandidate t=r[i];r[i]=r[j];r[j]=t;}Serial.println("\n=== LOCAL SMART CAN ANALYSIS ===");if(!n){Serial.println("[AI] No repeatable candidate found. Try TIME:1800 and repeat.");return;}int show=n>topResults?topResults:n;for(int i=0;i<show;i++){struct CanCandidate &c=r[i];Serial.printf("\n#%d ID %03X SCORE %.1f/100 stability %.0f%%\n",i+1,c.id,c.score,c.stability*100);Serial.print(" CLOSED : ");printBytes(c.closed,c.len);Serial.print("\n OPEN   : ");printBytes(c.open,c.len);Serial.print("\n CLOSED2: ");printBytes(c.closed2,c.len);Serial.println();printChangedBits(c);}Serial.println("\nRepeat same test 2-3 times to verify.");}
+void analyze(){if(!closedIds||!openIds||!closed2Ids){Serial.println("[AI] Need CLOSED, OPEN and CLOSED2 captures first.");return;}CanCandidate r[MAX_IDS];int n=0;for(int i=0;i<openIds;i++){CanCandidate c;float s=computeCandidate(openSet[i].id,c);if(s>=0&&n<MAX_IDS)r[n++]=c;}for(int i=0;i<n-1;i++)for(int j=i+1;j<n;j++)if(r[j].score>r[i].score){CanCandidate t=r[i];r[i]=r[j];r[j]=t;}Serial.println("\n=== LOCAL SMART CAN ANALYSIS ===");if(!n){Serial.println("[AI] No repeatable candidate found. Try TIME:1800 and repeat.");return;}int show=n>topResults?topResults:n;for(int i=0;i<show;i++){CanCandidate &c=r[i];Serial.printf("\n#%d ID %03X SCORE %.1f/100 stability %.0f%%\n",i+1,c.id,c.score,c.stability*100);Serial.print(" CLOSED : ");printBytes(c.closed,c.len);Serial.print("\n OPEN   : ");printBytes(c.open,c.len);Serial.print("\n CLOSED2: ");printBytes(c.closed2,c.len);Serial.println();printChangedBits(c);}Serial.println("\nRepeat same test 2-3 times to verify.");}
 void printHelp(){Serial.println("\nCommands: CLOSED, OPEN, CLOSED2, ANALYZE, RESET, INIT, TIME:1800, TOP:10, ELM:ATI, ELM:ATDP\nTest order: CLOSED -> open door -> OPEN -> close door -> CLOSED2 -> ANALYZE");}
 void handleCommand(String c){c.trim();if(!c.length())return;String u=c;u.toUpperCase();if(u=="HELP")printHelp();else if(u=="INIT")initElm();else if(u=="CLOSED")capture(TARGET_CLOSED);else if(u=="OPEN")capture(TARGET_OPEN);else if(u=="CLOSED2")capture(TARGET_CLOSED2);else if(u=="ANALYZE"||u=="AI"||u=="COMPARE")analyze();else if(u=="RESET"){clearSet(closedSet,closedIds);clearSet(openSet,openIds);clearSet(closed2Set,closed2Ids);Serial.println("[RESET] all captures cleared");}else if(u.startsWith("TIME:")){long v=u.substring(5).toInt();if(v<400)v=400;if(v>2500)v=2500;captureMs=v;Serial.printf("[SET] capture=%lu ms\n",(unsigned long)captureMs);}else if(u.startsWith("TOP:")){long v=u.substring(4).toInt();if(v<1)v=1;if(v>30)v=30;topResults=v;}else if(u.startsWith("ELM:")){String at=c.substring(4);at.trim();elm(at,2500);}else Serial.println("[ERR] Type HELP");}
 void setup(){Serial.begin(115200);delay(1200);Serial.println("\n=== JOURNEY CAN AUTO ANALYZER ===");BLEDevice::init("JOURNEY-CAN-AUTO-AI");if(connectKonnwei())initElm();else Serial.println("[BLE] Type INIT to retry");printHelp();}
