@@ -2105,7 +2105,6 @@ private struct MQTTSettingsView: View {
     @AppStorage("journey.settings.notifyLocks") private var notifyLocks = true
     @AppStorage("journey.settings.notifyOBD") private var notifyOBD = false
     @AppStorage("journey.settings.developerMode") private var developerMode = false
-    @AppStorage("journey.settings.canBCM") private var canBCM = true
 
     private var selectedDeviceID: String? { devices.selectedDevice?.deviceID }
     private var vehicle: VehicleState {
@@ -2402,7 +2401,6 @@ private struct MQTTSettingsView: View {
                 }
 
                 Section {
-                    Toggle("تفعيل BCM / Body CAN", isOn: $canBCM)
                     Toggle("Developer Mode", isOn: $developerMode)
                     if developerMode {
                         LabeledContent("حالة BLE", value: mqtt.bluetoothStatus)
@@ -2668,8 +2666,8 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.13 (44)")
-                LabeledContent("Firmware المطلوب", value: "v12.65")
+                LabeledContent("إصدار التطبيق", value: "2.4.14 (45)")
+                LabeledContent("Firmware المطلوب", value: "v12.66")
             }
             Section("التحديث") {
                 Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
