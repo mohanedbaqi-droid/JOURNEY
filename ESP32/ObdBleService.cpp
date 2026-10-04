@@ -765,7 +765,10 @@ void ObdBleService::consumeReply() {
 
 void ObdBleService::poll() {
   const uint32_t now = millis();
-  if (canMonitorActive_) return;
+  if (canMonitorActive_) {
+    if (autoBcmSliceActive_ && now - autoBcmSliceStartedAt_ >= 420) stopAutoBcmSlice();
+    return;
+  }
 
   // v12.59: do not turn a single transient OBD gap into a fake engine-stop.
   // Hold RPM/engine state longer than the normal PID cadence; the event layer
