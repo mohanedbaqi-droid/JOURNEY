@@ -44,13 +44,19 @@ jobs:
         run: |
           set -e
           APP="$RUNNER_TEMP/JourneyDerived/Build/Products/Release-iphoneos/JourneyControl.app"
+          APP_INFO="$APP/Info.plist"
           WIDGET_INFO="$APP/PlugIns/JourneyWidget.appex/Info.plist"
           test -d "$APP"
-          test -f "$APP/Info.plist"
+          test -f "$APP_INFO"
           test -f "$APP/JourneyControl"
           test -f "$WIDGET_INFO"
 
-          # Xcode 16 omits this required declaration for the generated extension plist.
+          # Xcode 16 omits these entries in the generated plists.
+          # iOS aborts immediately when CoreBluetooth is initialized without this key.
+          /usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string Journey يحتاج البلوتوث للاتصال بوحدة ESP32 وتشخيص السيارة." "$APP_INFO"
+          /usr/libexec/PlistBuddy -c "Add :NSBluetoothPeripheralUsageDescription string Journey يحتاج البلوتوث للاتصال بوحدة ESP32 وتشخيص السيارة." "$APP_INFO"
+          /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$APP_INFO"
+
           /usr/libexec/PlistBuddy -c "Add :NSExtension dict" "$WIDGET_INFO"
           /usr/libexec/PlistBuddy -c "Add :NSExtension:NSExtensionPointIdentifier string com.apple.widgetkit-extension" "$WIDGET_INFO"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
@@ -62,6 +68,7 @@ jobs:
           /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
           /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" "Payload/JourneyControl.app/Info.plist" > "$RUNNER_TEMP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$RUNNER_TEMP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$RUNNER_TEMP/Info.plist"
           /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist" > "$RUNNER_TEMP/Widget-Info.plist"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$RUNNER_TEMP/Widget-Info.plist" | grep "^com.apple.widgetkit-extension$"
           /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" | grep "Payload/JourneyControl.app/JourneyControl"
