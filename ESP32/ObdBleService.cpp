@@ -1054,6 +1054,12 @@ void ObdBleService::poll() {
     }
     return;
   }
+  // v12.67: short BCM window between normal engine PID requests.
+  if (preferredTransport_ == "BLE" && now >= nextAutoBcmSliceAt_) {
+    if (startAutoBcmSlice()) return;
+    nextAutoBcmSliceAt_ = now + 250;
+  }
+
   // v12.59: adapter-local battery voltage is sampled every 4 seconds even when
   // CAN is awake. ATRV reads KONNWEI supply voltage and does not depend on an
   // ECU PID, so the app keeps a genuinely live battery value across CAN sleep.
