@@ -107,7 +107,7 @@ class ObdBleService {
   uint16_t scanPid_ = 1;
   uint16_t activeStandardPid_ = 0;
   uint32_t supportedMasks_[6]{};
-  enum class QueryMode : uint8_t { Init, Handshake, Vin, SupportMasks, StandardPids, Normal, CanSleep } mode_ = QueryMode::Init;
+  enum class QueryMode : uint8_t { Init, Handshake, Vin, SupportMasks, StandardPids, Normal, CanSleep, ResumeLive } mode_ = QueryMode::Init;
   uint32_t nextActionAt_ = 0;
   uint32_t rateWindowAt_ = 0;
   uint32_t rateWindowResponses_ = 0;
