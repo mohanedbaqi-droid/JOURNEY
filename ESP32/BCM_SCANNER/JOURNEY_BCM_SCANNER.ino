@@ -52,7 +52,9 @@ void sendElm(String c){
 }
 void waitPrompt(uint32_t ms=2200){uint32_t t=millis();while(millis()-t<ms){delay(10);if(buf.indexOf('>')>=0)return;}}
 void initElm(){
- const char* a[]={"ATE0","ATL0","ATS1","ATH1","ATSP0","ATDP","ATDPN","0100","0902"};
+ // Journey 2017 high-speed CAN-C on the standard OBD CAN pair: ISO 15765-4, 11-bit, 500 kbps.
+ // Force protocol 6 so ELM does not stay in AUTO SEARCHING during the capture.
+ const char* a[]={"ATE0","ATL0","ATS1","ATH1","ATCAF0","ATSP6","ATDP","ATDPN"};
  for(auto c:a){sendElm(c);waitPrompt();delay(120);}
  Serial.println("\n[READY] Headers ON. Type MON for passive traffic.");
 }
