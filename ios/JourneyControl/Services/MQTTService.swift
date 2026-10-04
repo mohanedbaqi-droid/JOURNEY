@@ -494,6 +494,13 @@ final class MQTTService: ObservableObject {
                 merged.simulatedLocked = state.simulatedLocked
                 merged.simulatedDoorsOpen = state.simulatedDoorsOpen
                 merged.simulatedEngineRunning = state.simulatedEngineRunning
+                // v12.66 body state is decoded by ESP from confirmed Journey CAN IDs.
+                merged.bcmStateValid = state.bcmStateValid
+                if state.bcmStateValid {
+                    merged.headlightsOn = state.headlightsOn
+                    merged.leftSignalOn = state.leftSignalOn
+                    merged.rightSignalOn = state.rightSignalOn
+                }
                 merged.feedbackLock = state.feedbackLock
                 merged.feedbackUnlock = state.feedbackUnlock
                 merged.feedbackStart = state.feedbackStart
