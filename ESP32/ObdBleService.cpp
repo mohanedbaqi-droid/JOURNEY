@@ -15,6 +15,12 @@ const char* NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const char* NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 const char* NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
+// Confirmed on the user's 2017 Dodge Journey with the exact-ID analyzer.
+constexpr uint16_t BCM_ID_DOORS = 0x202;
+constexpr uint16_t BCM_ID_TURNS = 0x318;
+constexpr uint16_t BCM_ID_HEADLIGHT = 0x304;
+constexpr uint16_t BCM_ID_LOCK = 0x14C;
+
 class ClientCallbacks final : public BLEClientCallbacks {
   void onDisconnect(BLEClient* client) override { ObdBleService::onDisconnect(client); }
 };
@@ -48,6 +54,26 @@ void ObdBleService::begin() {
 
 const ObdSnapshot& ObdBleService::snapshot() const { return data_; }
 const char* ObdBleService::statusText() const { return status_.c_str(); }
+
+bool ObdBleService::applyConfirmedBcmFrame(uint16_t canId, const uint8_t* bytes, uint8_t len) {
+  if (!bytes) return false;
+  if (canId == BCM_ID_DOORS && len > 5) {
+    data_.doorsOpen = (bytes[5] & 0x01) != 0;
+  } else if (canId == BCM_ID_TURNS && len > 0) {
+    data_.leftSignalOn = (bytes[0] & 0x01) != 0;
+    data_.rightSignalOn = (bytes[0] & 0x02) != 0;
+  } else if (canId == BCM_ID_HEADLIGHT && len > 0) {
+    if (bytes[0] == 0x22) data_.headlightsOn = true;
+    else if (bytes[0] == 0x21) data_.headlightsOn = false;
+    else return false; // untested encoded lighting state: keep last known value
+  } else if (canId == BCM_ID_LOCK && len > 6) {
+    data_.locked = (bytes[6] & 0x10) != 0;
+  } else {
+    return false;
+  }
+  data_.bcmStateValid = true;
+  return true;
+}
 
 void ObdBleService::setPreferredAdapter(const String& name, const String& transport, const String& password, const String& host, uint16_t port) {
   preferredName_ = name;
