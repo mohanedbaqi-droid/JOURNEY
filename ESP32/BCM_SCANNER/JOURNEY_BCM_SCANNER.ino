@@ -29,8 +29,8 @@ uint32_t monitorStarted=0, stopRequestedAt=0, nextMonitorAt=0;
 
 // KONNWEI/ELM buffer is small on a busy Journey CAN-C bus.
 // Capture a very short slice, stop, fully drain to '>', then wait before next slice.
-static const uint32_t MON_BURST_MS=35;
-static const uint32_t MON_GAP_MS=180;
+static const uint32_t MON_BURST_MS=5;
+static const uint32_t MON_GAP_MS=1000;
 static const uint32_t STOP_DRAIN_TIMEOUT_MS=350;
 
 void notifyCB(BLERemoteCharacteristic*,uint8_t* d,size_t n,bool){
@@ -160,7 +160,7 @@ void startMonitor(){
   sendElm("ATCAF0");waitPrompt();
   sendElm("ATSP6");waitPrompt();
   nextMonitorAt=0;
-  Serial.println("\n[MON] SHORT BURST monitor: 35ms capture + full drain + 180ms gap.");
+  Serial.println("\n[MON] ULTRA-SHORT monitor: 5ms capture + full drain + 1000ms gap.");
   Serial.println("[MON] Change ONE item at a time. Type STOP to finish.");
   beginBurst();
 }
