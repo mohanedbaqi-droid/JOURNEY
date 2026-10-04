@@ -92,6 +92,7 @@ class ObdBleService {
   uint16_t wifiPort_ = 35000;
   WiFiClient wifiClient_;
   String reply_;
+  String canLineBuffer_; // passive ATMA line assembler for confirmed BCM frames
   uint8_t setupStep_ = 0;
   uint8_t pidIndex_ = 0;
   uint8_t liveStep_ = 0;
