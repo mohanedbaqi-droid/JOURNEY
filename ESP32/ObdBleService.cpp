@@ -962,9 +962,17 @@ void ObdBleService::poll() {
     }
     commandPending_ = false;
     data_.currentPid = "";
-    // If ELM itself answered initialization earlier, an ECU/PID timeout normally
-    // means the vehicle CAN went to sleep. Do NOT tear down BLE to KONNWEI.
+    // A single lost PID reply is common over BLE and must not turn a running
+    // engine into OFF. Keep the last confirmed live values while recent ECU
+    // replies still exist; only enter CAN-sleep probing after a sustained gap.
     if (preferredTransport_ == "BLE" && elmValidated_ && client_ && client_->isConnected()) {
+      const bool recentEcuReply = lastEcuReplyAt_ && now - lastEcuReplyAt_ < 7500;
+      if (mode_ == QueryMode::Normal && recentEcuReply) {
+        status_ = "obd_live_retrying";
+        data_.currentPid = "";
+        nextActionAt_ = now + 250;
+        return;
+      }
       data_.rpm = 0;
       data_.speedKph = 0;
       data_.engineRunning = false;
@@ -1072,8 +1080,11 @@ void ObdBleService::poll() {
     }
     return;
   }
-  // v12.67: short BCM window between normal engine PID requests.
-  if (preferredTransport_ == "BLE" && now >= nextAutoBcmSliceAt_) {
+  // BCM monitoring changes the ELM into ATMA/filter mode. Some KONNWEI BLE
+  // adapters do not restore their PID reply path reliably afterwards, which
+  // looks like RPM briefly works then the engine falsely becomes OFF. Keep
+  // live telemetry isolated; BCM monitoring remains available only on demand.
+  if (ENABLE_AUTO_BCM_SLICES && preferredTransport_ == "BLE" && now >= nextAutoBcmSliceAt_) {
     if (startAutoBcmSlice()) return;
     nextAutoBcmSliceAt_ = now + 500;
   }
