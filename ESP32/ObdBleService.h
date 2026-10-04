@@ -37,6 +37,13 @@ struct ObdSnapshot {
   String permanentDiagnosticCodes;
   uint32_t diagnosticCheckedAt = 0;
   bool clearInProgress = false;
+  // v12.66 confirmed BCM/body states from exact CAN IDs.
+  bool bcmStateValid = false;
+  bool doorsOpen = false;
+  bool locked = true;
+  bool headlightsOn = false;
+  bool leftSignalOn = false;
+  bool rightSignalOn = false;
 };
 
 // Generic BLE ELM327 client. It supports the common FFF0/FFF1/FFF2 and
@@ -58,6 +65,9 @@ class ObdBleService {
   bool requestElmConsole(const String& command);
   bool startCanMonitor();
   bool stopCanMonitor();
+  // Decode a raw 11-bit Journey BCM frame into the confirmed body-state map.
+  // Safe to call from an exact-filter CAN reader; unknown IDs/values are ignored.
+  bool applyConfirmedBcmFrame(uint16_t canId, const uint8_t* bytes, uint8_t len);
   bool canMonitorActive() const { return canMonitorActive_; }
   // BLE callback entry points; public only because the Arduino BLE callbacks
   // are small separate helper classes.
