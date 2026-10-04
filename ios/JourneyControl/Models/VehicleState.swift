@@ -33,6 +33,7 @@ struct VehicleState: Codable {
     var headlightsOn = false
     var leftSignalOn = false
     var rightSignalOn = false
+    var bcmStateValid = false
     var gpsValid = false
     /// Published by the 4G/3G modem on the ESP when available.
     var cellularNetwork = "غير متاح"
@@ -140,7 +141,7 @@ struct VehicleState: Codable {
 
     enum CodingKeys: String, CodingKey {
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
-        case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn
+        case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn, bcmStateValid
         case cellularNetwork, cellularSignalDBm, cellularEnabled, cellularRegistered, cellularDataAttached, cellularAPN, cellularStatus, hotspotEnabled, hotspotRunning, hotspotSSID, internetRoute, bluetoothRSSI, espSleeping
         case gpsValid, latitude, longitude, obdConnected, obdStatus, obdResponseRate, obdTotalResponses, obdScanProgress, obdScannedPids, obdSupportedPids, obdStandardScanComplete, obdCurrentPid, obdLastReply, obdAdapterName, obdDiscoveredAdapters, obdDiscoveredWifiNetworks, obdDiscoveryKind, obdDiscoveryReset, obdDiscoveryDone, obdClearInProgress
         case rpm, speedKph, coolantC, intakeAirC, engineLoadPercent, throttlePercent, fuelLevelPercent, fuelLevelValid, engineRuntimeSeconds, controlVoltage
@@ -187,6 +188,7 @@ struct VehicleState: Codable {
         headlightsOn = try box.decodeIfPresent(Bool.self, forKey: .headlightsOn) ?? false
         leftSignalOn = try box.decodeIfPresent(Bool.self, forKey: .leftSignalOn) ?? false
         rightSignalOn = try box.decodeIfPresent(Bool.self, forKey: .rightSignalOn) ?? false
+        bcmStateValid = try box.decodeIfPresent(Bool.self, forKey: .bcmStateValid) ?? false
         gpsValid = try box.decodeIfPresent(Bool.self, forKey: .gpsValid) ?? false
         cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? "غير متاح"
         cellularSignalDBm = try box.decodeIfPresent(Int.self, forKey: .cellularSignalDBm) ?? -120
