@@ -1,0 +1,60 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/build-ios-ipa.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve packages
+        working-directory: ios
+        run: xcodebuild -project JourneyControl.xcodeproj -scheme JourneyControl -resolvePackageDependencies
+
+      - name: Build unsigned device app
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project JourneyControl.xcodeproj \
+            -scheme JourneyControl \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/JourneyDerived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package real IPA
+        run: |
+          set -e
+          APP="$RUNNER_TEMP/JourneyDerived/Build/Products/Release-iphoneos/JourneyControl.app"
+          test -d "$APP"
+          test -f "$APP/Info.plist"
+          test -f "$APP/JourneyControl"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/JourneyControl.app"
+          cd "$RUNNER_TEMP/ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/JOURNEY-2.4.16-47-unsigned.ipa" Payload
+          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-47-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JOURNEY-2.4.16-47-unsigned-IPA
+          path: JOURNEY-2.4.16-47-unsigned.ipa
+          if-no-files-found: error
