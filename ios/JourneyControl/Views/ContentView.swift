@@ -706,7 +706,12 @@ struct ContentView: View {
         statusActive: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .medium)
+            impact.prepare()
+            impact.impactOccurred()
+            action()
+        } label: {
             HStack(spacing: 13) {
                 Image(systemName: icon)
                     .font(.title3.bold())
