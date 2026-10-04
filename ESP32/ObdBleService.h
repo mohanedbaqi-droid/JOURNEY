@@ -121,6 +121,10 @@ class ObdBleService {
   uint16_t discoveredBleCount_ = 0;
   bool commandPending_ = false;
   bool canMonitorActive_ = false;
+  bool autoBcmSliceActive_ = false;
+  uint32_t autoBcmSliceStartedAt_ = 0;
+  uint32_t nextAutoBcmSliceAt_ = 0;
+  uint8_t autoBcmSliceIndex_ = 0;
   String pendingCommand_;
   uint8_t pendingPid_ = 0;
   uint8_t commandRetries_ = 0;
@@ -142,4 +146,6 @@ class ObdBleService {
   bool isSupportedStandardPid(uint16_t pid) const;
   void sendNextStandardPid();
   bool matchesAdapter(BLEAdvertisedDevice& device) const;
+  bool startAutoBcmSlice();
+  void stopAutoBcmSlice();
 };
