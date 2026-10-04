@@ -13,9 +13,27 @@ final class VehicleNotificationService {
 
     private init() {}
 
+    private func settingEnabled(_ key: String, default defaultValue: Bool) -> Bool {
+        if defaults.object(forKey: key) == nil { return defaultValue }
+        return defaults.bool(forKey: key)
+    }
+
+    private var engineNotificationsEnabled: Bool { settingEnabled("journey.settings.notifyEngine", default: true) }
+    private var keylessNotificationsEnabled: Bool { settingEnabled("journey.settings.notifyKeyless", default: true) }
+    private var lockNotificationsEnabled: Bool { settingEnabled("journey.settings.notifyLocks", default: true) }
+    private var obdNotificationsEnabled: Bool { settingEnabled("journey.settings.notifyOBD", default: false) }
+
+    private func eventAllowed(_ type: String) -> Bool {
+        if type.hasPrefix("engine_") { return engineNotificationsEnabled }
+        if type.hasPrefix("keyless_presence") { return keylessNotificationsEnabled }
+        if type.hasPrefix("keyless_lock") || type == "keyless_unlock" { return lockNotificationsEnabled }
+        if type.hasPrefix("obd_") { return obdNotificationsEnabled }
+        return true
+    }
+
     @discardableResult
     func notifyVehicleEvent(id: String, type: String, text: String, vehicleName: String) -> Bool {
-        guard !id.isEmpty else { return false }
+        guard !id.isEmpty, eventAllowed(type) else { return false }
         let key = "journey.vehicle.event.delivered.\(id)"
         if defaults.bool(forKey: key) { return true }
 
@@ -66,14 +84,14 @@ final class VehicleNotificationService {
         var changes: [String] = []
         // v12.51: notify on the actual proximity transition even when lock state
         // does not change (for example manual-lock latch or remote already on).
-        if old.lastEvent != new.lastEvent {
+        if keylessNotificationsEnabled && old.lastEvent != new.lastEvent {
             if new.lastEvent == "keyless_presence_near" {
                 changes.append("اقتربت من السيارة — تم اكتشاف الهاتف")
             } else if new.lastEvent == "keyless_presence_far" {
                 changes.append("ابتعدت عن السيارة — خرج الهاتف من نطاق القرب")
             }
         }
-        if old.simulatedLocked != new.simulatedLocked {
+        if lockNotificationsEnabled && old.simulatedLocked != new.simulatedLocked {
             if new.lastEvent == "keyless_unlock" {
                 changes.append("اقتربت من السيارة — تم فتح السيارة")
             } else if new.lastEvent == "keyless_lock_departure" || new.lastEvent == "keyless_lock" {
@@ -82,7 +100,7 @@ final class VehicleNotificationService {
                 changes.append(new.simulatedLocked ? "تم قفل السيارة" : "تم فتح السيارة")
             }
         }
-        if old.lastEvent != new.lastEvent, new.lastEvent == "keyless_lock_disconnect_confirm" {
+        if lockNotificationsEnabled && old.lastEvent != new.lastEvent, new.lastEvent == "keyless_lock_disconnect_confirm" {
             changes.append("انقطع BLE — تم تأكيد قفل السيارة مرة ثانية")
         }
         if old.simulatedDoorsOpen != new.simulatedDoorsOpen {
@@ -102,7 +120,7 @@ final class VehicleNotificationService {
         if old.hornActive != new.hornActive, new.hornActive {
             changes.append("الإنذار يعمل")
         }
-        if old.obdConnected != new.obdConnected {
+        if obdNotificationsEnabled && old.obdConnected != new.obdConnected {
             changes.append(new.obdConnected ? "OBD متصل" : "OBD انقطع")
         }
         if old.online != new.online {
@@ -136,6 +154,7 @@ final class VehicleNotificationService {
 
 
     func notifyKeylessDeparture(vehicleName: String, lockDelaySeconds: Int) {
+        guard keylessNotificationsEnabled else { return }
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: ["journey.keyless.departure"])
         let content = UNMutableNotificationContent()
