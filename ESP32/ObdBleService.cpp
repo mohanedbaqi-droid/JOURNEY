@@ -220,6 +220,7 @@ bool ObdBleService::startCanMonitor() {
   // ATMA only listens to the CAN wires physically exposed to this ELM adapter.
   // It does not transmit vehicle-control frames.
   reply_ = "";
+  canLineBuffer_ = "";
   String cmd = "ATMA\r";
   writeChar_->writeValue(reinterpret_cast<uint8_t*>(const_cast<char*>(cmd.c_str())), cmd.length(), writeChar_->canWrite());
   canMonitorActive_ = true;
@@ -303,9 +304,63 @@ void ObdBleService::onDisconnect(BLEClient*) {
 void ObdBleService::onNotify(BLERemoteCharacteristic*, uint8_t* bytes, size_t length, bool) {
   if (!instance_) return;
   if (instance_->canMonitorActive_) {
-    Serial0.print("[CAN RAW] ");
-    for (size_t i = 0; i < length; ++i) Serial0.write(bytes[i]);
-    if (!length || bytes[length - 1] != '\n') Serial0.println();
+    // ATMA notifications may split a CAN line across BLE packets. Reassemble
+    // complete lines, then decode only the four IDs confirmed on this Journey.
+    for (size_t i = 0; i < length; ++i) {
+      const char ch = static_cast<char>(bytes[i]);
+      if (ch == '\r' || ch == '\n' || ch == '>') {
+        String line = instance_->canLineBuffer_;
+        instance_->canLineBuffer_ = "";
+        line.trim();
+        if (line.isEmpty()) continue;
+        Serial0.printf("[CAN RAW] %s\n", line.c_str());
+
+        // Normalize separators while preserving hexadecimal tokens.
+        line.replace(":", " ");
+        line.replace(",", " ");
+        while (line.indexOf("  ") >= 0) line.replace("  ", " ");
+        int pos = 0;
+        String tok[12];
+        uint8_t count = 0;
+        while (pos < static_cast<int>(line.length()) && count < 12) {
+          while (pos < static_cast<int>(line.length()) && line[pos] == ' ') ++pos;
+          if (pos >= static_cast<int>(line.length())) break;
+          int end = line.indexOf(' ', pos);
+          if (end < 0) end = line.length();
+          tok[count++] = line.substring(pos, end);
+          pos = end + 1;
+        }
+        if (count < 2) continue;
+        char* idEnd = nullptr;
+        const unsigned long parsedId = strtoul(tok[0].c_str(), &idEnd, 16);
+        if (!idEnd || *idEnd != '\0' || parsedId > 0x7FF) continue;
+
+        uint8_t dataBytes[8]{};
+        uint8_t dataLen = 0;
+        uint8_t firstData = 1;
+        // ELM ATH1 commonly emits "ID DLC D0..D7"; tolerate both with/without DLC.
+        if (count >= 3 && tok[1].length() <= 2) {
+          char* dlcEnd = nullptr;
+          const unsigned long dlc = strtoul(tok[1].c_str(), &dlcEnd, 16);
+          if (dlcEnd && *dlcEnd == '\0' && dlc <= 8 && count >= dlc + 2) firstData = 2;
+        }
+        for (uint8_t t = firstData; t < count && dataLen < 8; ++t) {
+          if (tok[t].length() == 0 || tok[t].length() > 2) break;
+          char* byteEnd = nullptr;
+          const unsigned long value = strtoul(tok[t].c_str(), &byteEnd, 16);
+          if (!byteEnd || *byteEnd != '\0' || value > 0xFF) break;
+          dataBytes[dataLen++] = static_cast<uint8_t>(value);
+        }
+        if (dataLen && instance_->applyConfirmedBcmFrame(static_cast<uint16_t>(parsedId), dataBytes, dataLen)) {
+          Serial0.printf("[BCM] decoded %03lX len=%u doors=%d lock=%d light=%d L=%d R=%d\n",
+                         parsedId, dataLen, instance_->data_.doorsOpen, instance_->data_.locked,
+                         instance_->data_.headlightsOn, instance_->data_.leftSignalOn,
+                         instance_->data_.rightSignalOn);
+        }
+      } else if (instance_->canLineBuffer_.length() < 160) {
+        instance_->canLineBuffer_ += ch;
+      }
+    }
     return;
   }
   for (size_t i = 0; i < length && instance_->reply_.length() < 600; ++i) instance_->reply_ += static_cast<char>(bytes[i]);
