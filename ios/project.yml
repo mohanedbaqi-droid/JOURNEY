@@ -38,6 +38,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
         PRODUCT_NAME: JourneyWidget
+        GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         SWIFT_VERSION: 5.9
         DEVELOPMENT_TEAM: 6778LWD4ZB
