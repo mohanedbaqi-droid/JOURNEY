@@ -900,7 +900,7 @@ private struct JourneyAppInfoView: View {
                         Text("JOURNEY")
                             .font(.system(size: 30, weight: .black, design: .rounded))
                             .tracking(5)
-                        Text(appText("نظام التحكم والتشخيص الذكي للسيارة", "Smart vehicle control and diagnostics"))
+                        Text("نظام التحكم والتشخيص الذكي للسيارة")
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.62))
                     }
