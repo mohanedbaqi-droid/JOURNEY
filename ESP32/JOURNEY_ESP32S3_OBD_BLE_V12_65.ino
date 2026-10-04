@@ -10,6 +10,7 @@
 #include <Network.h>
 #include <PPP.h>
 #include <NetworkClientSecure.h>
+#include <HTTPClient.h>
 #include <WebServer.h>
 #include <Update.h>
 #include <Wire.h>
@@ -467,61 +468,35 @@ void applyInternetPriority() {
   applyHotspot();
 }
 
-bool updateFromCellular(const String& url) {
-  if (PPP.started()) return false;
-  if (!ENABLE_CELLULAR || (!url.startsWith("https://") && !url.startsWith("http://")) ||
-      url.indexOf('"') >= 0 || url.indexOf('\r') >= 0 || url.indexOf('\n') >= 0) return false;
-  lastEvent = "ota_4g_connecting";
+bool updateFromInternet(const String& url) {
+  // Use the ESP32 network stack, not the modem's AT HTTP mode. That makes one
+  // OTA path work over either the configured 4G/PPP link or Wi-Fi link.
+  if (!url.startsWith("https://") || url.indexOf('"') >= 0 || url.indexOf('\r') >= 0 || url.indexOf('\n') >= 0 ||
+      chooseInternetRoute() == InternetRoute::NONE) return false;
+  if (mqtt.connected()) mqtt.disconnect();
+  lastEvent = "ota_internet_connecting";
   publishState();
-  if (!modemOK("AT+CGDCONT=1,\"IP\",\"" + cellularApn + "\"", 8000) ||
-      !modemOK("AT+CGACT=1,1", 20000) ||
-      !modemOK("AT+HTTPINIT", 8000) ||
-      !modemOK("AT+HTTPPARA=\"CID\",1") ||
-      !modemOK("AT+HTTPPARA=\"URL\",\"" + url + "\"", 8000)) {
-    modem.println("AT+HTTPTERM");
+
+  NetworkClientSecure downloadClient;
+  // The URL is accepted from an authenticated owner command. HTTPS protects
+  // transit; certificate pinning is added when the permanent firmware host exists.
+  downloadClient.setInsecure();
+  HTTPClient http;
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setTimeout(30000);
+  if (!http.begin(downloadClient, url)) return false;
+  const int code = http.GET();
+  const int total = http.getSize();
+  if (code != HTTP_CODE_OK || total <= 0 || total > 3145728 || !Update.begin(static_cast<size_t>(total))) {
+    http.end();
     return false;
   }
-  if (url.startsWith("https://") && !modemOK("AT+HTTPSSL=1")) {
-    modem.println("AT+HTTPTERM");
-    return false;
-  }
-  modem.println("AT+HTTPACTION=0");
-  String actionLine;
-  if (!waitForModemLine("+HTTPACTION:", 90000, &actionLine)) {
-    modem.println("AT+HTTPTERM");
-    return false;
-  }
-  const int firstComma = actionLine.indexOf(',');
-  const int secondComma = actionLine.indexOf(',', firstComma + 1);
-  const int status = firstComma >= 0 && secondComma >= 0 ? actionLine.substring(firstComma + 1, secondComma).toInt() : 0;
-  const int total = secondComma >= 0 ? actionLine.substring(secondComma + 1).toInt() : 0;
-  if (status != 200 || total <= 0 || !Update.begin(total)) {
-    modem.println("AT+HTTPTERM");
-    return false;
-  }
-  uint8_t buffer[512];
-  int offset = 0;
-  bool good = true;
-  while (offset < total && good) {
-    const int wanted = min(static_cast<int>(sizeof(buffer)), total - offset);
-    modem.printf("AT+HTTPREAD=%d,%d\r\n", offset, wanted);
-    String header;
-    if (!waitForModemLine("+HTTPREAD:", 15000, &header)) { good = false; break; }
-    const int received = header.substring(header.indexOf(':') + 1).toInt();
-    if (received != wanted) { good = false; break; }
-    size_t got = 0;
-    const uint32_t started = millis();
-    while (got < static_cast<size_t>(received) && millis() - started < 20000) {
-      while (modem.available() && got < static_cast<size_t>(received)) buffer[got++] = modem.read();
-      delay(1);
-    }
-    if (got != static_cast<size_t>(received) || Update.write(buffer, got) != got) { good = false; break; }
-    offset += received;
-    if ((offset % 16384) == 0) { lastEvent = "ota_4g_downloading"; publishState(); }
-  }
-  modem.println("AT+HTTPTERM");
-  if (!good || !Update.end(true)) return false;
-  lastEvent = "ota_4g_complete";
+  lastEvent = "ota_internet_downloading";
+  publishState();
+  const size_t written = Update.writeStream(*http.getStreamPtr());
+  http.end();
+  if (written != static_cast<size_t>(total) || !Update.end() || !Update.isFinished()) return false;
+  lastEvent = "ota_internet_complete";
   publishState();
   otaRestartPending = true;
   return true;
@@ -1987,7 +1962,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   if (action == "ota_url") {
     const String url = doc["firmwareURL"] | "";
     lastCommandId = id;
-    lastEvent = updateFromCellular(url) ? "ota_4g_complete" : "ota_4g_failed";
+    lastEvent = updateFromInternet(url) ? "ota_internet_complete" : "ota_internet_failed";
     publishState();
     return;
   }
