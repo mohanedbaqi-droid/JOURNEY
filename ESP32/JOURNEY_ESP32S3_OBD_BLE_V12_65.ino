@@ -1558,7 +1558,13 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
       action == "keyless_lock" || action == "keyless_config" ||
       action == "owner_status" || action == "owner_register" ||
       action == "owner_request";
-  if (source == CommandSource::BLE && cloudLive && !keylessBleAction) {
+  // Manual remote-power is a safety/control command.  Never discard a valid
+  // BLE press merely because an Internet route is currently ranked higher.
+  // The iPhone already sends one route according to priority; accepting BLE
+  // here also keeps the local control usable during stale cloud-route state.
+  const bool directRemotePowerAction =
+      action == "remote_power_on" || action == "remote_power_off";
+  if (source == CommandSource::BLE && cloudLive && !keylessBleAction && !directRemotePowerAction) {
     const int bleRank = connectionPriorityRank("BLE");
     const int cloudRank = connectionPriorityRank(internetRouteName(activeInternetRoute));
     if (cloudRank < bleRank) {
