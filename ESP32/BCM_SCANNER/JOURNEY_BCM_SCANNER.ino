@@ -40,8 +40,9 @@ bool link(const char* mac){
 }
 bool fallback(){
  Serial.println("[BLE] MAC failed -> 8s fallback scan for name KONNWEI");
- BLEScan*s=BLEDevice::getScan();s->setActiveScan(true);auto r=s->start(8,false);
- for(int i=0;i<r.getCount();i++){auto d=r.getDevice(i);String n=d.haveName()?d.getName().c_str():"";if(n.equalsIgnoreCase(OBD_NAME)){String a=d.getAddress().toString().c_str();a.toUpperCase();Serial.printf("[BLE] found %s [%s]\n",n.c_str(),a.c_str());s->clearResults();return link(a.c_str());}}
+ BLEScan*s=BLEDevice::getScan();s->setActiveScan(true);BLEScanResults* r=s->start(8,false);
+ if(!r){Serial.println("[BLE] scan failed");return false;}
+ for(int i=0;i<r->getCount();i++){auto d=r->getDevice(i);String n=d.haveName()?d.getName().c_str():"";if(n.equalsIgnoreCase(OBD_NAME)){String a=d.getAddress().toString().c_str();a.toUpperCase();Serial.printf("[BLE] found %s [%s]\n",n.c_str(),a.c_str());s->clearResults();return link(a.c_str());}}
  s->clearResults();return false;
 }
 void sendElm(String c){
