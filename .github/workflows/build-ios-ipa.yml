@@ -44,9 +44,17 @@ jobs:
         run: |
           set -e
           APP="$RUNNER_TEMP/JourneyDerived/Build/Products/Release-iphoneos/JourneyControl.app"
+          WIDGET_INFO="$APP/PlugIns/JourneyWidget.appex/Info.plist"
           test -d "$APP"
           test -f "$APP/Info.plist"
           test -f "$APP/JourneyControl"
+          test -f "$WIDGET_INFO"
+
+          # Xcode 16 omits this required declaration for the generated extension plist.
+          /usr/libexec/PlistBuddy -c "Add :NSExtension dict" "$WIDGET_INFO"
+          /usr/libexec/PlistBuddy -c "Add :NSExtension:NSExtensionPointIdentifier string com.apple.widgetkit-extension" "$WIDGET_INFO"
+          /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
+
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/JourneyControl.app"
           cd "$RUNNER_TEMP/ipa"
@@ -54,6 +62,8 @@ jobs:
           /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
           /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" "Payload/JourneyControl.app/Info.plist" > "$RUNNER_TEMP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$RUNNER_TEMP/Info.plist"
+          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist" > "$RUNNER_TEMP/Widget-Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$RUNNER_TEMP/Widget-Info.plist" | grep "^com.apple.widgetkit-extension$"
           /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.16-48-unsigned.ipa" | grep "Payload/JourneyControl.app/JourneyControl"
 
       - uses: actions/upload-artifact@v4
