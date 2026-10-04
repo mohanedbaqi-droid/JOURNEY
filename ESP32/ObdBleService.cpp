@@ -5,6 +5,7 @@ ObdBleService* ObdBleService::instance_ = nullptr;
 
 namespace {
 const char* INIT_COMMANDS[] = {"ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"};
+const char* RESUME_LIVE_COMMANDS[] = {"ATE0", "ATL0", "ATS0", "ATH0", "ATCAF1", "ATSP6"};
 const char* PID_COMMANDS[] = {"010C", "010D", "0105", "010F", "0104", "0111", "012F", "011F", "0142"};
 constexpr uint8_t PID_COUNT = sizeof(PID_COMMANDS) / sizeof(PID_COMMANDS[0]);
 constexpr uint8_t INIT_COUNT = sizeof(INIT_COMMANDS) / sizeof(INIT_COMMANDS[0]);
@@ -257,59 +258,27 @@ bool ObdBleService::stopCanMonitor() {
 bool ObdBleService::startAutoBcmSlice() {
   if (preferredTransport_ != "BLE" || !data_.connected || !writeChar_ ||
       commandPending_ || canMonitorActive_ || mode_ != QueryMode::Normal) return false;
-  static const uint16_t ids[] = {0x318, 0x202, 0x318, 0x14C, 0x318, 0x304};
-  const uint16_t id = ids[autoBcmSliceIndex_ % 6];
-  autoBcmSliceIndex_ = (autoBcmSliceIndex_ + 1) % 6;
-  char filter[16];
-  snprintf(filter, sizeof(filter), "ATCF%03X\r", id);
-  const char* setup[] = {"ATSP6\r", "ATH1\r", "ATCAF0\r", "ATCM7FF\r"};
+  // One short unfiltered passive window catches short BCM frames. The parser
+  // accepts only confirmed BCM IDs, so unrelated CAN traffic is ignored.
+  const char* setup[] = {"ATSP6\r", "ATH1\r", "ATCAF0\r", "ATCM000\r", "ATCF000\r"};
   for (const char* cmd : setup) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(85); }
-  writeChar_->writeValue((uint8_t*)filter, strlen(filter), false);
-  delay(85);
-  canLineBuffer_ = "";
-  reply_ = "";
+  canLineBuffer_ = ""; reply_ = "";
   const char* monitor = "ATMA\r";
   writeChar_->writeValue((uint8_t*)monitor, strlen(monitor), false);
-  canMonitorActive_ = true;
-  autoBcmSliceActive_ = true;
-  autoBcmSliceStartedAt_ = millis();
+  canMonitorActive_ = true; autoBcmSliceActive_ = true; autoBcmSliceStartedAt_ = millis();
   status_ = "bcm_engine_timeslice";
   return true;
 }
 
 void ObdBleService::stopAutoBcmSlice() {
   if (!autoBcmSliceActive_ || !writeChar_) return;
-  // Stop ATMA first, then fully restore ELM's normal PID mode.  The previous
-  // code left ATCF/ATCM active, which filtered out ECU replies and produced
-  // RPM=0 / PID="—" after the first BCM slice.
   const char* stop = "\r";
   writeChar_->writeValue((uint8_t*)stop, 1, false);
   delay(90);
-
-  const char* restore[] = {
-    "ATCF000\r",   // neutral filter value
-    "ATCM000\r",   // mask 000 disables the exact-ID filter
-    "ATH0\r",
-    "ATCAF1\r",
-    "ATSP6\r"
-  };
-  for (const char* cmd : restore) {
-    writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false);
-    delay(90);
-  }
-
-  canMonitorActive_ = false;
-  autoBcmSliceActive_ = false;
-  canLineBuffer_ = "";
-  reply_ = "";
-  commandPending_ = false;
-  activePid_ = 0;
-  data_.currentPid = "";
-  status_ = "obd_live";
-  // Give KONNWEI time to leave monitor mode before the first 01xx request.
-  nextActionAt_ = millis() + 220;
-  // Keep engine telemetry dominant; BCM still gets regular short snapshots.
-  nextAutoBcmSliceAt_ = millis() + 1800;
+  canMonitorActive_ = false; autoBcmSliceActive_ = false; canLineBuffer_ = ""; reply_ = "";
+  commandPending_ = false; activePid_ = 0; data_.currentPid = "";
+  setupStep_ = 0; mode_ = QueryMode::ResumeLive; status_ = "bcm_resuming_obd";
+  nextActionAt_ = millis() + 350; nextAutoBcmSliceAt_ = millis() + 8000;
 }
 
 bool ObdBleService::matchesAdapter(BLEAdvertisedDevice& device) const {
@@ -734,6 +703,14 @@ void ObdBleService::consumeReply() {
     return;
   }
   if (mode_ == QueryMode::Init) elmValidated_ = true;
+  if (mode_ == QueryMode::ResumeLive) {
+    constexpr uint8_t RESUME_COUNT = sizeof(RESUME_LIVE_COMMANDS) / sizeof(RESUME_LIVE_COMMANDS[0]);
+    if (setupStep_ >= RESUME_COUNT) {
+      mode_ = QueryMode::Normal; status_ = "obd_live"; nextActionAt_ = millis(); return;
+    }
+    send(RESUME_LIVE_COMMANDS[setupStep_++], 0);
+    return;
+  }
   if (mode_ == QueryMode::Handshake) {
     if (compact.indexOf("4100") < 0) {
       status_ = "waiting_for_can";
