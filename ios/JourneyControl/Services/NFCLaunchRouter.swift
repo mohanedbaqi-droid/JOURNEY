@@ -4,7 +4,11 @@ import Foundation
 struct NFCLaunchRequest: Equatable {
     enum Source: String, Equatable {
         case shortcutTag = "iPhone NFC Tag"
-        case inAppTest = JL("اختبار داخل التطبيق", "In-app test")
+        case inAppTest = "In-app test"
+
+        var title: String {
+            self == .shortcutTag ? "iPhone NFC Tag" : JL("اختبار داخل التطبيق", "In-app test")
+        }
     }
 
     let source: Source

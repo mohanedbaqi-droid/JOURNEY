@@ -10,10 +10,16 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
     }
 
     enum Zone: String {
-        case unavailable = JL("غير متاح", "Unavailable")
-        case near = JL("قريب", "Near")
-        case middle = JL("متوسط", "Medium")
-        case far = JL("بعيد", "Far")
+        case unavailable, near, middle, far
+
+        var title: String {
+            switch self {
+            case .unavailable: return JL("غير متاح", "Unavailable")
+            case .near: return JL("قريب", "Near")
+            case .middle: return JL("متوسط", "Medium")
+            case .far: return JL("بعيد", "Far")
+            }
+        }
     }
 
     @Published private(set) var zone: Zone = .unavailable

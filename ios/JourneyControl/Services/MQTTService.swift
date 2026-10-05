@@ -40,6 +40,7 @@ final class MQTTService: ObservableObject {
     @Published private(set) var lastCommandAt: Date?
     @Published private(set) var pendingRemotePower: [String: Bool] = [:]
     private var remotePowerUpdates: [String: Int] = [:]
+    private var remotePowerRejections: [String: Int] = [:]
     private var lastFeedbackAt: [String: Date] = [:]
 
     /// Confirm a fresh ESP power report; a BLE write alone is not GPIO feedback.
@@ -47,6 +48,7 @@ final class MQTTService: ObservableObject {
     func setRemotePower(_ enabled: Bool, for deviceID: String) async -> Bool {
         guard pendingRemotePower[deviceID] == nil else { return false }
         let baseline = remotePowerUpdates[deviceID, default: 0]
+        let rejectionBaseline = remotePowerRejections[deviceID, default: 0]
         pendingRemotePower[deviceID] = enabled
         defer { pendingRemotePower.removeValue(forKey: deviceID) }
         guard send(enabled ? .remotePowerOn : .remotePowerOff, to: deviceID) else { return false }
@@ -58,7 +60,7 @@ final class MQTTService: ObservableObject {
                 lastError = nil
                 return true
             }
-            if vehicles[deviceID]?.lastEvent == "rejected_unknown_phone" {
+            if remotePowerRejections[deviceID, default: 0] > rejectionBaseline {
                 lastError = JL("هذا الآيفون غير مسجّل كمالك على ESP. سجّله من أجهزة المالك.", "This iPhone is not registered as an ESP owner. Register it in Owner devices.")
                 return false
             }
@@ -90,16 +92,6 @@ final class MQTTService: ObservableObject {
         bluetooth.onRSSI = { [weak self] deviceID, rssi in
             Task { @MainActor in
                 guard let self else { return }
-                for (deviceID, feedbackAt) in self.lastFeedbackAt where now.timeIntervalSince(feedbackAt) > 1.5 {
-                    guard var state = self.vehicles[deviceID] else { continue }
-                    if state.feedbackLock || state.feedbackUnlock || state.feedbackStart || state.feedbackAlarm {
-                        state.feedbackLock = false
-                        state.feedbackUnlock = false
-                        state.feedbackStart = false
-                        state.feedbackAlarm = false
-                        self.vehicles[deviceID] = state
-                    }
-                }
                 self.bluetoothRSSIByDevice[deviceID] = rssi
                 var state = self.vehicles[deviceID] ?? VehicleState()
                 state.bluetoothRSSI = rssi
@@ -115,6 +107,16 @@ final class MQTTService: ObservableObject {
             .autoconnect()
             .sink { [weak self] now in
                 guard let self else { return }
+                for (deviceID, feedbackAt) in self.lastFeedbackAt where now.timeIntervalSince(feedbackAt) > 1.5 {
+                    guard var state = self.vehicles[deviceID] else { continue }
+                    if state.feedbackLock || state.feedbackUnlock || state.feedbackStart || state.feedbackAlarm {
+                        state.feedbackLock = false
+                        state.feedbackUnlock = false
+                        state.feedbackStart = false
+                        state.feedbackAlarm = false
+                        self.vehicles[deviceID] = state
+                    }
+                }
                 for (deviceID, seenAt) in self.lastStateAt where now.timeIntervalSince(seenAt) > 4.0 {
                     // Keep the car online through either route:
                     // nearby BLE, or fresh ESP->MQTT cloud telemetry over Wi-Fi.
@@ -466,6 +468,9 @@ final class MQTTService: ObservableObject {
     }
 
     private func receive(_ state: VehicleState, from deviceID: String) {
+        if state.lastEvent == "rejected_unknown_phone" && (state.coreStatePacket || !state.partialState) {
+            remotePowerRejections[deviceID, default: 0] += 1
+        }
         if state.feedbackStatePresent && (!state.partialState || state.coreStatePacket) {
             lastFeedbackAt[deviceID] = Date()
         }
