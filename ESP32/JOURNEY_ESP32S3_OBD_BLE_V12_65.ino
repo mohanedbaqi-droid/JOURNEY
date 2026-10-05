@@ -4,7 +4,6 @@
 #include <BLEDevice.h>
 #include <BLE2902.h>
 #include <BLESecurity.h>
-#include <esp_gap_ble_api.h>
 #include <Preferences.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
@@ -1013,8 +1012,9 @@ void advertiseBle() {
   bleStateCharacteristic->addDescriptor(new BLE2902());
   service->start();
   BLESecurity* security = new BLESecurity();
-  security->setAuthenticationMode(ESP_LE_AUTH_REQ_SC_BOND);
-  security->setCapability(ESP_IO_CAP_NONE);
+  // ESP-IDF GAP values: SC + bond (0x09), no input/output (0x03).
+  security->setAuthenticationMode(0x09);
+  security->setCapability(0x03);
   BLEAdvertising* advertising = BLEDevice::getAdvertising();
   advertising->addServiceUUID(BLE_SERVICE_UUID);
   advertising->setScanResponse(true);
