@@ -39,7 +39,7 @@ final class NFCCredentialStore: ObservableObject {
     @discardableResult
     func addBenchCredential(name: String, kind: NFCCredentialKind) -> String? {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanName.isEmpty else { return "اكتب اسماً للبطاقة" }
+        guard !cleanName.isEmpty else { return JL("اكتب اسماً للبطاقة", "Enter a card name") }
 
         let randomID = UUID().uuidString
             .replacingOccurrences(of: "-", with: "")
@@ -56,7 +56,7 @@ final class NFCCredentialStore: ObservableObject {
         )
         saveCredentials()
         record(
-            title: "إضافة مفتاح NFC تجريبي",
+            title: JL("إضافة مفتاح NFC تجريبي", "Add a test NFC key"),
             detail: cleanName,
             result: .bench
         )
@@ -79,7 +79,7 @@ final class NFCCredentialStore: ObservableObject {
         credentials.removeAll { $0.id == credential.id }
         saveCredentials()
         record(
-            title: "حذف مفتاح NFC",
+            title: JL("حذف مفتاح NFC", "Delete NFC key"),
             detail: credential.name,
             result: .bench
         )
@@ -87,7 +87,7 @@ final class NFCCredentialStore: ObservableObject {
 
     func recordIPhoneLaunch(allowed: Bool, detail: String) {
         record(
-            title: allowed ? "تم تأكيد مفتاح iPhone" : "رُفض مفتاح iPhone",
+            title: allowed ? JL("تم تأكيد مفتاح iPhone", "iPhone key confirmed") : JL("رُفض مفتاح iPhone", "iPhone key rejected"),
             detail: detail,
             result: allowed ? .allowed : .denied
         )

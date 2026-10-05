@@ -65,15 +65,15 @@ final class VehicleNotificationService {
 
     private func eventText(for type: String) -> String {
         switch type {
-        case "engine_started_obd": return "تم تشغيل السيارة"
-        case "engine_stopped_obd": return "تم إطفاء السيارة"
-        case "coolant_high": return "تحذير: حرارة المحرك مرتفعة"
-        case "battery_low": return "تحذير: فولت بطارية السيارة منخفض"
-        case "keyless_presence_near": return "اقتربت من السيارة — تم اكتشاف الهاتف"
-        case "keyless_presence_far": return "ابتعدت عن السيارة — خرج الهاتف من نطاق القرب"
-        case "keyless_unlock": return "اقتربت من السيارة — تم فتح السيارة"
-        case "keyless_lock", "keyless_lock_departure": return "ابتعدت عن السيارة — تم قفل السيارة"
-        default: return "يوجد تحديث جديد من السيارة"
+        case "engine_started_obd": return JL("تم تشغيل السيارة", "Engine started")
+        case "engine_stopped_obd": return JL("تم إطفاء السيارة", "Engine stopped")
+        case "coolant_high": return JL("تحذير: حرارة المحرك مرتفعة", "Warning: high engine temperature")
+        case "battery_low": return JL("تحذير: فولت بطارية السيارة منخفض", "Warning: low vehicle battery voltage")
+        case "keyless_presence_near": return JL("اقتربت من السيارة — تم اكتشاف الهاتف", "Approaching vehicle — phone detected")
+        case "keyless_presence_far": return JL("ابتعدت عن السيارة — خرج الهاتف من نطاق القرب", "Leaving vehicle — phone outside proximity range")
+        case "keyless_unlock": return JL("اقتربت من السيارة — تم فتح السيارة", "Approaching vehicle — vehicle unlocked")
+        case "keyless_lock", "keyless_lock_departure": return JL("ابتعدت عن السيارة — تم قفل السيارة", "Leaving vehicle — vehicle locked")
+        default: return JL("يوجد تحديث جديد من السيارة", "New vehicle update")
         }
     }
 
@@ -86,54 +86,54 @@ final class VehicleNotificationService {
         // does not change (for example manual-lock latch or remote already on).
         if keylessNotificationsEnabled && old.lastEvent != new.lastEvent {
             if new.lastEvent == "keyless_presence_near" {
-                changes.append("اقتربت من السيارة — تم اكتشاف الهاتف")
+                changes.append(JL("اقتربت من السيارة — تم اكتشاف الهاتف", "Approaching vehicle — phone detected"))
             } else if new.lastEvent == "keyless_presence_far" {
-                changes.append("ابتعدت عن السيارة — خرج الهاتف من نطاق القرب")
+                changes.append(JL("ابتعدت عن السيارة — خرج الهاتف من نطاق القرب", "Leaving vehicle — phone outside proximity range"))
             }
         }
         if lockNotificationsEnabled && old.simulatedLocked != new.simulatedLocked {
             if new.lastEvent == "keyless_unlock" {
-                changes.append("اقتربت من السيارة — تم فتح السيارة")
+                changes.append(JL("اقتربت من السيارة — تم فتح السيارة", "Approaching vehicle — vehicle unlocked"))
             } else if new.lastEvent == "keyless_lock_departure" || new.lastEvent == "keyless_lock" {
-                changes.append("ابتعدت عن السيارة — تم قفل السيارة")
+                changes.append(JL("ابتعدت عن السيارة — تم قفل السيارة", "Leaving vehicle — vehicle locked"))
             } else {
-                changes.append(new.simulatedLocked ? "تم قفل السيارة" : "تم فتح السيارة")
+                changes.append(new.simulatedLocked ? JL("تم قفل السيارة", "Vehicle locked") : JL("تم فتح السيارة", "Vehicle unlocked"))
             }
         }
         if lockNotificationsEnabled && old.lastEvent != new.lastEvent, new.lastEvent == "keyless_lock_disconnect_confirm" {
-            changes.append("انقطع BLE — تم تأكيد قفل السيارة مرة ثانية")
+            changes.append(JL("انقطع BLE — تم تأكيد قفل السيارة مرة ثانية", "BLE disconnected — vehicle lock confirmed again"))
         }
         if old.simulatedDoorsOpen != new.simulatedDoorsOpen {
-            changes.append(new.simulatedDoorsOpen ? "الباب مفتوح" : "الأبواب مغلقة")
+            changes.append(new.simulatedDoorsOpen ? JL("الباب مفتوح", "Door open") : JL("الأبواب مغلقة", "Doors closed"))
         }
         // Engine start/stop notifications come only from explicit OBD events.
         // Transient OBD timeouts must not generate false shutdown/start alerts.
         if old.remotePowered != new.remotePowered {
-            changes.append(new.remotePowered ? "الريموت اشتغل" : "الريموت انطفأ بعد تنفيذ المهمة")
+            changes.append(new.remotePowered ? JL("الريموت اشتغل", "Remote power on") : JL("الريموت انطفأ بعد تنفيذ المهمة", "Remote power off after the action"))
         }
         if old.headlightsOn != new.headlightsOn {
-            changes.append(new.headlightsOn ? "اللايت اشتغل" : "اللايت انطفأ")
+            changes.append(new.headlightsOn ? JL("اللايت اشتغل", "Lights on") : JL("اللايت انطفأ", "Lights off"))
         }
         if old.leftSignalOn != new.leftSignalOn || old.rightSignalOn != new.rightSignalOn {
             changes.append(signalText(left: new.leftSignalOn, right: new.rightSignalOn))
         }
         if old.hornActive != new.hornActive, new.hornActive {
-            changes.append("الإنذار يعمل")
+            changes.append(JL("الإنذار يعمل", "Alarm active"))
         }
         if obdNotificationsEnabled && old.obdConnected != new.obdConnected {
-            changes.append(new.obdConnected ? "OBD متصل" : "OBD انقطع")
+            changes.append(new.obdConnected ? JL("OBD متصل", "OBD connected") : JL("OBD انقطع", "OBD disconnected"))
         }
         if old.online != new.online {
-            changes.append(new.online ? "السيارة متاحة" : "اتصال السيارة انقطع")
+            changes.append(new.online ? JL("السيارة متاحة", "Vehicle online") : JL("اتصال السيارة انقطع", "Vehicle disconnected"))
         }
         if old.diagnosticCodes != new.diagnosticCodes, !new.diagnosticCodes.isEmpty {
-            changes.append("ظهر كود فحص جديد")
+            changes.append(JL("ظهر كود فحص جديد", "New diagnostic code detected"))
         }
         if old.coolantC < 105, new.coolantC >= 105 {
-            changes.append("تحذير: حرارة المحرك مرتفعة")
+            changes.append(JL("تحذير: حرارة المحرك مرتفعة", "Warning: high engine temperature"))
         }
         if old.batteryVoltage >= 11.7, new.batteryVoltage > 0, new.batteryVoltage < 11.7 {
-            changes.append("تحذير: بطارية السيارة منخفضة")
+            changes.append(JL("تحذير: بطارية السيارة منخفضة", "Warning: low vehicle battery"))
         }
 
         guard !changes.isEmpty else { return }
@@ -159,7 +159,7 @@ final class VehicleNotificationService {
         center.removePendingNotificationRequests(withIdentifiers: ["journey.keyless.departure"])
         let content = UNMutableNotificationContent()
         content.title = vehicleName
-        content.body = "ابتعد الهاتف أو انقطع BLE. سيقفل ESP السيارة بعد \(lockDelaySeconds) ثانية إذا لم يرجع اتصال القرب."
+        content.body = JL("ابتعد الهاتف أو انقطع BLE. سيقفل ESP السيارة بعد \(lockDelaySeconds) ثانية إذا لم يرجع اتصال القرب.", "The phone moved away or BLE disconnected. ESP will lock the vehicle after \(lockDelaySeconds) seconds unless proximity returns.")
         content.sound = .default
         content.threadIdentifier = "journey.keyless"
         let request = UNNotificationRequest(identifier: "journey.keyless.departure", content: content, trigger: nil)
@@ -173,10 +173,10 @@ final class VehicleNotificationService {
     }
     private func signalText(left: Bool, right: Bool) -> String {
         switch (left, right) {
-        case (true, true): return "الإشارتان تعملان"
-        case (true, false): return "إشارة اليسار تعمل"
-        case (false, true): return "إشارة اليمين تعمل"
-        case (false, false): return "الإشارات انطفأت"
+        case (true, true): return JL("الإشارتان تعملان", "Both turn signals active")
+        case (true, false): return JL("إشارة اليسار تعمل", "Left turn signal active")
+        case (false, true): return JL("إشارة اليمين تعمل", "Right turn signal active")
+        case (false, false): return JL("الإشارات انطفأت", "Turn signals off")
         }
     }
 }

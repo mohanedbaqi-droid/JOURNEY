@@ -10,10 +10,10 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
     }
 
     enum Zone: String {
-        case unavailable = "غير متاح"
-        case near = "قريب"
-        case middle = "متوسط"
-        case far = "بعيد"
+        case unavailable = JL("غير متاح", "Unavailable")
+        case near = JL("قريب", "Near")
+        case middle = JL("متوسط", "Medium")
+        case far = JL("بعيد", "Far")
     }
 
     @Published private(set) var zone: Zone = .unavailable
@@ -89,7 +89,7 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
 /// buttons when the car has no SIM card or data connection.
 final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published private(set) var isReady = false
-    @Published private(set) var status = "غير متصل"
+    @Published private(set) var status = JL("غير متصل", "Disconnected")
 
     var onState: ((String, VehicleState) -> Void)?
     var onRSSI: ((String, Int) -> Void)?
@@ -178,7 +178,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     func send(_ command: VehicleCommand, to deviceID: String) -> Bool {
         pending = (command, deviceID)
         guard central.state == .poweredOn else {
-            status = "فعّل البلوتوث"
+            status = JL("فعّل البلوتوث", "Enable Bluetooth")
             return false
         }
         if let peripheral = peripherals[deviceID], peripheral.state == .connected,
@@ -186,7 +186,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             write(command, to: peripheral, characteristic: commandCharacteristic)
             return true
         }
-        status = "جاري اتصال BLE"
+        status = JL("جاري اتصال BLE", "Connecting BLE")
         // Reuse the preferred/cached peripheral first. Do not start a second
         // overlapping scan/connect cycle for every button press.
         preferredDeviceID = deviceID
@@ -197,7 +197,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         isReady = central.state == .poweredOn
-        status = isReady ? "جاهز للبلوتوث" : "فعّل البلوتوث"
+        status = isReady ? JL("جاهز للبلوتوث", "Bluetooth ready") : JL("فعّل البلوتوث", "Enable Bluetooth")
         if isReady { reconnectPreferredDevice(forceScanFallback: true) }
     }
 
@@ -232,20 +232,20 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         if central.isScanning { central.stopScan() }
-        status = "BLE متصل"
+        status = JL("BLE متصل", "BLE connected")
         peripheral.discoverServices([service])
         peripheral.readRSSI()
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        status = "فشل اتصال BLE"
+        status = JL("فشل اتصال BLE", "BLE connection failed")
         reconnectAfterDelay()
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
-        status = "انقطع BLE — إعادة اتصال"
+        status = JL("انقطع BLE — إعادة اتصال", "BLE disconnected — reconnecting")
         if let deviceID = deviceIDs[peripheral.identifier] {
             nearSince[deviceID] = nil
             farSince[deviceID] = Date()
@@ -336,7 +336,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
               let deviceID = deviceIDs[peripheral.identifier]
         else { return }
         let rssi = RSSI.intValue
-        status = "BLE متصل \(rssi) dBm"
+        status = JL("BLE متصل \(rssi) dBm", "BLE connected \(rssi) dBm")
         onRSSI?(deviceID, rssi)
         evaluateKeyless(rssi: rssi, deviceID: deviceID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak peripheral] in
@@ -347,11 +347,11 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
     private func write(_ command: VehicleCommand, to peripheral: CBPeripheral, characteristic: CBCharacteristic) {
         guard let data = try? JSONEncoder().encode(command) else {
-            status = "تعذر تجهيز أمر BLE"
+            status = JL("تعذر تجهيز أمر BLE", "Could not prepare BLE command")
             return
         }
         guard characteristic.properties.contains(.write) else {
-            status = "خاصية أوامر BLE غير متاحة"
+            status = JL("خاصية أوامر BLE غير متاحة", "BLE command characteristic unavailable")
             return
         }
         pending = nil
@@ -363,7 +363,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             return
         }
         bleWriteInFlight = true
-        status = "جاري تأكيد أمر BLE (\(data.count) بايت)"
+        status = JL("جاري تأكيد أمر BLE (\(data.count) بايت)", "Confirming BLE command (\(data.count) bytes)")
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
@@ -379,19 +379,19 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
         let data = bleWriteQueue.removeFirst()
         bleWriteInFlight = true
-        status = "جاري تأكيد أمر BLE (\(data.count) بايت)"
+        status = JL("جاري تأكيد أمر BLE (\(data.count) بايت)", "Confirming BLE command (\(data.count) bytes)")
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic.uuid == commandUUID else { return }
         if let error {
-            status = "فشل إرسال أمر BLE: \(error.localizedDescription)"
+            status = JL("فشل إرسال أمر BLE: \(error.localizedDescription)", "BLE command failed: \(error.localizedDescription)")
             bleWriteInFlight = false
             bleWriteQueue.removeAll()
             return
         }
-        status = "تم تأكيد أمر BLE"
+        status = JL("تم تأكيد أمر BLE", "BLE command confirmed")
         bleWriteInFlight = false
         sendNextBleWrite(on: peripheral, characteristic: characteristic)
     }
@@ -406,7 +406,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             deviceIDs[connected.identifier] = deviceID
             defaults.set(connected.identifier.uuidString, forKey: "journey.ble.peripheral.\(deviceID)")
             connected.delegate = self
-            status = "BLE متصل — مزامنة"
+            status = JL("BLE متصل — مزامنة", "BLE connected — synchronizing")
             connected.discoverServices([service])
             connected.readRSSI()
             return
@@ -416,14 +416,14 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             peripheral.delegate = self
             switch peripheral.state {
             case .connected:
-                status = "BLE متصل — مزامنة"
+                status = JL("BLE متصل — مزامنة", "BLE connected — synchronizing")
                 peripheral.discoverServices([service])
                 peripheral.readRSSI()
                 return
             case .connecting:
-                status = "جاري اتصال BLE"
+                status = JL("جاري اتصال BLE", "Connecting BLE")
             default:
-                status = "جاري اتصال BLE"
+                status = JL("جاري اتصال BLE", "Connecting BLE")
                 central.connect(peripheral)
             }
             if forceScanFallback { scheduleScanFallback(for: deviceID) }
@@ -436,7 +436,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             peripherals[deviceID] = peripheral
             deviceIDs[peripheral.identifier] = deviceID
             peripheral.delegate = self
-            status = "جاري اتصال BLE"
+            status = JL("جاري اتصال BLE", "Connecting BLE")
             central.connect(peripheral)
             if forceScanFallback { scheduleScanFallback(for: deviceID) }
         } else {
@@ -447,7 +447,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private func startPreferredScan(deviceID: String) {
         guard central.state == .poweredOn, preferredDeviceID == deviceID else { return }
         if let p = peripherals[deviceID], p.state == .connected || p.state == .connecting { return }
-        status = "جاري البحث عن ESP"
+        status = JL("جاري البحث عن ESP", "Searching for ESP")
         if central.isScanning { central.stopScan() }
         // Scan all BLE advertisements here instead of filtering by service UUID.
         // Some ESP32 advertising payloads omit the service UUID even though the
@@ -511,7 +511,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
                now.timeIntervalSince(started) >= Double(config.unlockHoldSeconds) {
                 unlockedByKeyless.insert(deviceID)
                 sendPresence(nearby: true, rssi: rssi, deviceID: deviceID, peripheral: peripheral, characteristic: characteristic)
-                status = "تم فتح الدخول الذكي"
+                status = JL("تم فتح الدخول الذكي", "Smart entry unlocked")
             } else if unlockedByKeyless.contains(deviceID) {
                 sendPresence(nearby: true, rssi: rssi, deviceID: deviceID, peripheral: peripheral, characteristic: characteristic)
             }
@@ -527,7 +527,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
                         lockDelaySeconds: config.lockDelaySeconds
                     )
                 }
-                status = "تم تسجيل ابتعاد الدخول الذكي"
+                status = JL("تم تسجيل ابتعاد الدخول الذكي", "Smart entry departure recorded")
             }
         } else {
             nearSince[deviceID] = nil

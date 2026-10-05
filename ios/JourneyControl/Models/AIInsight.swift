@@ -12,9 +12,9 @@ struct AIInsight: Identifiable, Equatable {
 
         var title: String {
             switch self {
-            case .info: return "معلومة"
-            case .attention: return "يحتاج انتباه"
-            case .critical: return "تحذير"
+            case .info: return JL("معلومة", "Information")
+            case .attention: return JL("يحتاج انتباه", "Needs attention")
+            case .critical: return JL("تحذير", "Warning")
             }
         }
 

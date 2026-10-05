@@ -51,8 +51,8 @@ struct CarVisualView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("دودج جورني بلاك توب بيضاء من الأمام")
-        .accessibilityValue(state.simulatedLocked ? "مقفلة" : "مفتوحة")
+        .accessibilityLabel(JL("دودج جورني بلاك توب بيضاء من الأمام", "White Dodge Journey Blacktop, front view"))
+        .accessibilityValue(state.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"))
     }
 
     private var vehicleAssetName: String {

@@ -127,11 +127,11 @@ struct ContentView: View {
                         bluetoothStatus: mqtt.bluetoothStatus,
                         deviceID: devices.selectedDevice?.deviceID
                     )
-                        .navigationTitle("فحص البورد المحلي")
+                        .navigationTitle(JL("فحص البورد المحلي", "Local board diagnostics"))
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
-                                Button("إغلاق") { showingLocalDiagnostics = false }
+                                Button(JL("إغلاق", "Close")) { showingLocalDiagnostics = false }
                             }
                         }
                 }
@@ -143,11 +143,11 @@ struct ContentView: View {
                         deviceID: devices.selectedDevice?.deviceID
                     )
                     .environmentObject(mqtt)
-                        .navigationTitle("قراءة OBD عبر BLE")
+                        .navigationTitle(JL("قراءة OBD عبر BLE", "OBD over BLE"))
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
-                                Button("إغلاق") { showingOBDStatus = false }
+                                Button(JL("إغلاق", "Close")) { showingOBDStatus = false }
                             }
                         }
                 }
@@ -166,11 +166,11 @@ struct ContentView: View {
                     HUDControlView(
                         vehicle: devices.selectedDevice.map { mqtt.state(for: $0.deviceID) } ?? VehicleState()
                     )
-                    .navigationTitle("شاشة HUD")
+                    .navigationTitle(JL("شاشة HUD", "HUD display"))
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
-                            Button("تم") { showingHUD = false }
+                            Button(JL("تم", "Done")) { showingHUD = false }
                         }
                     }
                 }
@@ -223,12 +223,12 @@ struct ContentView: View {
                 homeShortcuts.clear()
                 authenticateHomeScreenShortcut(shortcut)
             }
-            .alert("تأكيد التشغيل عن بُعد", isPresented: $confirmStart) {
-                Button("إلغاء", role: .cancel) {}
-                Button("إرسال الأمر") {
+            .alert(JL("تأكيد التشغيل عن بُعد", "Confirm remote start"), isPresented: $confirmStart) {
+                Button(JL("إلغاء", "Cancel"), role: .cancel) {}
+                Button(JL("إرسال الأمر", "Send command")) {
                     guard let device = devices.selectedDevice else { return }
                     Task {
-                        let allowed = await faceID.authenticate(reason: "تأكيد التشغيل عن بُعد لسيارة JOURNEY")
+                        let allowed = await faceID.authenticate(reason: JL("تأكيد التشغيل عن بُعد لسيارة JOURNEY", "Confirm JOURNEY remote start"))
                         guard allowed else {
                             faceIDError = faceID.lastError
                             return
@@ -237,13 +237,13 @@ struct ContentView: View {
                     }
                 }
             } message: {
-                Text("سيرسل التطبيق أمر تشغيل حقيقي إلى ESP. تأكد أن السيارة بمكان آمن والقير على P.")
+                Text(JL("سيرسل التطبيق أمر تشغيل حقيقي إلى ESP. تأكد أن السيارة بمكان آمن والقير على P.", "The app will send a real start command to ESP. Make sure the vehicle is in a safe location and the transmission is in P."))
             }
-            .alert("تعذر التأكيد", isPresented: Binding(
+            .alert(JL("تعذر التأكيد", "Confirmation failed"), isPresented: Binding(
                 get: { faceIDError != nil },
                 set: { if !$0 { faceIDError = nil } }
             )) {
-                Button("حسنًا", role: .cancel) { faceIDError = nil }
+                Button(JL("حسنًا", "OK"), role: .cancel) { faceIDError = nil }
             } message: {
                 Text(faceIDError ?? "")
             }
@@ -306,11 +306,11 @@ struct ContentView: View {
     private var liquidTabBar: some View {
         ZStack(alignment: .center) {
             HStack(spacing: 4) {
-                liquidTab(title: "معلومات", icon: "info.circle", tag: 4)
+                liquidTab(title: JL("معلومات", "About"), icon: "info.circle", tag: 4)
                 liquidTab(title: "OBD", icon: "stethoscope", tag: 3)
                 Color.clear.frame(width: 80, height: 40)
-                liquidTab(title: "السيارة", icon: "car.fill", tag: 1)
-                liquidTab(title: "الخريطة", icon: "map.fill", tag: 2)
+                liquidTab(title: JL("السيارة", "Vehicle"), icon: "car.fill", tag: 1)
+                liquidTab(title: JL("الخريطة", "Map"), icon: "map.fill", tag: 2)
             }
             .padding(.horizontal, 8)
             .frame(height: 60)
@@ -347,7 +347,7 @@ struct ContentView: View {
         Button { selectedTab = 0 } label: {
             VStack(spacing: 3) {
                 Image(systemName: "house.fill").font(.system(size: 22, weight: .bold))
-                Text(appText("الرئيسية", "Home")).font(.system(size: 10, weight: .black))
+                Text(appText(JL("الرئيسية", "Home"), "Home")).font(.system(size: 10, weight: .black))
             }
             .foregroundStyle(.white)
             .frame(width: 74, height: 74)
@@ -363,7 +363,7 @@ struct ContentView: View {
             Circle()
                 .fill(mqtt.connection == .connected ? .green : .orange)
                 .frame(width: 7, height: 7)
-            Text(mqtt.connection.rawValue)
+            Text(mqtt.connection.title)
                 .font(.caption.weight(.semibold))
         }
     }
@@ -400,13 +400,13 @@ struct ContentView: View {
 
     private func authenticateHomeScreenShortcut(_ shortcut: HomeScreenShortcut) {
         guard let device = devices.selectedDevice else {
-            faceIDError = "أضف جهاز السيارة أولاً حتى يعمل الاختصار."
+            faceIDError = JL("أضف جهاز السيارة أولاً حتى يعمل الاختصار.", "Add a vehicle device first to use this shortcut.")
             return
         }
 
         Task {
             let allowed = await faceID.authenticate(
-                reason: "تأكيد \(shortcut.title) من اختصار الشاشة الرئيسية"
+                reason: JL("تأكيد \(shortcut.title) من اختصار الشاشة الرئيسية", "Confirm \(shortcut.title) from the home screen shortcut")
             )
             guard allowed else {
                 faceIDError = faceID.lastError
@@ -417,16 +417,19 @@ struct ContentView: View {
     }
 
     private func authenticateRemotePower(_ device: DeviceProfile, state: VehicleState) {
+        guard mqtt.pendingRemotePower[device.deviceID] == nil else { return }
         Task {
             let turningOn = !state.remotePowered
             let allowed = await faceID.authenticate(
-                reason: turningOn ? "تأكيد تشغيل طاقة ريموت السيارة" : "تأكيد إطفاء طاقة ريموت السيارة"
+                reason: turningOn ? JL("تأكيد تشغيل طاقة ريموت السيارة", "Confirm vehicle remote power on") : JL("تأكيد إطفاء طاقة ريموت السيارة", "Confirm vehicle remote power off")
             )
             guard allowed else {
                 faceIDError = faceID.lastError
                 return
             }
-            _ = mqtt.send(turningOn ? .remotePowerOn : .remotePowerOff, to: device.deviceID)
+            if !(await mqtt.setRemotePower(turningOn, for: device.deviceID)) {
+                faceIDError = mqtt.lastError
+            }
         }
     }
 
@@ -446,7 +449,7 @@ struct ContentView: View {
                         .tracking(5)
                     Text(device.name).font(.headline)
                     Label(
-                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains("متصل") ? (vehicle.internetRoute == "CELLULAR" ? "ONLINE • 4G" : "ONLINE • Wi-Fi") : device.deviceID) : "غير متصل",
+                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains(JL("متصل", "Connected")) ? (vehicle.internetRoute == "CELLULAR" ? "ONLINE • 4G" : "ONLINE • Wi-Fi") : device.deviceID) : JL("غير متصل", "Disconnected"),
                         systemImage: vehicle.cloudConnected ? "cloud.fill" : "location.fill"
                     )
                         .font(.caption)
@@ -466,7 +469,7 @@ struct ContentView: View {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
                     Image(systemName: state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "cellularbars" : "wifi") : "cellularbars")
-                    Text(state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "4G" : "NET") : (state.cellularNetwork == "غير متاح" ? "—" : state.cellularNetwork.uppercased()))
+                    Text(state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "4G" : "NET") : (state.cellularNetwork == JL("غير متاح", "Unavailable") ? "—" : state.cellularNetwork.uppercased()))
                 }
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(state.cloudConnected ? .green : networkColor(for: state.cellularSignalDBm))
@@ -477,7 +480,7 @@ struct ContentView: View {
             .overlay(Circle().stroke(.white.opacity(0.16), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("إعدادات اتصال ESP")
+        .accessibilityLabel(JL("إعدادات اتصال ESP", "ESP connection settings"))
     }
 
     // السطر العلوي هو الشبكة (4G/3G)، والنقاط الأربع تحته هي قوة BLE بين
@@ -495,7 +498,7 @@ struct ContentView: View {
 
     private func cellularIndicator(_ state: VehicleState) -> some View {
         connectionChip(
-            Label(state.cellularNetwork == "غير متاح" ? "—" : state.cellularNetwork.uppercased(), systemImage: "cellularbars")
+            Label(state.cellularNetwork == JL("غير متاح", "Unavailable") ? "—" : state.cellularNetwork.uppercased(), systemImage: "cellularbars")
             .foregroundStyle(networkColor(for: state.cellularSignalDBm))
         )
     }
@@ -524,9 +527,9 @@ struct ContentView: View {
 
     private func statusStrip(_ state: VehicleState) -> some View {
         HStack(spacing: 8) {
-            statusPill(state.simulatedLocked ? "مقفلة" : "مفتوحة", icon: state.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !state.simulatedLocked)
-            statusPill(state.simulatedEngineRunning ? "تعمل" : "متوقفة", icon: "engine.combustion.fill", active: state.simulatedEngineRunning)
-            statusPill(state.gpsValid ? "GPS متصل" : "GPS غير متاح", icon: "location.fill", active: state.gpsValid)
+            statusPill(state.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"), icon: state.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !state.simulatedLocked)
+            statusPill(state.simulatedEngineRunning ? JL("تعمل", "Running") : JL("متوقفة", "Stopped"), icon: "engine.combustion.fill", active: state.simulatedEngineRunning)
+            statusPill(state.gpsValid ? JL("GPS متصل", "GPS connected") : JL("GPS غير متاح", "GPS unavailable"), icon: "location.fill", active: state.gpsValid)
         }
     }
 
@@ -539,9 +542,9 @@ struct ContentView: View {
                     .frame(width: 42, height: 42)
                     .background(.cyan.opacity(0.14), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(appText("الدخول الذكي", "Keyless"))
+                    Text(appText(JL("الدخول الذكي", "Smart entry"), "Keyless"))
                         .font(.subheadline.bold())
-                    Text("فتح عند الاقتراب وقفل عند الابتعاد — BLE")
+                    Text(JL("فتح عند الاقتراب وقفل عند الابتعاد — BLE", "Unlock nearby and lock on departure — BLE"))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.50))
                 }
@@ -559,23 +562,23 @@ struct ContentView: View {
         let age = mqtt.stateAge(for: device.deviceID)
         let updateText: String
         if let age {
-            updateText = age < 60 ? "الآن" : "قبل \(Int(age / 60)) د"
+            updateText = age < 60 ? JL("الآن", "Now") : JL("قبل \(Int(age / 60)) د", "\(Int(age / 60)) min ago")
         } else {
-            updateText = state.online ? "بانتظار قراءة" : "غير متصل"
+            updateText = state.online ? JL("بانتظار قراءة", "Waiting for a reading") : JL("غير متصل", "Disconnected")
         }
 
         return VStack(alignment: .leading, spacing: 13) {
             HStack {
-                Label("سلامة ومتابعة", systemImage: "shield.checkered")
+                Label(JL("سلامة ومتابعة", "Safety and monitoring"), systemImage: "shield.checkered")
                     .font(.headline)
                 Spacer()
-                Label("الإنذار جاهز", systemImage: "bell.badge.fill")
+                Label(JL("الإنذار جاهز", "Alarm ready"), systemImage: "bell.badge.fill")
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
             }
             HStack(spacing: 10) {
-                healthMetric("البطارية", value: String(format: "%.1f V", state.batteryVoltage), icon: "battery.75percent", tint: state.batteryVoltage >= 12 ? .green : .orange)
-                healthMetric("آخر تحديث", value: updateText, icon: "clock.arrow.circlepath", tint: state.online ? .cyan : .orange)
+                healthMetric(JL("البطارية", "Battery"), value: String(format: "%.1f V", state.batteryVoltage), icon: "battery.75percent", tint: state.batteryVoltage >= 12 ? .green : .orange)
+                healthMetric(JL("آخر تحديث", "Last update"), value: updateText, icon: "clock.arrow.circlepath", tint: state.online ? .cyan : .orange)
             }
             if let last = mqtt.commandHistory.first {
                 Label(last.title, systemImage: last.icon)
@@ -584,7 +587,7 @@ struct ContentView: View {
                     .foregroundStyle(.white.opacity(0.62))
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Label("لا توجد أوامر بعد", systemImage: "list.bullet.rectangle")
+                Label(JL("لا توجد أوامر بعد", "No commands yet"), systemImage: "list.bullet.rectangle")
                     .font(.caption2)
                     .foregroundStyle(.white.opacity(0.50))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -597,34 +600,34 @@ struct ContentView: View {
         let isAdmin = !state.ownerAdminPhone.isEmpty && state.ownerAdminPhone == AppConfig.phoneID
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("أجهزة المالك", systemImage: "person.2.badge.gearshape")
+                Label(JL("أجهزة المالك", "Owner devices"), systemImage: "person.2.badge.gearshape")
                     .font(.headline)
                 Spacer()
                 Text("\(state.authorizedPhoneCount) / 10")
                     .font(.caption.bold()).foregroundStyle(.cyan)
             }
             if !state.ownerStateKnown {
-                Text("جاري التحقق من المدير المحفوظ في ESP…").font(.caption).foregroundStyle(.secondary)
+                Text(JL("جاري التحقق من المدير المحفوظ في ESP…", "Checking the administrator saved on ESP…")).font(.caption).foregroundStyle(.secondary)
                 ProgressView()
                     .controlSize(.small)
             } else if !state.trustedPhoneConfigured {
-                Text("لا يوجد مالك مسجّل. سجّل هذا الآيفون كمدير.").font(.caption).foregroundStyle(.orange)
-                Button("تسجيل هذا الآيفون كمدير", systemImage: "person.badge.key.fill") { secureOwnerAction(.ownerRegister, to: device.deviceID) }
+                Text(JL("لا يوجد مالك مسجّل. سجّل هذا الآيفون كمدير.", "No registered owner. Register this iPhone as administrator.")).font(.caption).foregroundStyle(.orange)
+                Button(JL("تسجيل هذا الآيفون كمدير", "Register this iPhone as administrator"), systemImage: "person.badge.key.fill") { secureOwnerAction(.ownerRegister, to: device.deviceID) }
                     .buttonStyle(.borderedProminent)
             } else if isAdmin {
-                Text("هذا الآيفون هو المدير. الأجهزة الجديدة تحتاج موافقتك.").font(.caption).foregroundStyle(.secondary)
+                Text(JL("هذا الآيفون هو المدير. الأجهزة الجديدة تحتاج موافقتك.", "This iPhone is the administrator. New devices require your approval.")).font(.caption).foregroundStyle(.secondary)
                 if !state.pendingOwnerPhone.isEmpty {
-                    Text("طلب جديد: \(state.pendingOwnerPhone.prefix(8))…").font(.caption).foregroundStyle(.orange)
+                    Text(JL("طلب جديد: \(state.pendingOwnerPhone.prefix(8))…", "New request: \(state.pendingOwnerPhone.prefix(8))…")).font(.caption).foregroundStyle(.orange)
                     HStack {
-                        Button("موافقة") { secureOwnerAction(.ownerApprove, to: device.deviceID, target: state.pendingOwnerPhone) }.buttonStyle(.borderedProminent)
-                        Button("رفض", role: .destructive) { secureOwnerAction(.ownerReject, to: device.deviceID, target: state.pendingOwnerPhone) }.buttonStyle(.bordered)
+                        Button(JL("موافقة", "Approve")) { secureOwnerAction(.ownerApprove, to: device.deviceID, target: state.pendingOwnerPhone) }.buttonStyle(.borderedProminent)
+                        Button(JL("رفض", "Reject"), role: .destructive) { secureOwnerAction(.ownerReject, to: device.deviceID, target: state.pendingOwnerPhone) }.buttonStyle(.bordered)
                     }
                 }
-                Button("مسح كل الأجهزة الأخرى", role: .destructive) { secureOwnerAction(.ownerClear, to: device.deviceID) }
+                Button(JL("مسح كل الأجهزة الأخرى", "Remove all other devices"), role: .destructive) { secureOwnerAction(.ownerClear, to: device.deviceID) }
                     .font(.caption)
             } else {
-                Text("الآيفون الإداري يوافق على ربط هذا الجهاز قبل تفعيل الأوامر.").font(.caption).foregroundStyle(.secondary)
-                Button("إرسال طلب ربط", systemImage: "person.badge.plus") { secureOwnerAction(.ownerRequest, to: device.deviceID) }
+                Text(JL("الآيفون الإداري يوافق على ربط هذا الجهاز قبل تفعيل الأوامر.", "The administrator iPhone must approve this device before commands are enabled.")).font(.caption).foregroundStyle(.secondary)
+                Button(JL("إرسال طلب ربط", "Request pairing"), systemImage: "person.badge.plus") { secureOwnerAction(.ownerRequest, to: device.deviceID) }
                     .buttonStyle(.bordered)
             }
         }
@@ -642,7 +645,7 @@ struct ContentView: View {
             return
         }
         Task {
-            guard await faceID.authenticate(reason: "تأكيد إدارة أجهزة مالك JOURNEY") else {
+            guard await faceID.authenticate(reason: JL("تأكيد إدارة أجهزة مالك JOURNEY", "Confirm JOURNEY owner device management")) else {
                 faceIDError = faceID.lastError
                 return
             }
@@ -678,19 +681,21 @@ struct ContentView: View {
     private func mainControls(_ device: DeviceProfile, state: VehicleState) -> some View {
         VStack(spacing: 12) {
             LazyVGrid(columns: columns, spacing: 12) {
-                largeControl("قفل", subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID), feedbackKey: "lock") { mqtt.send(.lock, to: device.deviceID) }
-                largeControl("فتح", subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID), feedbackKey: "unlock") { mqtt.send(.unlock, to: device.deviceID) }
-                largeControl("تشغيل", subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID), feedbackKey: "start") { confirmStart = true }
-                largeControl("إنذار", subtitle: "Alarm", icon: "bell.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID), feedbackKey: "alarm") { mqtt.send(.horn, to: device.deviceID) }
+                largeControl(JL("قفل", "Lock"), subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID), feedbackKey: "lock") { mqtt.send(.lock, to: device.deviceID) }
+                largeControl(JL("فتح", "Unlock"), subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID), feedbackKey: "unlock") { mqtt.send(.unlock, to: device.deviceID) }
+                largeControl(JL("تشغيل", "Start"), subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID), feedbackKey: "start") { confirmStart = true }
+                largeControl(JL("إنذار", "Alarm"), subtitle: "Alarm", icon: "bell.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID), feedbackKey: "alarm") { mqtt.send(.horn, to: device.deviceID) }
             }
             // زر الطاقة تحت الأزرار وبعرض صف كامل، مثل حجم زرين متجاورين.
             largeControl(
-                state.remotePowered ? "إطفاء طاقة الريموت" : "تشغيل طاقة الريموت",
-                subtitle: state.remotePowered ? "مشتغل الآن • اضغط للإطفاء" : "طافي • Face ID",
+                state.remotePowered ? JL("إطفاء طاقة الريموت", "Turn remote power off") : JL("تشغيل طاقة الريموت", "Turn remote power on"),
+                subtitle: mqtt.pendingRemotePower[device.deviceID] != nil
+                    ? JL("بانتظار تأكيد ESP…", "Waiting for ESP confirmation…")
+                    : (!state.online ? JL("ESP غير متصل", "ESP disconnected") : (state.remotePowered ? JL("مشتغل الآن • اضغط للإطفاء", "On now • Tap to turn off") : JL("طافي • Face ID", "Off • Face ID"))),
                 icon: state.remotePowered ? "key.fill" : "key",
                 tint: state.remotePowered ? .green : .orange,
-                status: state.remotePowered ? "مشتغل" : "طافي",
-                statusActive: state.remotePowered,
+                status: !state.online ? JL("غير متاح", "Unavailable") : (state.remotePowered ? JL("مشتغل", "On") : JL("طافي", "Off")),
+                statusActive: state.online && state.remotePowered,
                 feedbackKey: "remotePower"
             ) { authenticateRemotePower(device, state: state) }
         }
@@ -748,50 +753,50 @@ struct ContentView: View {
                         .background(statusActive ? .green.opacity(0.14) : .white.opacity(0.07), in: Capsule())
                 }
             }
-            .foregroundStyle((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? .green : .cyan)
+            .foregroundStyle(statusActive ? .green : .cyan)
             .padding(13)
             .frame(maxWidth: .infinity, minHeight: 78)
-            .background(((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? Color.green : Color.cyan).opacity((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? 0.16 : 0.07), in: RoundedRectangle(cornerRadius: 18))
+            .background((statusActive ? Color.green : Color.cyan).opacity(statusActive ? 0.16 : 0.07), in: RoundedRectangle(cornerRadius: 18))
             .scaleEffect(feedbackKey != nil && pressedControlToken == feedbackKey ? 0.975 : 1.0)
             .animation(.easeOut(duration: 0.12), value: pressedControlToken)
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(((statusActive || (feedbackKey != nil && pressedControlToken == feedbackKey)) ? Color.green : Color.cyan).opacity(0.55)))
+            .overlay(RoundedRectangle(cornerRadius: 18).stroke((statusActive ? Color.green : Color.cyan).opacity(0.55)))
         }
         .buttonStyle(.plain)
     }
 
     private func vehicleStatusText(_ state: VehicleState) -> String {
-        if !state.online { return "ESP غير متصل" }
-        if state.obdConnected && state.canAwake { return state.rpm > 0 ? "OBD مباشر • المحرك شغال" : "OBD مباشر • IGN/ACC" }
-        if state.obdConnected { return "KONNWEI متصلة • CAN نايم" }
-        return "بانتظار OBD"
+        if !state.online { return JL("ESP غير متصل", "ESP disconnected") }
+        if state.obdConnected && state.canAwake { return state.rpm > 0 ? JL("OBD مباشر • المحرك شغال", "Live OBD • Engine running") : JL("OBD مباشر • IGN/ACC", "Live OBD • IGN/ACC") }
+        if state.obdConnected { return JL("KONNWEI متصلة • CAN نايم", "KONNWEI connected • CAN asleep") }
+        return JL("بانتظار OBD", "Waiting for OBD")
     }
 
     private func telemetryCard(_ state: VehicleState) -> some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack {
-                Text(appText("بيانات السيارة", "Vehicle data")).font(.headline)
+                Text(appText(JL("بيانات السيارة", "Vehicle data"), "Vehicle data")).font(.headline)
                 Spacer()
                 Text(vehicleStatusText(state)).font(.caption).foregroundStyle(.cyan.opacity(0.75))
             }
             Divider().overlay(.white.opacity(0.08))
             HStack {
                 metric("RPM", value: "\(state.rpm)")
-                metric(appText("السرعة", "Speed"), value: appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
-                metric(appText("الحرارة", "Temperature"), value: state.obdConnected ? (appTemperatureUnit == "f" ? "\(Int((Double(state.coolantC) * 9.0 / 5.0 + 32.0).rounded()))°F" : "\(state.coolantC)°C") : "—")
+                metric(appText(JL("السرعة", "Speed"), "Speed"), value: appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
+                metric(appText(JL("الحرارة", "Temperature"), "Temperature"), value: state.obdConnected ? (appTemperatureUnit == "f" ? "\(Int((Double(state.coolantC) * 9.0 / 5.0 + 32.0).rounded()))°F" : "\(state.coolantC)°C") : "—")
             }
             HStack {
-                metric("فولت البطارية", value: state.batteryVoltage > 0 ? String(format: "%.2f V", state.batteryVoltage) : "—")
-                metric("بنزين", value: state.obdConnected && state.fuelLevelValid ? "\(state.fuelLevelPercent)%" : "—")
-                metric("OBD رد/ث", value: state.obdConnected ? "\(state.obdResponseRate)" : "—")
+                metric(JL("فولت البطارية", "Battery voltage"), value: state.batteryVoltage > 0 ? String(format: "%.2f V", state.batteryVoltage) : "—")
+                metric(JL("بنزين", "Fuel"), value: state.obdConnected && state.fuelLevelValid ? "\(state.fuelLevelPercent)%" : "—")
+                metric(JL("OBD رد/ث", "OBD responses/s"), value: state.obdConnected ? "\(state.obdResponseRate)" : "—")
             }
             HStack {
-                Label(state.gpsValid ? "GPS متصل" : "بانتظار GPS", systemImage: "location.fill")
+                Label(state.gpsValid ? JL("GPS متصل", "GPS connected") : JL("بانتظار GPS", "Waiting for GPS"), systemImage: "location.fill")
                 Spacer()
-                Label(state.obdConnected ? "OBD متصل" : "OBD غير متصل", systemImage: "point.3.connected.trianglepath.dotted")
+                Label(state.obdConnected ? JL("OBD متصل", "OBD connected") : JL("OBD غير متصل", "OBD disconnected"), systemImage: "point.3.connected.trianglepath.dotted")
             }
             .font(.caption)
             .foregroundStyle(.white.opacity(0.47))
-                Label("السرعة وRPM والحرارة والبنزين من OBD؛ حالة الباب واللايت والإشارات تحتاج فحص BCM مخصص", systemImage: "info.circle.fill")
+                Label(JL("السرعة وRPM والحرارة والبنزين من OBD؛ حالة الباب واللايت والإشارات تحتاج فحص BCM مخصص", "Speed, RPM, temperature and fuel come from OBD. Door, light and turn signal states require a dedicated BCM test."), systemImage: "info.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.cyan)
         }
@@ -806,8 +811,8 @@ struct ContentView: View {
                 Image(systemName: "sparkles")
                     .foregroundStyle(.cyan)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(appText("المساعد الذكي", "AI Assistant")).font(.headline)
-                    Text("تحليل وشرح فقط — لا يتحكم بالمخارج ولا يمسح الأعطال")
+                    Text(appText(JL("المساعد الذكي", "Smart assistant"), "AI Assistant")).font(.headline)
+                    Text(JL("تحليل وشرح فقط — لا يتحكم بالمخارج ولا يمسح الأعطال", "Analysis and explanation only — no output control or code clearing"))
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.48))
                 }
@@ -866,11 +871,11 @@ struct ContentView: View {
             Image(systemName: "car.side.lock")
                 .font(.system(size: 58))
                 .foregroundStyle(.cyan)
-            Text(appText("أضف أول جهاز", "Add your first device")).font(.title2.bold())
-            Text("ابحث عن البورد القريب بالبلوتوث حتى يظهر هنا.")
+            Text(appText(JL("أضف أول جهاز", "Add your first device"), "Add your first device")).font(.title2.bold())
+            Text(JL("ابحث عن البورد القريب بالبلوتوث حتى يظهر هنا.", "Search for the nearby board over Bluetooth to show it here."))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-            Button("فتح البحث") { showingDevices = true }
+            Button(JL("فتح البحث", "Open search")) { showingDevices = true }
                 .buttonStyle(.borderedProminent)
         }
         .padding(32)
@@ -900,18 +905,18 @@ private struct JourneyAppInfoView: View {
                         Text("JOURNEY")
                             .font(.system(size: 30, weight: .black, design: .rounded))
                             .tracking(5)
-                        Text("نظام التحكم والتشخيص الذكي للسيارة")
+                        Text(JL("نظام التحكم والتشخيص الذكي للسيارة", "Smart vehicle control and diagnostics"))
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.62))
                     }
 
                     VStack(alignment: .leading, spacing: 13) {
-                        Label("تصميم وتطوير", systemImage: "paintbrush.pointed.fill")
+                        Label(JL("تصميم وتطوير", "Design and development"), systemImage: "paintbrush.pointed.fill")
                             .font(.caption.bold())
                             .foregroundStyle(.cyan)
-                        Text("مهند الربيعي")
+                        Text(JL("مهند الربيعي", "Mohaned Al-Rubaie"))
                             .font(.title3.bold())
-                        Text("الريموت، NFC، OBD، التعقّب والتحليل الذكي ضمن نظام واحد.")
+                        Text(JL("الريموت، NFC، OBD، التعقّب والتحليل الذكي ضمن نظام واحد.", "Remote, NFC, OBD, tracking and intelligent analysis in one system."))
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.62))
                     }
@@ -919,8 +924,8 @@ private struct JourneyAppInfoView: View {
                     .glassCard(padding: 18)
 
                     VStack(spacing: 10) {
-                        contactLink("البريد الإلكتروني", value: "mohaned_baqi@yahoo.com", icon: "envelope.fill", url: "mailto:mohaned_baqi@yahoo.com")
-                        contactLink("اتصال", value: "07811119127", icon: "phone.fill", url: "tel:07811119127")
+                        contactLink(JL("البريد الإلكتروني", "Email"), value: "mohaned_baqi@yahoo.com", icon: "envelope.fill", url: "mailto:mohaned_baqi@yahoo.com")
+                        contactLink(JL("اتصال", "Connect"), value: "07811119127", icon: "phone.fill", url: "tel:07811119127")
                         contactLink("WhatsApp", value: "07811119127", icon: "message.fill", url: "https://wa.me/9647811119127")
                         contactLink("Instagram", value: "@h0k38", icon: "camera.fill", url: "https://instagram.com/h0k38")
                     }
@@ -964,6 +969,16 @@ private struct HUDControlView: View {
         case temperature = "حرارة"
         case rpm = "RPM"
         case gear = "كير"
+
+        var title: String {
+            switch self {
+            case .automatic: return JL("تلقائي", "Automatic")
+            case .speed: return JL("سرعة", "Speed")
+            case .temperature: return JL("حرارة", "Temperature")
+            case .rpm: return "RPM"
+            case .gear: return JL("كير", "Gear")
+            }
+        }
 
         var id: String { rawValue }
     }
@@ -1028,11 +1043,11 @@ private struct HUDControlView: View {
 
     private var displayCaption: String {
         switch effectiveMode {
-        case .automatic: return "تلقائي"
-        case .speed: return speedUnit == "mph" ? "السرعة mph" : "السرعة km/h"
-        case .temperature: return temperatureUnit == "f" ? "حرارة ماء المحرك °F" : "حرارة ماء المحرك °C"
-        case .rpm: return "دورات المحرك RPM"
-        case .gear: return "نمرة الكير"
+        case .automatic: return JL("تلقائي", "Automatic")
+        case .speed: return speedUnit == "mph" ? JL("السرعة mph", "Speed mph") : JL("السرعة km/h", "Speed km/h")
+        case .temperature: return temperatureUnit == "f" ? JL("حرارة ماء المحرك °F", "Engine coolant °F") : JL("حرارة ماء المحرك °C", "Engine coolant °C")
+        case .rpm: return JL("دورات المحرك RPM", "Engine RPM")
+        case .gear: return JL("نمرة الكير", "Gear position")
         }
     }
 
@@ -1069,7 +1084,7 @@ private struct HUDControlView: View {
                 Circle()
                     .fill(isEnabled ? .green : .gray)
                     .frame(width: 8, height: 8)
-                Text(isEnabled ? "تعمل" : "مطفيّة")
+                Text(isEnabled ? JL("تعمل", "Running") : JL("مطفيّة", "Off"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1098,11 +1113,11 @@ private struct HUDControlView: View {
 
     private var powerAndBrightness: some View {
         VStack(spacing: 14) {
-            Toggle("تشغيل شاشة الـHUD", isOn: $isEnabled)
+            Toggle(JL("تشغيل شاشة الـHUD", "Enable HUD display"), isOn: $isEnabled)
                 .font(.subheadline.bold())
 
             HStack {
-                Label("السطوع", systemImage: "sun.max.fill")
+                Label(JL("السطوع", "Brightness"), systemImage: "sun.max.fill")
                     .font(.subheadline)
                 Slider(value: $brightness, in: 0...7, step: 1)
                 Text("\(Int(brightness))")
@@ -1115,10 +1130,10 @@ private struct HUDControlView: View {
 
     private var modeSelector: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("المعلومة المعروضة").font(.headline)
-            Picker("نوع العرض", selection: $storedMode) {
+            Text(JL("المعلومة المعروضة", "Displayed information")).font(.headline)
+            Picker(JL("نوع العرض", "Display mode"), selection: $storedMode) {
                 ForEach(DisplayMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode.rawValue)
+                    Text(mode.title).tag(mode.rawValue)
                 }
             }
             .pickerStyle(.menu)
@@ -1129,14 +1144,14 @@ private struct HUDControlView: View {
 
     private var automaticRules: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text("ترتيب الوضع التلقائي").font(.headline)
-            ruleRow("السيارة واقفة", value: "حرارة")
-            ruleRow("السيارة تتحرك", value: "سرعة")
-            ruleRow("الحرارة عالية", value: "حرارة فوراً")
-            ruleRow("RPM عالي", value: "RPM فوراً")
+            Text(JL("ترتيب الوضع التلقائي", "Automatic mode order")).font(.headline)
+            ruleRow(JL("السيارة واقفة", "Vehicle stationary"), value: JL("حرارة", "Temperature"))
+            ruleRow(JL("السيارة تتحرك", "Vehicle moving"), value: JL("سرعة", "Speed"))
+            ruleRow(JL("الحرارة عالية", "High temperature"), value: JL("حرارة فوراً", "Show temperature immediately"))
+            ruleRow(JL("RPM عالي", "High RPM"), value: JL("RPM فوراً", "Show RPM immediately"))
             Divider().overlay(.white.opacity(0.08))
-            Stepper("تنبيه الحرارة: \(temperatureAlert)°C", value: $temperatureAlert, in: 90...125)
-            Stepper("حد RPM: \(rpmAlert)", value: $rpmAlert, in: 2500...7000, step: 250)
+            Stepper(JL("تنبيه الحرارة: \(temperatureAlert)°C", "Temperature alert: \(temperatureAlert)°C"), value: $temperatureAlert, in: 90...125)
+            Stepper(JL("حد RPM: \(rpmAlert)", "RPM threshold: \(rpmAlert)"), value: $rpmAlert, in: 2500...7000, step: 250)
         }
         .font(.subheadline)
         .glassCard(padding: 15)
@@ -1152,18 +1167,18 @@ private struct HUDControlView: View {
 
     private var testControls: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Toggle("استخدم بيانات السيارة", isOn: $useLiveData)
+            Toggle(JL("استخدم بيانات السيارة", "Use vehicle data"), isOn: $useLiveData)
                 .font(.headline)
 
             if useLiveData {
-                Text(vehicle.obdConnected ? "يعرض قراءات OBD عبر Bluetooth الحالية." : "قطعة OBD غير متصلة حالياً.")
+                Text(vehicle.obdConnected ? JL("يعرض قراءات OBD عبر Bluetooth الحالية.", "Shows current OBD readings over Bluetooth.") : JL("قطعة OBD غير متصلة حالياً.", "OBD adapter is currently disconnected."))
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.50))
             } else {
-                Stepper("سرعة التجربة: \(testSpeed) km/h", value: $testSpeed, in: 0...240)
-                Stepper("حرارة التجربة: \(testTemperature)°C", value: $testTemperature, in: 20...130)
-                Stepper("RPM التجريبي: \(testRPM)", value: $testRPM, in: 0...8000, step: 250)
-                Picker("نمرة الكير", selection: $testGear) {
+                Stepper(JL("سرعة التجربة: \(testSpeed) km/h", "Test speed: \(testSpeed) km/h"), value: $testSpeed, in: 0...240)
+                Stepper(JL("حرارة التجربة: \(testTemperature)°C", "Test temperature: \(testTemperature)°C"), value: $testTemperature, in: 20...130)
+                Stepper(JL("RPM التجريبي: \(testRPM)", "Test RPM: \(testRPM)"), value: $testRPM, in: 0...8000, step: 250)
+                Picker(JL("نمرة الكير", "Gear position"), selection: $testGear) {
                     ForEach(["P", "R", "N", "D", "1", "2", "3", "4", "5", "6"], id: \.self) {
                         Text($0).tag($0)
                     }
@@ -1177,7 +1192,7 @@ private struct HUDControlView: View {
 
     private var connectionNote: some View {
         Label(
-            "الصفحة جاهزة للمحاكاة. عند ربط كود ESP تُرسل له: وضع العرض، السطوع، الحدود، والقراءة الحالية عبر BLE.",
+            JL("الصفحة جاهزة للمحاكاة. عند ربط كود ESP تُرسل له: وضع العرض، السطوع، الحدود، والقراءة الحالية عبر BLE.", "This page supports simulation. When ESP firmware is connected, display mode, brightness, thresholds and current readings are sent over BLE."),
             systemImage: "antenna.radiowaves.left.and.right"
         )
         .font(.caption)
@@ -1232,79 +1247,79 @@ private struct ESPStatusView: View {
 
     var body: some View {
         List {
-            Section("الاتصال المباشر") {
+            Section(JL("الاتصال المباشر", "Direct connection")) {
                 Label(bluetoothStatus, systemImage: "antenna.radiowaves.left.and.right")
-                    .foregroundStyle(bluetoothStatus.hasPrefix("BLE متصل") ? .green : .orange)
-                statusRow("حالة ESP", vehicle.online ? "متصل" : "بانتظار الاتصال")
-                statusRow("وقت التشغيل", "\(vehicle.uptimeSeconds) ثانية")
-                statusRow("طاقة الريموت", vehicle.remotePowered ? "مشتغلة" : "مطفأة")
-                statusRow("أجهزة المالك", vehicle.ownerStateKnown ? "\(vehicle.authorizedPhoneCount) / 10 مسجّل" : "بانتظار ESP")
+                    .foregroundStyle(bluetoothStatus.hasPrefix(JL("BLE متصل", "BLE connected")) ? .green : .orange)
+                statusRow(JL("حالة ESP", "ESP status"), vehicle.online ? JL("متصل", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
+                statusRow(JL("وقت التشغيل", "Uptime"), JL("\(vehicle.uptimeSeconds) ثانية", "\(vehicle.uptimeSeconds) seconds"))
+                statusRow(JL("طاقة الريموت", "Remote power"), !vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off")))
+                statusRow(JL("أجهزة المالك", "Owner devices"), vehicle.ownerStateKnown ? JL("\(vehicle.authorizedPhoneCount) / 10 مسجّل", "\(vehicle.authorizedPhoneCount) / 10 registered") : JL("بانتظار ESP", "Waiting for ESP"))
             }
-            Section("OBD عبر BLE") {
-                statusRow("قطعة OBD", vehicle.obdConnected ? "متصلة" : "بانتظار الاتصال")
-                statusRow("السرعة", speedUnit == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
-                statusRow("الردود/ث", "\(vehicle.obdResponseRate)")
-                statusRow("آخر حدث", vehicle.lastEvent)
+            Section(JL("OBD عبر BLE", "OBD over BLE")) {
+                statusRow(JL("قطعة OBD", "OBD adapter"), vehicle.obdConnected ? JL("متصلة", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
+                statusRow(JL("السرعة", "Speed"), speedUnit == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
+                statusRow(JL("الردود/ث", "Responses/s"), "\(vehicle.obdResponseRate)")
+                statusRow(JL("آخر حدث", "Last event"), vehicle.lastEvent)
             }
-            Section("إعدادات محفوظة على ESP") {
-                settingSlider("نبضة زر الريموت", value: $pulseMs, range: 100...2000, suffix: "ms")
-                settingSlider("انتظار تشغيل الريموت", value: $wakeDelayMs, range: 100...5000, suffix: "ms")
-                settingSlider("فصل طاقة الريموت", value: $powerOffDelayMs, range: 200...10000, suffix: "ms")
+            Section(JL("إعدادات محفوظة على ESP", "Settings saved on ESP")) {
+                settingSlider(JL("نبضة زر الريموت", "Remote button pulse"), value: $pulseMs, range: 100...2000, suffix: "ms")
+                settingSlider(JL("انتظار تشغيل الريموت", "Remote wake delay"), value: $wakeDelayMs, range: 100...5000, suffix: "ms")
+                settingSlider(JL("فصل طاقة الريموت", "Remote power off delay"), value: $powerOffDelayMs, range: 200...10000, suffix: "ms")
                 HStack {
-                    Text("سطوع شاشة HUD")
+                    Text(JL("سطوع شاشة HUD", "HUD brightness"))
                     Spacer()
                     Stepper("\(Int(hudBrightness))", value: $hudBrightness, in: 0...7)
                         .labelsHidden()
                     Text("\(Int(hudBrightness))")
                         .foregroundStyle(.secondary)
                 }
-                Button("حفظ الإعدادات على ESP", systemImage: "square.and.arrow.down") { saveSettings() }
+                Button(JL("حفظ الإعدادات على ESP", "Save settings to ESP"), systemImage: "square.and.arrow.down") { saveSettings() }
                     .disabled(deviceID == nil)
             }
-            Section("الحماية والطاقة") {
-                Toggle("وضع الصيانة", isOn: $maintenanceMode)
+            Section(JL("الحماية والطاقة", "Security and power")) {
+                Toggle(JL("وضع الصيانة", "Maintenance mode"), isOn: $maintenanceMode)
                     .onChange(of: maintenanceMode) { enabled in setMaintenance(enabled) }
-                Picker("توفير الطاقة", selection: $powerSaveMode) {
-                    Text("إلغاء").tag(0)
-                    Text("يدوي").tag(1)
-                    Text("تلقائي").tag(2)
+                Picker(JL("توفير الطاقة", "Power saving"), selection: $powerSaveMode) {
+                    Text(JL("إلغاء", "Cancel")).tag(0)
+                    Text(JL("يدوي", "Manual")).tag(1)
+                    Text(JL("تلقائي", "Automatic")).tag(2)
                 }
                 .pickerStyle(.segmented)
                 if powerSaveMode == 2 {
-                    settingSlider("بدء التوفير بعد", value: $powerSaveIdleMinutes, range: 1...720, suffix: "دقيقة")
+                    settingSlider(JL("بدء التوفير بعد", "Start saving after"), value: $powerSaveIdleMinutes, range: 1...720, suffix: JL("دقيقة", "minutes"))
                 }
-                Button("حفظ وضع الطاقة", systemImage: "battery.75percent") { savePowerMode() }
+                Button(JL("حفظ وضع الطاقة", "Save power mode"), systemImage: "battery.75percent") { savePowerMode() }
                     .disabled(deviceID == nil)
-                Button("إضافة بطاقة NFC الآن", systemImage: "wave.3.right.circle.fill") { send(.nfcEnroll) }
+                Button(JL("إضافة بطاقة NFC الآن", "Add NFC card now"), systemImage: "wave.3.right.circle.fill") { send(.nfcEnroll) }
                     .disabled(deviceID == nil)
-                Button("حذف بطاقة NFC", systemImage: "trash") { send(.nfcForget) }
+                Button(JL("حذف بطاقة NFC", "Delete NFC card"), systemImage: "trash") { send(.nfcForget) }
                     .disabled(deviceID == nil)
             }
-            Section("تحديث Firmware") {
-                Text("للتحديث المحلي: اتصل من الآيفون بشبكة JOURNEY-ESP الظاهرة في Serial Monitor، ثم اختر ملف firmware.bin.")
+            Section(JL("تحديث Firmware", "Firmware update")) {
+                Text(JL("للتحديث المحلي: اتصل من الآيفون بشبكة JOURNEY-ESP الظاهرة في Serial Monitor، ثم اختر ملف firmware.bin.", "For a local update, connect the iPhone to the JOURNEY-ESP network shown in Serial Monitor, then select firmware.bin."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                Button(isUpdating ? "جاري رفع التحديث…" : "اختيار ملف firmware.bin", systemImage: "arrow.up.doc") {
+                Button(isUpdating ? JL("جاري رفع التحديث…", "Uploading update…") : JL("اختيار ملف firmware.bin", "Select firmware.bin"), systemImage: "arrow.up.doc") {
                     showingFirmwarePicker = true
                 }
                 .disabled(isUpdating)
                 if !updateStatus.isEmpty {
                     Text(updateStatus).font(.footnote).foregroundStyle(.secondary)
                 }
-                TextField("رابط HTTPS لملف firmware.bin", text: $firmwareURL)
+                TextField(JL("رابط HTTPS لملف firmware.bin", "HTTPS URL for firmware.bin"), text: $firmwareURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                Button("تحديث عبر 4G من الرابط", systemImage: "antenna.radiowaves.left.and.right") {
+                Button(JL("تحديث عبر 4G من الرابط", "Update via 4G from URL"), systemImage: "antenna.radiowaves.left.and.right") {
                     updateThrough4G()
                 }
                 .disabled(deviceID == nil || !firmwareURL.lowercased().hasPrefix("https://"))
-                Text("رابط التحديث يجب أن ينتهي بملف firmware.bin متاح للتحميل المباشر. ESP ينزله عبر شريحته ثم يعيد التشغيل.")
+                Text(JL("رابط التحديث يجب أن ينتهي بملف firmware.bin متاح للتحميل المباشر. ESP ينزله عبر شريحته ثم يعيد التشغيل.", "The update URL must provide a directly downloadable firmware.bin. ESP downloads it through its cellular connection, then restarts."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Section {
-                Text("الإعدادات تحفظ داخل ESP، لذلك تبقى بعد فصل الكهرباء ولا تحتاج كمبيوتر.")
+                Text(JL("الإعدادات تحفظ داخل ESP، لذلك تبقى بعد فصل الكهرباء ولا تحتاج كمبيوتر.", "Settings are stored on ESP and remain after power loss. No computer is required."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -1344,12 +1359,12 @@ private struct ESPStatusView: View {
     private func saveSettings() {
         guard let deviceID else { return }
         let settings = ESPRuntimeSettings(remotePulseMs: Int(pulseMs), remoteWakeDelayMs: Int(wakeDelayMs), remotePowerOffDelayMs: Int(powerOffDelayMs), hudBrightness: Int(hudBrightness))
-        updateStatus = mqtt.sendESPSettings(settings, to: deviceID) ? "تم إرسال الإعدادات إلى ESP" : "تعذر إرسال الإعدادات"
+        updateStatus = mqtt.sendESPSettings(settings, to: deviceID) ? JL("تم إرسال الإعدادات إلى ESP", "Settings sent to ESP") : JL("تعذر إرسال الإعدادات", "Could not send settings")
     }
 
     private func uploadFirmware(_ file: URL) {
         isUpdating = true
-        updateStatus = "جاري رفع الملف…"
+        updateStatus = JL("جاري رفع الملف…", "Uploading file…")
         Task {
             let allowed = file.startAccessingSecurityScopedResource()
             defer { if allowed { file.stopAccessingSecurityScopedResource() } }
@@ -1360,9 +1375,9 @@ private struct ESPStatusView: View {
                 request.timeoutInterval = 180
                 let (_, response) = try await URLSession.shared.upload(for: request, fromFile: file)
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                updateStatus = code == 200 ? "تم التحديث؛ ESP يعيد التشغيل الآن" : "فشل التحديث: HTTP \(code)"
+                updateStatus = code == 200 ? JL("تم التحديث؛ ESP يعيد التشغيل الآن", "Update complete; ESP is restarting") : JL("فشل التحديث: HTTP \(code)", "Update failed: HTTP \(code)")
             } catch {
-                updateStatus = "فشل الرفع: \(error.localizedDescription)"
+                updateStatus = JL("فشل الرفع: \(error.localizedDescription)", "Upload failed: \(error.localizedDescription)")
             }
             isUpdating = false
         }
@@ -1371,8 +1386,8 @@ private struct ESPStatusView: View {
     private func updateThrough4G() {
         guard let deviceID else { return }
         updateStatus = mqtt.sendFirmwareURL(firmwareURL.trimmingCharacters(in: .whitespacesAndNewlines), to: deviceID)
-            ? "تم إرسال رابط التحديث؛ ESP يبدأ التنزيل عبر 4G"
-            : "تعذر إرسال رابط التحديث"
+            ? JL("تم إرسال رابط التحديث؛ ESP يبدأ التنزيل عبر 4G", "Update URL sent; ESP is downloading over 4G")
+            : JL("تعذر إرسال رابط التحديث", "Could not send update URL")
     }
 
     private func setMaintenance(_ enabled: Bool) {
@@ -1382,13 +1397,13 @@ private struct ESPStatusView: View {
     private func savePowerMode() {
         guard let deviceID else { return }
         let command = VehicleCommand(action: .powerSave, powerSave: PowerSaveSettings(mode: powerSaveMode, idleMinutes: Int(powerSaveIdleMinutes)))
-        updateStatus = mqtt.sendESPCommand(command, to: deviceID) ? "تم حفظ وضع توفير الطاقة" : "تعذر حفظ وضع الطاقة"
+        updateStatus = mqtt.sendESPCommand(command, to: deviceID) ? JL("تم حفظ وضع توفير الطاقة", "Power saving mode saved") : JL("تعذر حفظ وضع الطاقة", "Could not save power mode")
     }
 
     private func send(_ action: BenchAction, maintenanceMode: Bool? = nil) {
         guard let deviceID else { return }
         let command = VehicleCommand(action: action, maintenanceMode: maintenanceMode)
-        updateStatus = mqtt.sendESPCommand(command, to: deviceID) ? "تم إرسال الأمر إلى ESP" : "تعذر إرسال الأمر"
+        updateStatus = mqtt.sendESPCommand(command, to: deviceID) ? JL("تم إرسال الأمر إلى ESP", "Command sent to ESP") : JL("تعذر إرسال الأمر", "Could not send command")
     }
 }
 
@@ -1417,60 +1432,60 @@ private struct OBDStatusView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Label(
-                        vehicle.obdConnected ? "OBD متصل" : "بانتظار قطعة OBD",
+                        vehicle.obdConnected ? JL("OBD متصل", "OBD connected") : JL("بانتظار قطعة OBD", "Waiting for OBD adapter"),
                         systemImage: vehicle.obdConnected ? "checkmark.shield.fill" : "exclamationmark.triangle.fill"
                     )
                     .font(.headline)
                     .foregroundStyle(vehicle.obdConnected ? .green : .orange)
 
-                    Text("ESP يرسل طلبات OBD القياسية للقراءة فقط عبر BLE أو Wi‑Fi؛ أوامر التحكم غير مستخدمة، ومسح الأخطاء لا يتم إلا بتأكيدك.")
+                    Text(JL("ESP يرسل طلبات OBD القياسية للقراءة فقط عبر BLE أو Wi‑Fi؛ أوامر التحكم غير مستخدمة، ومسح الأخطاء لا يتم إلا بتأكيدك.", "ESP sends standard read-only OBD requests over BLE or Wi-Fi. Control commands are not used. Clearing codes requires your confirmation."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
                     Group {
-                        obdRow("الحالة", obdStatusArabic(vehicle.obdStatus))
-                        obdRow("الردود بالثانية", "\(vehicle.obdResponseRate)")
-                        obdRow("فحص PIDs", vehicle.obdStandardScanComplete ? "اكتمل: \(vehicle.obdSupportedPids) مدعوم" : "\(vehicle.obdScanProgress)% — \(vehicle.obdScannedPids)/\(vehicle.obdSupportedPids)")
-                        obdRow("PID الحالي", vehicle.obdCurrentPid.isEmpty ? "—" : vehicle.obdCurrentPid)
-                        obdRow("مجموع الردود", "\(vehicle.obdTotalResponses)")
+                        obdRow(JL("الحالة", "Status"), obdStatusArabic(vehicle.obdStatus))
+                        obdRow(JL("الردود بالثانية", "Responses per second"), "\(vehicle.obdResponseRate)")
+                        obdRow(JL("فحص PIDs", "PID scan"), vehicle.obdStandardScanComplete ? JL("اكتمل: \(vehicle.obdSupportedPids) مدعوم", "Complete: \(vehicle.obdSupportedPids) supported") : "\(vehicle.obdScanProgress)% — \(vehicle.obdScannedPids)/\(vehicle.obdSupportedPids)")
+                        obdRow(JL("PID الحالي", "Current PID"), vehicle.obdCurrentPid.isEmpty ? "—" : vehicle.obdCurrentPid)
+                        obdRow(JL("مجموع الردود", "Total responses"), "\(vehicle.obdTotalResponses)")
                         obdRow("RPM", "\(vehicle.rpm)")
-                        obdRow("السرعة", UserDefaults.standard.string(forKey: "journey.settings.speedUnit") == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
-                        obdRow("فولت البطارية", vehicle.batteryVoltage > 0 ? String(format: "%.2f V", vehicle.batteryVoltage) : "—")
-                        obdRow("حالة السويتش / ACC", ignitionStateArabic(vehicle.ignitionState))
-                        obdRow("حالة CAN", vehicle.canAwake ? "صاحي" : "نايم / بانتظار الاستيقاظ")
-                        obdRow("آخر رد", vehicle.obdLastReply.isEmpty ? "—" : vehicle.obdLastReply)
+                        obdRow(JL("السرعة", "Speed"), UserDefaults.standard.string(forKey: "journey.settings.speedUnit") == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
+                        obdRow(JL("فولت البطارية", "Battery voltage"), vehicle.batteryVoltage > 0 ? String(format: "%.2f V", vehicle.batteryVoltage) : "—")
+                        obdRow(JL("حالة السويتش / ACC", "Ignition / ACC status"), ignitionStateArabic(vehicle.ignitionState))
+                        obdRow(JL("حالة CAN", "CAN status"), vehicle.canAwake ? JL("صاحي", "Awake") : JL("نايم / بانتظار الاستيقاظ", "Asleep / Waiting to wake"))
+                        obdRow(JL("آخر رد", "Last response"), vehicle.obdLastReply.isEmpty ? "—" : vehicle.obdLastReply)
                     }
                     .padding(14)
                     .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("اتصال OBD").font(.headline)
-                        Picker("نوع الاتصال", selection: $transport) {
+                        Text(JL("اتصال OBD", "OBD connection")).font(.headline)
+                        Picker(JL("نوع الاتصال", "Connection type"), selection: $transport) {
                             Text("BLE").tag("BLE")
                             Text("Wi‑Fi").tag("WIFI")
                         }
                         .pickerStyle(.segmented)
-                        Text(transport == "BLE" ? "القطعة الأساسية KONNWEI محفوظة داخل ESP. البحث العام يعمل فقط عند ضغط الزر لتغيير القطعة." : "ESP يبحث عن شبكات Wi‑Fi القريبة؛ اختر شبكة قطعة OBD ثم أدخل الباسورد إذا موجود.")
+                        Text(transport == "BLE" ? JL("القطعة الأساسية KONNWEI محفوظة داخل ESP. البحث العام يعمل فقط عند ضغط الزر لتغيير القطعة.", "The primary KONNWEI adapter is saved on ESP. General scanning starts only when you tap the button to change adapters.") : JL("ESP يبحث عن شبكات Wi‑Fi القريبة؛ اختر شبكة قطعة OBD ثم أدخل الباسورد إذا موجود.", "ESP searches nearby Wi-Fi networks. Select the OBD adapter network, then enter its password if needed."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Button(transport == "BLE" ? "بحث ESP عن قطع BLE" : "بحث ESP عن شبكات Wi‑Fi", systemImage: "magnifyingglass") { searchAdapters() }
+                        Button(transport == "BLE" ? JL("بحث ESP عن قطع BLE", "ESP search for BLE adapters") : JL("بحث ESP عن شبكات Wi‑Fi", "ESP search for Wi-Fi networks"), systemImage: "magnifyingglass") { searchAdapters() }
                             .buttonStyle(.bordered)
                             .disabled(deviceID == nil)
-                        TextField(transport == "BLE" ? "اسم القطعة كما يظهر بالبلوتوث، مثال V-LINK" : "اسم شبكة Wi‑Fi لقطعة OBD", text: $adapterName)
+                        TextField(transport == "BLE" ? JL("اسم القطعة كما يظهر بالبلوتوث، مثال V-LINK", "Bluetooth adapter name, e.g. V-LINK") : JL("اسم شبكة Wi‑Fi لقطعة OBD", "OBD adapter Wi-Fi network name"), text: $adapterName)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                             .textFieldStyle(.roundedBorder)
                         if transport == "WIFI" {
-                            SecureField("باسورد الشبكة (إن وجد)", text: $wifiPassword).textFieldStyle(.roundedBorder)
-                            TextField("عنوان قطعة OBD", text: $wifiHost).keyboardType(.numbersAndPunctuation).textFieldStyle(.roundedBorder)
-                            TextField("المنفذ", text: $wifiPort).keyboardType(.numberPad).textFieldStyle(.roundedBorder)
+                            SecureField(JL("باسورد الشبكة (إن وجد)", "Network password (if any)"), text: $wifiPassword).textFieldStyle(.roundedBorder)
+                            TextField(JL("عنوان قطعة OBD", "OBD adapter address"), text: $wifiHost).keyboardType(.numbersAndPunctuation).textFieldStyle(.roundedBorder)
+                            TextField(JL("المنفذ", "Port"), text: $wifiPort).keyboardType(.numberPad).textFieldStyle(.roundedBorder)
                         }
-                        Button("اختيار وحفظ واتصال", systemImage: "checkmark.circle.fill") { saveAdapter() }
+                        Button(JL("اختيار وحفظ واتصال", "Select, save and connect"), systemImage: "checkmark.circle.fill") { saveAdapter() }
                             .buttonStyle(.borderedProminent)
                             .disabled(deviceID == nil || adapterName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         let discovered = transport == "BLE" ? vehicle.obdDiscoveredAdapters : vehicle.obdDiscoveredWifiNetworks
                         if !discovered.isEmpty {
-                            Text(transport == "BLE" ? "قطع ظهرت للـESP: \(discovered)" : "شبكات ظهرت للـESP: \(discovered)")
+                            Text(transport == "BLE" ? JL("قطع ظهرت للـESP: \(discovered)", "Adapters found by ESP: \(discovered)") : JL("شبكات ظهرت للـESP: \(discovered)", "Networks found by ESP: \(discovered)"))
                                 .font(.caption).foregroundStyle(.cyan)
                             ForEach(discovered.components(separatedBy: " | ").filter { !$0.isEmpty }, id: \.self) { name in
                                 Button { adapterName = name } label: {
@@ -1480,31 +1495,31 @@ private struct OBDStatusView: View {
                                 .foregroundStyle(adapterName == name ? .cyan : .primary)
                             }
                         }
-                        if !vehicle.obdAdapterName.isEmpty { obdRow("المحفوظة", vehicle.obdAdapterName) }
-                        Button("الرجوع إلى KONNWEI الأساسية", role: .destructive) { forgetAdapter() }
+                        if !vehicle.obdAdapterName.isEmpty { obdRow(JL("المحفوظة", "Saved"), vehicle.obdAdapterName) }
+                        Button(JL("الرجوع إلى KONNWEI الأساسية", "Return to primary KONNWEI"), role: .destructive) { forgetAdapter() }
                             .disabled(deviceID == nil)
                     }
                     .padding(14)
                     .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("الأخطاء والتحليل").font(.headline)
-                        obdRow("الأكواد", vehicle.diagnosticCodes.isEmpty ? "لا توجد أكواد" : vehicle.diagnosticCodes.joined(separator: ", "))
-                        Text("فحص الأكواد يدوي فقط؛ لا يوجد فحص دوري بالخلفية.")
+                        Text(JL("الأخطاء والتحليل", "Faults and analysis")).font(.headline)
+                        obdRow(JL("الأكواد", "Codes"), vehicle.diagnosticCodes.isEmpty ? JL("لا توجد أكواد", "No codes") : vehicle.diagnosticCodes.joined(separator: ", "))
+                        Text(JL("فحص الأكواد يدوي فقط؛ لا يوجد فحص دوري بالخلفية.", "Code scanning is manual only. There is no periodic background scan."))
                             .font(.caption).foregroundStyle(.secondary)
-                        Button("فحص الأخطاء الآن", systemImage: "stethoscope") { scanTroubleCodes() }
+                        Button(JL("فحص الأخطاء الآن", "Scan trouble codes now"), systemImage: "stethoscope") { scanTroubleCodes() }
                             .buttonStyle(.bordered)
                             .disabled(deviceID == nil)
-                        Toggle("أفهم أن المسح قد يطفي اللمبة مؤقتاً", isOn: $clearConfirmation)
+                        Toggle(JL("أفهم أن المسح قد يطفي اللمبة مؤقتاً", "I understand clearing may temporarily turn off the warning lamp"), isOn: $clearConfirmation)
                             .font(.caption)
-                        Button(vehicle.obdClearInProgress ? "جاري مسح الأخطاء…" : "مسح أخطاء السيارة", systemImage: "trash.slash") {
+                        Button(vehicle.obdClearInProgress ? JL("جاري مسح الأخطاء…", "Clearing trouble codes…") : JL("مسح أخطاء السيارة", "Clear vehicle trouble codes"), systemImage: "trash.slash") {
                             clearTroubleCodes()
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.red)
                         .disabled(deviceID == nil || vehicle.simulatedEngineRunning || !clearConfirmation || vehicle.obdClearInProgress)
                         if vehicle.simulatedEngineRunning {
-                            Text("أطفئ المحرك أولاً؛ المسح مقفول أثناء التشغيل.")
+                            Text(JL("أطفئ المحرك أولاً؛ المسح مقفول أثناء التشغيل.", "Stop the engine first. Clearing is blocked while running."))
                                 .font(.caption).foregroundStyle(.orange)
                         }
                         if !statusMessage.isEmpty { Text(statusMessage).font(.caption).foregroundStyle(.cyan) }
@@ -1513,7 +1528,7 @@ private struct OBDStatusView: View {
                     .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
 
                     Label(
-                        "OBD القياسي يعطي سرعة وRPM وحرارة؛ الأبواب واللايتات والإشارات ليست ضمن PIDs القياسية.",
+                        JL("OBD القياسي يعطي سرعة وRPM وحرارة؛ الأبواب واللايتات والإشارات ليست ضمن PIDs القياسية.", "Standard OBD provides speed, RPM and temperature. Doors, lights and turn signals are not standard PIDs."),
                         systemImage: "info.circle.fill"
                     )
                     .font(.footnote)
@@ -1532,7 +1547,7 @@ private struct OBDStatusView: View {
         guard let deviceID else { return }
         let name = adapterName.trimmingCharacters(in: .whitespacesAndNewlines)
         let command = VehicleCommand(action: .obdSelect, obdAdapter: OBDAdapterSelection(name: name, transport: transport, password: wifiPassword, host: wifiHost, port: Int(wifiPort) ?? 35000))
-        statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? "تم حفظ الاسم؛ ESP يبحث ويتصل به تلقائياً." : "تعذر إرسال الاختيار إلى ESP"
+        statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? JL("تم حفظ الاسم؛ ESP يبحث ويتصل به تلقائياً.", "Name saved; ESP will search and connect automatically.") : JL("تعذر إرسال الاختيار إلى ESP", "Could not send selection to ESP")
     }
 
     private func searchAdapters() {
@@ -1542,72 +1557,72 @@ private struct OBDStatusView: View {
         let sent = mqtt.sendESPCommand(command, to: deviceID)
         if sent {
             statusMessage = transport == "BLE"
-                ? "أُرسل بحث BLE إلى ESP؛ انتظر 20 ثانية، وتظهر حتى الأجهزة بدون اسم."
-                : "أُرسل بحث Wi‑Fi إلى ESP؛ البحث يبدأ فوراً وتظهر الشبكات المخفية أيضاً."
+                ? JL("أُرسل بحث BLE إلى ESP؛ انتظر 20 ثانية، وتظهر حتى الأجهزة بدون اسم.", "BLE search sent to ESP. Wait 20 seconds. Unnamed devices are also shown.")
+                : JL("أُرسل بحث Wi‑Fi إلى ESP؛ البحث يبدأ فوراً وتظهر الشبكات المخفية أيضاً.", "Wi-Fi search sent to ESP. Search starts immediately and includes hidden networks.")
         } else {
-            statusMessage = "تعذر إرسال طلب البحث إلى ESP"
+            statusMessage = JL("تعذر إرسال طلب البحث إلى ESP", "Could not send search request to ESP")
         }
     }
 
     private func forgetAdapter() {
         guard let deviceID else { return }
-        statusMessage = mqtt.sendESPCommand(VehicleCommand(action: .obdForget), to: deviceID) ? "تم الرجوع إلى KONNWEI الأساسية." : "تعذر الرجوع للقطعة الأساسية"
+        statusMessage = mqtt.sendESPCommand(VehicleCommand(action: .obdForget), to: deviceID) ? JL("تم الرجوع إلى KONNWEI الأساسية.", "Returned to primary KONNWEI.") : JL("تعذر الرجوع للقطعة الأساسية", "Could not return to primary adapter")
     }
 
     private func scanTroubleCodes() {
         guard let deviceID else { return }
         let command = VehicleCommand(action: .obdScanDTC)
-        statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? "بدأ فحص أخطاء OBD." : "تعذر إرسال طلب فحص الأخطاء"
+        statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? JL("بدأ فحص أخطاء OBD.", "OBD trouble code scan started.") : JL("تعذر إرسال طلب فحص الأخطاء", "Could not send code scan request")
     }
 
     private func clearTroubleCodes() {
         guard let deviceID, clearConfirmation, !vehicle.simulatedEngineRunning else { return }
         Task {
-            guard await faceID.authenticate(reason: "تأكيد مسح أخطاء OBD لسيارة JOURNEY") else {
-                statusMessage = faceID.lastError ?? "لم يتم تأكيد Face ID"
+            guard await faceID.authenticate(reason: JL("تأكيد مسح أخطاء OBD لسيارة JOURNEY", "Confirm clearing JOURNEY OBD trouble codes")) else {
+                statusMessage = faceID.lastError ?? JL("لم يتم تأكيد Face ID", "Face ID was not confirmed")
                 return
             }
             let command = VehicleCommand(action: .obdClearDTC, obdClearConfirmed: true)
-            statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? "أُرسل طلب المسح؛ سيتم فحص الأكواد من جديد." : "تعذر إرسال أمر المسح"
+            statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? JL("أُرسل طلب المسح؛ سيتم فحص الأكواد من جديد.", "Clear request sent. Codes will be scanned again.") : JL("تعذر إرسال أمر المسح", "Could not send clear command")
         }
     }
 
 
     private func ignitionStateArabic(_ raw: String) -> String {
         switch raw {
-        case "ENGINE_RUNNING": return "المحرك شغال"
-        case "IGN_ON": return "IGN/ACC صاحي — المحرك طافي"
-        case "OFF_OR_SLEEP": return "طافي / CAN نايم"
-        default: return "غير معروف"
+        case "ENGINE_RUNNING": return JL("المحرك شغال", "Engine running")
+        case "IGN_ON": return JL("IGN/ACC صاحي — المحرك طافي", "IGN/ACC awake — Engine off")
+        case "OFF_OR_SLEEP": return JL("طافي / CAN نايم", "Off / CAN asleep")
+        default: return JL("غير معروف", "Unknown")
         }
     }
 
     private func obdStatusArabic(_ raw: String) -> String {
         switch raw {
-        case "waiting_for_saved_adapter", "waiting": return "بانتظار القطعة الأساسية"
-        case "connecting_saved_adapter", "connecting": return "جاري الاتصال بـ KONNWEI"
-        case "initializing_elm327": return "تهيئة ELM327"
-        case "connecting_ecu": return "الاتصال بكمبيوتر السيارة"
-        case "reading_vin": return "قراءة رقم الشاصي VIN"
-        case "scanning_supported_pids": return "فحص PIDs المدعومة"
-        case "reading_standard_pids": return "قراءة بيانات السيارة"
-        case "reading_dtc_stored": return "فحص الأخطاء المخزنة"
-        case "reading_dtc_pending": return "فحص الأخطاء المعلقة"
-        case "reading_dtc_permanent": return "فحص الأخطاء الدائمة"
-        case "dtc_scan_complete": return "اكتمل فحص الأخطاء"
-        case "adapter_searching": return "بحث يدوي عن قطع BLE"
-        case "adapter_search_complete": return "اكتمل البحث اليدوي"
-        case "adapter_not_found": return "لم يتم العثور على القطعة"
-        case "obd_waiting_reply": return "بانتظار رد OBD"
-        case "waiting_for_can": return "KONNWEI متصلة — بانتظار CAN"
-        case "probing_can": return "فحص استيقاظ CAN"
-        case "can_awake_reading_vin": return "CAN اشتغل — قراءة VIN"
-        case "obd_live": return "متصل — قراءة مباشرة"
-        case "dtc_scan_requested": return "بدء فحص الأخطاء"
-        case "obd_adapter_no_response_reconnecting", "obd_no_response_reconnecting": return "انقطع رد القطعة — إعادة اتصال"
-        case "ecu_handshake_invalid": return "رد ECU غير صالح"
-        case "vin_invalid_no_advance": return "VIN غير صالح — توقف الفحص"
-        case "default_adapter_restored": return "KONNWEI هي القطعة الأساسية"
+        case "waiting_for_saved_adapter", "waiting": return JL("بانتظار القطعة الأساسية", "Waiting for primary adapter")
+        case "connecting_saved_adapter", "connecting": return JL("جاري الاتصال بـ KONNWEI", "Connecting to KONNWEI")
+        case "initializing_elm327": return JL("تهيئة ELM327", "Initializing ELM327")
+        case "connecting_ecu": return JL("الاتصال بكمبيوتر السيارة", "Connecting to vehicle ECU")
+        case "reading_vin": return JL("قراءة رقم الشاصي VIN", "Reading VIN")
+        case "scanning_supported_pids": return JL("فحص PIDs المدعومة", "Scanning supported PIDs")
+        case "reading_standard_pids": return JL("قراءة بيانات السيارة", "Reading vehicle data")
+        case "reading_dtc_stored": return JL("فحص الأخطاء المخزنة", "Scanning stored codes")
+        case "reading_dtc_pending": return JL("فحص الأخطاء المعلقة", "Scanning pending codes")
+        case "reading_dtc_permanent": return JL("فحص الأخطاء الدائمة", "Scanning permanent codes")
+        case "dtc_scan_complete": return JL("اكتمل فحص الأخطاء", "Code scan complete")
+        case "adapter_searching": return JL("بحث يدوي عن قطع BLE", "Manual BLE adapter search")
+        case "adapter_search_complete": return JL("اكتمل البحث اليدوي", "Manual search complete")
+        case "adapter_not_found": return JL("لم يتم العثور على القطعة", "Adapter not found")
+        case "obd_waiting_reply": return JL("بانتظار رد OBD", "Waiting for OBD response")
+        case "waiting_for_can": return JL("KONNWEI متصلة — بانتظار CAN", "KONNWEI connected — Waiting for CAN")
+        case "probing_can": return JL("فحص استيقاظ CAN", "Checking CAN wake-up")
+        case "can_awake_reading_vin": return JL("CAN اشتغل — قراءة VIN", "CAN awake — Reading VIN")
+        case "obd_live": return JL("متصل — قراءة مباشرة", "Connected — Live readings")
+        case "dtc_scan_requested": return JL("بدء فحص الأخطاء", "Starting code scan")
+        case "obd_adapter_no_response_reconnecting", "obd_no_response_reconnecting": return JL("انقطع رد القطعة — إعادة اتصال", "Adapter stopped responding — Reconnecting")
+        case "ecu_handshake_invalid": return JL("رد ECU غير صالح", "Invalid ECU response")
+        case "vin_invalid_no_advance": return JL("VIN غير صالح — توقف الفحص", "Invalid VIN — Scan stopped")
+        case "default_adapter_restored": return JL("KONNWEI هي القطعة الأساسية", "KONNWEI is the primary adapter")
         default: return raw.replacingOccurrences(of: "_", with: " ")
         }
     }
@@ -1640,11 +1655,11 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
         adapters.removeAll()
         guard central.state == .poweredOn else {
             pendingStart = true
-            status = "فعّل Bluetooth ثم أعد البحث"
+            status = JL("فعّل Bluetooth ثم أعد البحث", "Enable Bluetooth and search again")
             return
         }
         pendingStart = false
-        status = "جاري مسح كل أجهزة BLE القريبة…"
+        status = JL("جاري مسح كل أجهزة BLE القريبة…", "Scanning all nearby BLE devices…")
         isScanning = true
         central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.stop() }
@@ -1653,7 +1668,7 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
     private func stop() {
         central.stopScan()
         isScanning = false
-        status = adapters.isEmpty ? "لم يظهر أي جهاز BLE؛ تأكد من تفعيل Bluetooth ومن أن الجهاز القريب يعلن عن نفسه." : "ظهرت أجهزة BLE القريبة. اختر قطعة OBD ثم اضغط اختيار وحفظ واتصال."
+        status = adapters.isEmpty ? JL("لم يظهر أي جهاز BLE؛ تأكد من تفعيل Bluetooth ومن أن الجهاز القريب يعلن عن نفسه.", "No BLE devices found. Enable Bluetooth and make sure the nearby device is advertising.") : JL("ظهرت أجهزة BLE القريبة. اختر قطعة OBD ثم اضغط اختيار وحفظ واتصال.", "Nearby BLE devices found. Select an OBD adapter, then tap Select, save and connect.")
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -1666,7 +1681,7 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
             .trimmingCharacters(in: .whitespacesAndNewlines)
         // لا نفلتر بالاسم: المستخدم يحتاج أن يرى كل أجهزة BLE ليتأكد أن
         // المسح حقيقي، وبعض القطع التجارية لا تضع OBD أو ELM في اسمها.
-        let shown = name.isEmpty ? "بدون اسم [\(peripheral.identifier.uuidString)]" : name
+        let shown = name.isEmpty ? JL("بدون اسم [\(peripheral.identifier.uuidString)]", "Unnamed [\(peripheral.identifier.uuidString)]") : name
         if !adapters.contains(shown) { adapters.append(shown) }
     }
 }
@@ -1717,7 +1732,7 @@ private struct VehicleMapView: View {
     let vehicleName: String
     let deviceID: String?
     @State private var region: MKCoordinateRegion
-    @State private var locationName = "بانتظار GPS"
+    @State private var locationName = JL("بانتظار GPS", "Waiting for GPS")
 
     init(vehicle: VehicleState, vehicleName: String, deviceID: String?) {
         self.vehicle = vehicle
@@ -1764,7 +1779,7 @@ private struct VehicleMapView: View {
                     .frame(height: 335)
                     .clipShape(RoundedRectangle(cornerRadius: 24))
 
-                    Label(vehicle.gpsValid ? "الموقع الحي" : "بانتظار GPS", systemImage: vehicle.gpsValid ? "location.fill" : "location.slash.fill")
+                    Label(vehicle.gpsValid ? JL("الموقع الحي", "Live location") : JL("بانتظار GPS", "Waiting for GPS"), systemImage: vehicle.gpsValid ? "location.fill" : "location.slash.fill")
                         .font(.caption.bold())
                         .padding(.horizontal, 11)
                         .padding(.vertical, 8)
@@ -1773,19 +1788,19 @@ private struct VehicleMapView: View {
                 }
 
                 HStack(spacing: 10) {
-                    mapCommandButton("قفل", icon: "lock.fill", tint: .blue) { send(.lock) }
-                    mapCommandButton("فتح", icon: "lock.open.fill", tint: .green) { send(.unlock) }
+                    mapCommandButton(JL("قفل", "Lock"), icon: "lock.fill", tint: .blue) { send(.lock) }
+                    mapCommandButton(JL("فتح", "Unlock"), icon: "lock.open.fill", tint: .green) { send(.unlock) }
                 }
 
                 HStack(spacing: 8) {
-                    mapStatus(vehicle.simulatedLocked ? "مقفلة" : "مفتوحة", icon: vehicle.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !vehicle.simulatedLocked)
-                    mapStatus(vehicle.simulatedEngineRunning ? "تعمل" : "متوقفة", icon: "engine.combustion.fill", active: vehicle.simulatedEngineRunning)
-                    mapStatus(vehicle.gpsValid ? "GPS متصل" : "GPS بانتظار", icon: "location.fill", active: vehicle.gpsValid)
+                    mapStatus(vehicle.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"), icon: vehicle.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !vehicle.simulatedLocked)
+                    mapStatus(vehicle.simulatedEngineRunning ? JL("تعمل", "Running") : JL("متوقفة", "Stopped"), icon: "engine.combustion.fill", active: vehicle.simulatedEngineRunning)
+                    mapStatus(vehicle.gpsValid ? JL("GPS متصل", "GPS connected") : JL("GPS بانتظار", "Waiting for GPS"), icon: "location.fill", active: vehicle.gpsValid)
                 }
 
                 VStack(alignment: .leading, spacing: 9) {
                     HStack {
-                        Text("حالة السيارة").font(.headline)
+                        Text(JL("حالة السيارة", "Vehicle status")).font(.headline)
                         Spacer()
                         Circle().fill(vehicle.online ? .green : .orange).frame(width: 9, height: 9)
                     }
@@ -1799,12 +1814,12 @@ private struct VehicleMapView: View {
                             let url = URL(string: "http://maps.apple.com/?ll=\(vehicle.latitude),\(vehicle.longitude)&q=JOURNEY")!
                             UIApplication.shared.open(url)
                         } label: {
-                            Label("فتح في خرائط Apple", systemImage: "arrow.up.right.square")
+                            Label(JL("فتح في خرائط Apple", "Open in Apple Maps"), systemImage: "arrow.up.right.square")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                     } else {
-                        Text("تظهر السيارة هنا تلقائياً عندما ينشر ESP إحداثيات GPS.")
+                        Text(JL("تظهر السيارة هنا تلقائياً عندما ينشر ESP إحداثيات GPS.", "The vehicle appears here automatically when ESP publishes GPS coordinates."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -1816,11 +1831,11 @@ private struct VehicleMapView: View {
             .padding(.top, 88)
         }
         .background(Color(red: 0.02, green: 0.05, blue: 0.10).ignoresSafeArea())
-        .navigationTitle("الخريطة والتعقّب")
+        .navigationTitle(JL("الخريطة والتعقّب", "Map and tracking"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("تم") { dismiss() }
+                Button(JL("تم", "Done")) { dismiss() }
             }
         }
         .task(id: "\(vehicle.latitude),\(vehicle.longitude),\(vehicle.gpsValid)") {
@@ -1831,17 +1846,17 @@ private struct VehicleMapView: View {
     @MainActor
     private func resolveLocationName() async {
         guard vehicle.gpsValid else {
-            locationName = "بانتظار GPS"
+            locationName = JL("بانتظار GPS", "Waiting for GPS")
             return
         }
         let location = CLLocation(latitude: vehicle.latitude, longitude: vehicle.longitude)
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location)
         guard let mark = placemarks?.first else {
-            locationName = "موقع السيارة الحالي"
+            locationName = JL("موقع السيارة الحالي", "Current vehicle location")
             return
         }
         let parts = [mark.name, mark.subLocality, mark.locality].compactMap { $0 }.filter { !$0.isEmpty }
-        locationName = parts.isEmpty ? "موقع السيارة الحالي" : Array(NSOrderedSet(array: parts)).compactMap { $0 as? String }.joined(separator: "، ")
+        locationName = parts.isEmpty ? JL("موقع السيارة الحالي", "Current vehicle location") : Array(NSOrderedSet(array: parts)).compactMap { $0 as? String }.joined(separator: JL("، ", ", "))
     }
 
     private func send(_ command: BenchAction) {
@@ -1880,7 +1895,7 @@ private struct VehicleMapEntryCard: View {
     let vehicle: VehicleState
     let openMap: () -> Void
     @State private var region: MKCoordinateRegion
-    @State private var locationName = "بانتظار GPS"
+    @State private var locationName = JL("بانتظار GPS", "Waiting for GPS")
 
     init(vehicle: VehicleState, openMap: @escaping () -> Void) {
         self.vehicle = vehicle
@@ -1931,10 +1946,10 @@ private struct VehicleMapEntryCard: View {
                         .frame(width: 42, height: 42)
                         .background(.black.opacity(0.48), in: Circle())
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("الخريطة والتعقّب")
+                        Text(JL("الخريطة والتعقّب", "Map and tracking"))
                             .font(.headline)
                             .foregroundStyle(.white)
-                        Text(vehicle.gpsValid ? locationName : "بانتظار موقع السيارة من GPS")
+                        Text(vehicle.gpsValid ? locationName : JL("بانتظار موقع السيارة من GPS", "Waiting for vehicle GPS location"))
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.76))
                             .lineLimit(1)
@@ -1951,7 +1966,7 @@ private struct VehicleMapEntryCard: View {
             .overlay(RoundedRectangle(cornerRadius: 21).stroke(.cyan.opacity(0.38), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("الخريطة والتعقّب")
+        .accessibilityLabel(JL("الخريطة والتعقّب", "Map and tracking"))
         .task(id: "\(vehicle.latitude),\(vehicle.longitude),\(vehicle.gpsValid)") {
             await resolveLocationName()
         }
@@ -1960,17 +1975,17 @@ private struct VehicleMapEntryCard: View {
     @MainActor
     private func resolveLocationName() async {
         guard vehicle.gpsValid else {
-            locationName = "بانتظار GPS"
+            locationName = JL("بانتظار GPS", "Waiting for GPS")
             return
         }
         let location = CLLocation(latitude: vehicle.latitude, longitude: vehicle.longitude)
         let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location)
         guard let mark = placemarks?.first else {
-            locationName = "موقع السيارة الحالي"
+            locationName = JL("موقع السيارة الحالي", "Current vehicle location")
             return
         }
         let parts = [mark.name, mark.subLocality, mark.locality].compactMap { $0 }.filter { !$0.isEmpty }
-        locationName = parts.isEmpty ? "موقع السيارة الحالي" : Array(NSOrderedSet(array: parts)).compactMap { $0 as? String }.joined(separator: "، ")
+        locationName = parts.isEmpty ? JL("موقع السيارة الحالي", "Current vehicle location") : Array(NSOrderedSet(array: parts)).compactMap { $0 as? String }.joined(separator: JL("، ", ", "))
     }
 }
 
@@ -1999,53 +2014,53 @@ private struct KeylessEntrySettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Toggle("تفعيل الدخول الذكي", isOn: $enabled)
+                    Toggle(JL("تفعيل الدخول الذكي", "Enable smart entry"), isOn: $enabled)
                         .tint(.cyan)
-                    Text("عند الاتصال الآمن بالـESP: يفتح عند الاقتراب ويقفل بعد الابتعاد.")
+                    Text(JL("عند الاتصال الآمن بالـESP: يفتح عند الاقتراب ويقفل بعد الابتعاد.", "With a secure ESP connection, unlock on approach and lock after departure."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Label("مفتاح الآيفون", systemImage: "iphone.radiowaves.left.and.right")
+                    Label(JL("مفتاح الآيفون", "iPhone key"), systemImage: "iphone.radiowaves.left.and.right")
                 }
 
-                Section("مسافات تقريبية") {
-                    settingSlider(title: "مسافة الفتح", value: $unlockDistance, range: 0.5...3.0, step: 0.5, tint: .green)
-                    settingSlider(title: "مسافة القفل", value: $lockDistance, range: 2.0...8.0, step: 0.5, tint: .orange)
-                    Text("القفل مضبوط على \(String(format: "%.1f", effectiveLockDistance)) م أو أكثر حتى لا يفتح ويقفل بسرعة.")
+                Section(JL("مسافات تقريبية", "Approximate distances")) {
+                    settingSlider(title: JL("مسافة الفتح", "Unlock distance"), value: $unlockDistance, range: 0.5...3.0, step: 0.5, tint: .green)
+                    settingSlider(title: JL("مسافة القفل", "Lock distance"), value: $lockDistance, range: 2.0...8.0, step: 0.5, tint: .orange)
+                    Text(JL("القفل مضبوط على \(String(format: "%.1f", effectiveLockDistance)) م أو أكثر حتى لا يفتح ويقفل بسرعة.", "Lock distance is set to \(String(format: "%.1f", effectiveLockDistance)) m or more to prevent rapid locking and unlocking."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("ثبات الإشارة") {
-                    settingSlider(title: "تثبيت القرب قبل الفتح", value: $unlockHold, range: 2.0...8.0, step: 1.0, suffix: " ث", tint: .cyan)
-                    settingSlider(title: "تأخير القفل بعد الابتعاد", value: $lockDelay, range: 10.0...45.0, step: 5.0, suffix: " ث", tint: .orange)
+                Section(JL("ثبات الإشارة", "Signal stability")) {
+                    settingSlider(title: JL("تثبيت القرب قبل الفتح", "Confirm proximity before unlock"), value: $unlockHold, range: 2.0...8.0, step: 1.0, suffix: JL(" ث", " s"), tint: .cyan)
+                    settingSlider(title: JL("تأخير القفل بعد الابتعاد", "Lock delay after departure"), value: $lockDelay, range: 10.0...45.0, step: 5.0, suffix: JL(" ث", " s"), tint: .orange)
                 }
 
-                Section("ريموت السيارة الاحتياطي") {
-                    Toggle("يبقى الريموت مفعّل أثناء وجود الآيفون", isOn: $keepRemotePowered)
+                Section(JL("ريموت السيارة الاحتياطي", "Spare vehicle remote")) {
+                    Toggle(JL("يبقى الريموت مفعّل أثناء وجود الآيفون", "Keep remote powered while iPhone is nearby"), isOn: $keepRemotePowered)
                         .tint(.cyan)
-                    Text("عند الاقتراب: ESP يشغّل 3.3V للريموت، ينتظر ثانية، ثم ينفذ الفتح. عند الابتعاد: يقفل أولاً، ينتظر ثانيتين، ثم يفصل تغذية الريموت.")
+                    Text(JL("عند الاقتراب: ESP يشغّل 3.3V للريموت، ينتظر ثانية، ثم ينفذ الفتح. عند الابتعاد: يقفل أولاً، ينتظر ثانيتين، ثم يفصل تغذية الريموت.", "On approach, ESP supplies 3.3V to the remote, waits one second, then unlocks. On departure, it locks first, waits two seconds, then cuts remote power."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Label("يبقى مفتاح السيارة موجوداً أثناء وقوفك داخلها، فلا ينفصل الريموت مباشرة بعد الفتح.", systemImage: "key.fill")
+                    Label(JL("يبقى مفتاح السيارة موجوداً أثناء وقوفك داخلها، فلا ينفصل الريموت مباشرة بعد الفتح.", "The vehicle key remains available while you are inside. Remote power is not cut immediately after unlocking."), systemImage: "key.fill")
                         .font(.footnote)
                         .foregroundStyle(.cyan)
                 }
 
                 Section {
-                    Label("المسافة تقديرية لأن BLE تقيس قوة الإشارة، وتتأثر بالجدران ومكان الهاتف. فعّلها بعد اختبارها حول السيارة.", systemImage: "exclamationmark.triangle.fill")
+                    Label(JL("المسافة تقديرية لأن BLE تقيس قوة الإشارة، وتتأثر بالجدران ومكان الهاتف. فعّلها بعد اختبارها حول السيارة.", "Distance is approximate because BLE measures signal strength and is affected by walls and phone placement. Enable after testing around the vehicle."), systemImage: "exclamationmark.triangle.fill")
                         .font(.footnote)
                         .foregroundStyle(.orange)
                 }
             }
-            .navigationTitle("الدخول الذكي")
+            .navigationTitle(JL("الدخول الذكي", "Smart entry"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("إلغاء") { dismiss() }
+                    Button(JL("إلغاء", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("حفظ وإرسال") { save() }
+                    Button(JL("حفظ وإرسال", "Save and send")) { save() }
                 }
             }
             .onChange(of: unlockDistance) { value in
@@ -2059,14 +2074,14 @@ private struct KeylessEntrySettingsView: View {
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double,
-        suffix: String = " م",
+        suffix: String = JL(" م", " m"),
         tint: Color
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(title)
                 Spacer()
-                Text("\(String(format: suffix == " م" ? "%.1f" : "%.0f", value.wrappedValue))\(suffix)")
+                Text(JL("\(String(format: suffix == " م" ? "%.1f" : "%.0f", value.wrappedValue))\(suffix)", "\(String(format: suffix == " م" ? "%.1f" : "%.0f", value.wrappedValue))\(suffix)"))
                     .font(.subheadline.bold().monospacedDigit())
                     .foregroundStyle(tint)
             }
@@ -2148,51 +2163,51 @@ private struct MQTTSettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker(tr("المظهر", "Appearance"), selection: $appearance) {
-                        Text(tr("داكن", "Dark")).tag("dark")
-                        Text(tr("فاتح", "Light")).tag("light")
-                        Text(tr("حسب النظام", "System")).tag("system")
+                    Picker(tr(JL("المظهر", "Appearance"), "Appearance"), selection: $appearance) {
+                        Text(tr(JL("داكن", "Dark"), "Dark")).tag("dark")
+                        Text(tr(JL("فاتح", "Light"), "Light")).tag("light")
+                        Text(tr(JL("حسب النظام", "System"), "System")).tag("system")
                     }
-                    Picker(tr("حجم الخط", "Text size"), selection: $textSize) {
-                        Text(tr("صغير", "Small")).tag("small")
-                        Text(tr("عادي", "Normal")).tag("normal")
-                        Text(tr("كبير", "Large")).tag("large")
-                        Text(tr("أكبر", "Extra large")).tag("xlarge")
+                    Picker(tr(JL("حجم الخط", "Text size"), "Text size"), selection: $textSize) {
+                        Text(tr(JL("صغير", "Small"), "Small")).tag("small")
+                        Text(tr(JL("عادي", "Normal"), "Normal")).tag("normal")
+                        Text(tr(JL("كبير", "Large"), "Large")).tag("large")
+                        Text(tr(JL("أكبر", "Extra large"), "Extra large")).tag("xlarge")
                     }
-                    Picker(tr("اللغة", "Language"), selection: $language) {
-                        Text(tr("العربية", "Arabic")).tag("ar")
+                    Picker(tr(JL("اللغة", "Language"), "Language"), selection: $language) {
+                        Text(tr(JL("العربية", "العربية"), "Arabic")).tag("ar")
                         Text("English").tag("en")
                     }
                 } header: {
-                    Label(tr("المظهر واللغة", "Appearance & Language"), systemImage: "paintbrush.pointed.fill")
+                    Label(tr(JL("المظهر واللغة", "Appearance and language"), "Appearance & Language"), systemImage: "paintbrush.pointed.fill")
                 }
 
                 Section {
-                    Picker(tr("وحدة السرعة", "Speed unit"), selection: $speedUnit) {
+                    Picker(tr(JL("وحدة السرعة", "Speed unit"), "Speed unit"), selection: $speedUnit) {
                         Text("km/h").tag("kmh")
                         Text("mph").tag("mph")
                     }
-                    Picker(tr("درجة الحرارة", "Temperature"), selection: $temperatureUnit) {
+                    Picker(tr(JL("درجة الحرارة", "Temperature"), "Temperature"), selection: $temperatureUnit) {
                         Text("°C").tag("c")
                         Text("°F").tag("f")
                     }
-                    Text(language == "en" ? "Battery voltage is read automatically by the ESP firmware; there is no fake local switch." : "فولت البطارية يُقرأ تلقائياً من Firmware الـESP؛ ماكو مفتاح محلي وهمي.")
+                    Text(language == "en" ? "Battery voltage is read automatically by the ESP firmware; there is no fake local switch." : JL("فولت البطارية يُقرأ تلقائياً من Firmware الـESP؛ ماكو مفتاح محلي وهمي.", "Battery voltage is read automatically by ESP firmware. There is no simulated local switch."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Label(tr("السيارة والقراءات", "Vehicle & Readings"), systemImage: "car.fill")
+                    Label(tr(JL("السيارة والقراءات", "Vehicle and readings"), "Vehicle & Readings"), systemImage: "car.fill")
                 }
 
                 Section {
-                    Toggle(tr("تشغيل وإطفاء المحرك", "Engine start/stop"), isOn: $notifyEngine)
-                    Toggle(tr("الاقتراب والابتعاد", "Approach/departure"), isOn: $notifyKeyless)
-                    Toggle(tr("القفل والفتح", "Lock/unlock"), isOn: $notifyLocks)
-                    Toggle(tr("حالة OBD", "OBD status"), isOn: $notifyOBD)
-                    Label("مضافة حماية من إشعار إطفاء كاذب أثناء الحركة ومن تكرار إشعار الاقتراب.", systemImage: "checkmark.shield.fill")
+                    Toggle(tr(JL("تشغيل وإطفاء المحرك", "Engine start and stop"), "Engine start/stop"), isOn: $notifyEngine)
+                    Toggle(tr(JL("الاقتراب والابتعاد", "Approach and departure"), "Approach/departure"), isOn: $notifyKeyless)
+                    Toggle(tr(JL("القفل والفتح", "Lock and unlock"), "Lock/unlock"), isOn: $notifyLocks)
+                    Toggle(tr(JL("حالة OBD", "OBD status"), "OBD status"), isOn: $notifyOBD)
+                    Label(JL("مضافة حماية من إشعار إطفاء كاذب أثناء الحركة ومن تكرار إشعار الاقتراب.", "Includes protection against false engine-off notifications while moving and repeated approach notifications."), systemImage: "checkmark.shield.fill")
                         .font(.footnote)
                         .foregroundStyle(.green)
                 } header: {
-                    Label(tr("الإشعارات", "Notifications"), systemImage: "bell.badge.fill")
+                    Label(tr(JL("الإشعارات", "Notifications"), "Notifications"), systemImage: "bell.badge.fill")
                 }
 
                 Section {
@@ -2227,7 +2242,7 @@ private struct MQTTSettingsView: View {
                     Button {
                         saveConnectionPriority()
                     } label: {
-                        Label("حفظ ترتيب الأولوية", systemImage: "checkmark.circle.fill")
+                        Label(JL("حفظ ترتيب الأولوية", "Save priority order"), systemImage: "checkmark.circle.fill")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(selectedDeviceID == nil)
@@ -2238,15 +2253,15 @@ private struct MQTTSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("ارفع أو نزّل أي مسار. الأوامر العادية تتبع هذا التسلسل، بينما الدخول الذكي Keyless يبقى BLE أولاً حتى يظل سريع.")
+                    Text(JL("ارفع أو نزّل أي مسار. الأوامر العادية تتبع هذا التسلسل، بينما الدخول الذكي Keyless يبقى BLE أولاً حتى يظل سريع.", "Move any route up or down. Normal commands follow this order. Smart entry always prefers BLE for fast response."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Label("أولوية الاتصال", systemImage: "arrow.up.arrow.down")
+                    Label(JL("أولوية الاتصال", "Connection priority"), systemImage: "arrow.up.arrow.down")
                 }
 
                 Section {
-                    Toggle("تشغيل Wi-Fi بالـESP", isOn: $wifiEnabled)
+                    Toggle(JL("تشغيل Wi-Fi بالـESP", "Enable ESP Wi-Fi"), isOn: $wifiEnabled)
                         .tint(.cyan)
                         .onChange(of: wifiEnabled) { _, enabled in
                             if !enabled { setWifiEnabled(false) }
@@ -2254,7 +2269,7 @@ private struct MQTTSettingsView: View {
 
                     HStack {
                         Label(
-                            vehicle.wifiConnected ? "متصل: \(vehicle.wifiSSID)" : wifiStatusText(vehicle.wifiStatus),
+                            vehicle.wifiConnected ? JL("متصل: \(vehicle.wifiSSID)", "Connected: \(vehicle.wifiSSID)") : wifiStatusText(vehicle.wifiStatus),
                             systemImage: vehicle.wifiConnected ? "wifi" : "wifi.slash"
                         )
                         .foregroundStyle(vehicle.wifiConnected ? .green : .secondary)
@@ -2269,36 +2284,36 @@ private struct MQTTSettingsView: View {
                     if !vehicle.wifiIP.isEmpty {
                         LabeledContent("IP", value: vehicle.wifiIP)
                     }
-                    LabeledContent("التحكم عن بُعد", value: vehicle.cloudConnected ? "ONLINE عبر الإنترنت" : "غير متصل بالسحابة")
+                    LabeledContent(JL("التحكم عن بُعد", "Remote access"), value: vehicle.cloudConnected ? JL("ONLINE عبر الإنترنت", "ONLINE over Internet") : JL("غير متصل بالسحابة", "Cloud disconnected"))
                         .foregroundStyle(vehicle.cloudConnected ? .green : .secondary)
 
                     Button {
                         searchWifi()
                     } label: {
-                        Label(vehicle.wifiStatus == "searching" ? "جاري البحث..." : "بحث عن الشبكات", systemImage: "magnifyingglass")
+                        Label(vehicle.wifiStatus == "searching" ? JL("جاري البحث...", "Searching…") : JL("بحث عن الشبكات", "Search networks"), systemImage: "magnifyingglass")
                     }
                     .disabled(vehicle.wifiStatus == "searching" || selectedDeviceID == nil)
 
                     if !wifiNetworks.isEmpty {
-                        Picker("الشبكة", selection: $wifiSSID) {
-                            Text("اختر شبكة").tag("")
+                        Picker(JL("الشبكة", "Network"), selection: $wifiSSID) {
+                            Text(JL("اختر شبكة", "Select network")).tag("")
                             ForEach(wifiNetworks, id: \.self) { network in
                                 Text(network).tag(network)
                             }
                         }
                     } else {
-                        TextField("اسم الشبكة SSID", text: $wifiSSID)
+                        TextField(JL("اسم الشبكة SSID", "Network name SSID"), text: $wifiSSID)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
 
-                    SecureField("كلمة مرور الشبكة", text: $wifiPassword)
+                    SecureField(JL("كلمة مرور الشبكة", "Network password"), text: $wifiPassword)
 
                     HStack {
                         Button {
                             connectWifi()
                         } label: {
-                            Label("اتصال", systemImage: "wifi")
+                            Label(JL("اتصال", "Connect"), systemImage: "wifi")
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(!wifiEnabled || wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedDeviceID == nil)
@@ -2308,7 +2323,7 @@ private struct MQTTSettingsView: View {
                         Button(role: .destructive) {
                             forgetWifi()
                         } label: {
-                            Label("نسيان الشبكة", systemImage: "trash")
+                            Label(JL("نسيان الشبكة", "Forget network"), systemImage: "trash")
                         }
                         .disabled(selectedDeviceID == nil)
                     }
@@ -2319,18 +2334,18 @@ private struct MQTTSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("البحث يدوي فقط، وماكو Scan مستمر. بهالشكل نقلل تأثير Wi-Fi على BLE أثناء الاستخدام الطبيعي.")
-                    Text("إذا الإنترنت شغال، أوامر السيارة تروح MQTT عبر الشريحة أو Wi-Fi؛ BLE يبقى للدخول الذكي، ويرجع fallback محلي فقط إذا انقطع الإنترنت.")
+                    Text(JL("البحث يدوي فقط، وماكو Scan مستمر. بهالشكل نقلل تأثير Wi-Fi على BLE أثناء الاستخدام الطبيعي.", "Search is manual only, with no continuous scan. This reduces Wi-Fi interference with BLE during normal use."))
+                    Text(JL("إذا الإنترنت شغال، أوامر السيارة تروح MQTT عبر الشريحة أو Wi-Fi؛ BLE يبقى للدخول الذكي، ويرجع fallback محلي فقط إذا انقطع الإنترنت.", "With Internet available, vehicle commands use MQTT over cellular or Wi-Fi. BLE handles smart entry and provides local fallback when Internet is unavailable."))
                         .font(.footnote)
                         .foregroundStyle(.green)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Label("Wi-Fi الـESP", systemImage: "wifi")
+                    Label(JL("Wi-Fi الـESP", "ESP Wi-Fi"), systemImage: "wifi")
                 }
 
                 Section {
-                    Toggle("تشغيل الشريحة / 4G", isOn: $cellularEnabled)
+                    Toggle(JL("تشغيل الشريحة / 4G", "Enable cellular / 4G"), isOn: $cellularEnabled)
                         .tint(.green)
                         .onChange(of: cellularEnabled) { _, enabled in
                             if !enabled { setCellularEnabled(false) }
@@ -2349,32 +2364,32 @@ private struct MQTTSettingsView: View {
                     }
 
                     if vehicle.cellularSignalDBm > -120 {
-                        LabeledContent("قوة الإشارة", value: "\(vehicle.cellularSignalDBm) dBm")
+                        LabeledContent(JL("قوة الإشارة", "Signal strength"), value: "\(vehicle.cellularSignalDBm) dBm")
                     }
-                    LabeledContent("تسجيل الشبكة", value: vehicle.cellularRegistered ? "مسجل" : "غير مسجل")
-                    LabeledContent("بيانات الإنترنت", value: vehicle.cellularDataAttached ? "متصلة" : "غير متصلة")
-                    LabeledContent("مسار الإنترنت", value: vehicle.internetRoute == "CELLULAR" ? "الشريحة" : (vehicle.internetRoute == "WIFI" ? "Wi-Fi" : "غير متصل"))
+                    LabeledContent(JL("تسجيل الشبكة", "Network registration"), value: vehicle.cellularRegistered ? JL("مسجل", "Registered") : JL("غير مسجل", "Not registered"))
+                    LabeledContent(JL("بيانات الإنترنت", "Internet data"), value: vehicle.cellularDataAttached ? JL("متصلة", "Connected") : JL("غير متصلة", "Disconnected"))
+                    LabeledContent(JL("مسار الإنترنت", "Internet route"), value: vehicle.internetRoute == "CELLULAR" ? JL("الشريحة", "Cellular") : (vehicle.internetRoute == "WIFI" ? "Wi-Fi" : JL("غير متصل", "Disconnected")))
                         .foregroundStyle(vehicle.internetRoute == "CELLULAR" ? .green : .secondary)
 
                     TextField("APN", text: $cellularAPN)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("اسم مستخدم APN - اختياري", text: $cellularUsername)
+                    TextField(JL("اسم مستخدم APN - اختياري", "APN username — Optional"), text: $cellularUsername)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    SecureField("كلمة مرور APN - اختيارية", text: $cellularPassword)
-                    SecureField("SIM PIN - إذا الشريحة تحتاجه", text: $cellularSimPin)
+                    SecureField(JL("كلمة مرور APN - اختيارية", "APN password — Optional"), text: $cellularPassword)
+                    SecureField(JL("SIM PIN - إذا الشريحة تحتاجه", "SIM PIN — If required"), text: $cellularSimPin)
                         .keyboardType(.numberPad)
 
-                    Toggle("بث نت الشريحة كنقطة اتصال", isOn: $hotspotEnabled)
+                    Toggle(JL("بث نت الشريحة كنقطة اتصال", "Share cellular Internet as a hotspot"), isOn: $hotspotEnabled)
                         .tint(.green)
                     if hotspotEnabled {
-                        TextField("اسم نقطة الاتصال", text: $hotspotSSID)
+                        TextField(JL("اسم نقطة الاتصال", "Hotspot name"), text: $hotspotSSID)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                        SecureField("كلمة مرور نقطة الاتصال", text: $hotspotPassword)
+                        SecureField(JL("كلمة مرور نقطة الاتصال", "Hotspot password"), text: $hotspotPassword)
                         HStack {
-                            Label(vehicle.hotspotRunning ? "نقطة الاتصال شغالة" : "نقطة الاتصال متوقفة", systemImage: vehicle.hotspotRunning ? "personalhotspot" : "wifi.slash")
+                            Label(vehicle.hotspotRunning ? JL("نقطة الاتصال شغالة", "Hotspot active") : JL("نقطة الاتصال متوقفة", "Hotspot off"), systemImage: vehicle.hotspotRunning ? "personalhotspot" : "wifi.slash")
                                 .foregroundStyle(vehicle.hotspotRunning ? .green : .secondary)
                             Spacer()
                             if vehicle.hotspotRunning {
@@ -2389,7 +2404,7 @@ private struct MQTTSettingsView: View {
                         Button {
                             saveCellular()
                         } label: {
-                            Label("حفظ واتصال", systemImage: "simcard.fill")
+                            Label(JL("حفظ واتصال", "Save and connect"), systemImage: "simcard.fill")
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(!cellularEnabled || cellularAPN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedDeviceID == nil)
@@ -2399,7 +2414,7 @@ private struct MQTTSettingsView: View {
                         Button {
                             testCellular()
                         } label: {
-                            Label("فحص", systemImage: "waveform.path.ecg")
+                            Label(JL("فحص", "Test"), systemImage: "waveform.path.ecg")
                         }
                         .disabled(selectedDeviceID == nil)
                     }
@@ -2407,7 +2422,7 @@ private struct MQTTSettingsView: View {
                     Button(role: .destructive) {
                         forgetCellular()
                     } label: {
-                        Label("مسح إعدادات الشريحة", systemImage: "trash")
+                        Label(JL("مسح إعدادات الشريحة", "Clear cellular settings"), systemImage: "trash")
                     }
                     .disabled(selectedDeviceID == nil)
 
@@ -2417,37 +2432,37 @@ private struct MQTTSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("الـAPN الافتراضي مضبوط على internet. اسم المستخدم وكلمة المرور وSIM PIN اختيارية حسب شركة الشريحة.")
+                    Text(JL("الـAPN الافتراضي مضبوط على internet. اسم المستخدم وكلمة المرور وSIM PIN اختيارية حسب شركة الشريحة.", "Default APN is internet. Username, password and SIM PIN are optional depending on the carrier."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Label("الشريحة والـ4G", systemImage: "simcard.fill")
+                    Label(JL("الشريحة والـ4G", "Cellular and 4G"), systemImage: "simcard.fill")
                 }
 
                 Section {
-                    Toggle(tr("وضع المطور", "Developer Mode"), isOn: $developerMode)
+                    Toggle(tr(JL("وضع المطور", "Developer mode"), "Developer Mode"), isOn: $developerMode)
                     if developerMode {
-                        LabeledContent("حالة BLE", value: mqtt.bluetoothStatus)
-                        LabeledContent("MQTT", value: mqtt.connection.rawValue)
-                        Text("وضع المطور للـLogs وCAN/OBD والفحص، ولا يغيّر مخارج السيارة وحده.")
+                        LabeledContent(JL("حالة BLE", "BLE status"), value: mqtt.bluetoothStatus)
+                        LabeledContent("MQTT", value: mqtt.connection.title)
+                        Text(JL("وضع المطور للـLogs وCAN/OBD والفحص، ولا يغيّر مخارج السيارة وحده.", "Developer mode shows logs and CAN/OBD diagnostics. It does not change vehicle outputs by itself."))
                             .font(.footnote)
                             .foregroundStyle(.orange)
                     }
                 } header: {
-                    Label("التشخيص وCAN", systemImage: "waveform.path.ecg.rectangle.fill")
+                    Label(JL("التشخيص وCAN", "Diagnostics and CAN"), systemImage: "waveform.path.ecg.rectangle.fill")
                 }
 
-                Section("اتصال MQTT المشفّر") {
-                    TextField("عنوان السيرفر", text: $host)
+                Section(JL("اتصال MQTT المشفّر", "Encrypted MQTT connection")) {
+                    TextField(JL("عنوان السيرفر", "Server address"), text: $host)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("المنفذ", text: $port)
+                    TextField(JL("المنفذ", "Port"), text: $port)
                         .keyboardType(.numberPad)
-                    TextField("اسم المستخدم", text: $username)
+                    TextField(JL("اسم المستخدم", "Username"), text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    SecureField("كلمة المرور", text: $password)
-                    Label("TLS فقط، وكلمة المرور محفوظة في Keychain داخل الآيفون.", systemImage: "lock.shield.fill")
+                    SecureField(JL("كلمة المرور", "Password"), text: $password)
+                    Label(JL("TLS فقط، وكلمة المرور محفوظة في Keychain داخل الآيفون.", "TLS only. The password is stored in the iPhone Keychain."), systemImage: "lock.shield.fill")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -2456,7 +2471,7 @@ private struct MQTTSettingsView: View {
                     NavigationLink {
                         SettingsAboutView()
                     } label: {
-                        Label("النظام والتحديث", systemImage: "gearshape.2.fill")
+                        Label(JL("النظام والتحديث", "System and updates"), systemImage: "gearshape.2.fill")
                     }
                 }
 
@@ -2464,14 +2479,14 @@ private struct MQTTSettingsView: View {
                     Section { Text(errorText).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("الإعدادات")
+            .navigationTitle(JL("الإعدادات", "Settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("إلغاء") { dismiss() }
+                    Button(JL("إلغاء", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("حفظ") { save() }
+                    Button(JL("حفظ", "Save")) { save() }
                 }
             }
             .onAppear {
@@ -2511,20 +2526,20 @@ private struct MQTTSettingsView: View {
 
     private func saveConnectionPriority() {
         guard let id = selectedDeviceID else {
-            priorityMessage = "ماكو ESP محدد"
+            priorityMessage = JL("ماكو ESP محدد", "No ESP selected")
             return
         }
         if mqtt.saveConnectionPriority(connectionPriority, to: id) {
-            priorityMessage = "انحفظ الترتيب بالآيفون وانرسل للـESP"
+            priorityMessage = JL("انحفظ الترتيب بالآيفون وانرسل للـESP", "Order saved on iPhone and sent to ESP")
         } else {
-            priorityMessage = mqtt.lastError ?? "تعذر حفظ الأولوية"
+            priorityMessage = mqtt.lastError ?? JL("تعذر حفظ الأولوية", "Could not save priority")
         }
     }
 
     private func priorityTitle(_ route: String) -> String {
         switch route {
         case "BLE": return "Bluetooth BLE"
-        case "CELLULAR": return "الشريحة / 4G"
+        case "CELLULAR": return JL("الشريحة / 4G", "Cellular / 4G")
         case "WIFI": return "Wi-Fi"
         default: return route
         }
@@ -2541,10 +2556,10 @@ private struct MQTTSettingsView: View {
 
     private func searchWifi() {
         guard let id = selectedDeviceID else {
-            wifiMessage = "ماكو ESP محدد"
+            wifiMessage = JL("ماكو ESP محدد", "No ESP selected")
             return
         }
-        wifiMessage = "تم إرسال أمر البحث للـESP"
+        wifiMessage = JL("تم إرسال أمر البحث للـESP", "Search command sent to ESP")
         _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiSearch), to: id)
     }
 
@@ -2552,23 +2567,23 @@ private struct MQTTSettingsView: View {
         guard let id = selectedDeviceID else { return }
         let settings = ESPWiFiSettings(enabled: enabled, ssid: wifiSSID, password: wifiPassword)
         _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
-        wifiMessage = enabled ? "تم إرسال أمر تشغيل Wi-Fi" : "تم إرسال أمر إطفاء Wi-Fi"
+        wifiMessage = enabled ? JL("تم إرسال أمر تشغيل Wi-Fi", "Wi-Fi enable command sent") : JL("تم إرسال أمر إطفاء Wi-Fi", "Wi-Fi disable command sent")
     }
 
     private func connectWifi() {
         let ssid = wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ssid.isEmpty else {
-            wifiMessage = "اختار الشبكة أولاً"
+            wifiMessage = JL("اختار الشبكة أولاً", "Select a network first")
             return
         }
         guard let id = selectedDeviceID else {
-            wifiMessage = "ماكو ESP محدد"
+            wifiMessage = JL("ماكو ESP محدد", "No ESP selected")
             return
         }
         wifiEnabled = true
         let settings = ESPWiFiSettings(enabled: true, ssid: ssid, password: wifiPassword)
         _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
-        wifiMessage = "جاري اتصال ESP بالشبكة"
+        wifiMessage = JL("جاري اتصال ESP بالشبكة", "ESP is connecting to the network")
     }
 
     private func forgetWifi() {
@@ -2577,20 +2592,20 @@ private struct MQTTSettingsView: View {
         wifiEnabled = false
         wifiSSID = ""
         wifiPassword = ""
-        wifiMessage = "تم إرسال أمر نسيان الشبكة"
+        wifiMessage = JL("تم إرسال أمر نسيان الشبكة", "Forget network command sent")
     }
 
     private func wifiStatusText(_ status: String) -> String {
         switch status {
-        case "connecting": return "جاري الاتصال"
-        case "searching": return "جاري البحث"
-        case "networks_found": return "تم العثور على شبكات"
-        case "networks_not_found": return "ما لكه شبكات"
-        case "scan_failed": return "فشل البحث"
-        case "network_required": return "اختار شبكة"
-        case "forgotten": return "تم نسيان الشبكة"
-        case "disconnected": return "غير متصل"
-        default: return "Wi-Fi مطفأ"
+        case "connecting": return JL("جاري الاتصال", "Connecting")
+        case "searching": return JL("جاري البحث", "Searching")
+        case "networks_found": return JL("تم العثور على شبكات", "Networks found")
+        case "networks_not_found": return JL("ما لكه شبكات", "No networks found")
+        case "scan_failed": return JL("فشل البحث", "Search failed")
+        case "network_required": return JL("اختار شبكة", "Select a network")
+        case "forgotten": return JL("تم نسيان الشبكة", "Network forgotten")
+        case "disconnected": return JL("غير متصل", "Disconnected")
+        default: return JL("Wi-Fi مطفأ", "Wi-Fi off")
         }
     }
 
@@ -2607,17 +2622,17 @@ private struct MQTTSettingsView: View {
             hotspotPassword: hotspotPassword
         )
         _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
-        cellularMessage = enabled ? "تم إرسال أمر تشغيل الشريحة" : "تم إرسال أمر إطفاء بيانات الشريحة"
+        cellularMessage = enabled ? JL("تم إرسال أمر تشغيل الشريحة", "Cellular enable command sent") : JL("تم إرسال أمر إطفاء بيانات الشريحة", "Cellular data disable command sent")
     }
 
     private func saveCellular() {
         let apn = cellularAPN.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apn.isEmpty else {
-            cellularMessage = "أدخل APN"
+            cellularMessage = JL("أدخل APN", "Enter APN")
             return
         }
         guard let id = selectedDeviceID else {
-            cellularMessage = "ماكو ESP محدد"
+            cellularMessage = JL("ماكو ESP محدد", "No ESP selected")
             return
         }
         cellularEnabled = true
@@ -2632,13 +2647,13 @@ private struct MQTTSettingsView: View {
             hotspotPassword: hotspotPassword
         )
         _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
-        cellularMessage = "تم حفظ إعدادات الشريحة وجاري الفحص"
+        cellularMessage = JL("تم حفظ إعدادات الشريحة وجاري الفحص", "Cellular settings saved; checking connection")
     }
 
     private func testCellular() {
         guard let id = selectedDeviceID else { return }
         _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularTest), to: id)
-        cellularMessage = "جاري فحص الشريحة والشبكة"
+        cellularMessage = JL("جاري فحص الشريحة والشبكة", "Checking modem and network")
     }
 
     private func forgetCellular() {
@@ -2652,21 +2667,21 @@ private struct MQTTSettingsView: View {
         hotspotEnabled = false
         hotspotSSID = "JOURNEY-4G"
         hotspotPassword = "Journey2017"
-        cellularMessage = "تم إرسال أمر مسح إعدادات الشريحة"
+        cellularMessage = JL("تم إرسال أمر مسح إعدادات الشريحة", "Clear cellular settings command sent")
     }
 
     private func cellularStatusText(_ status: String) -> String {
         switch status {
-        case "ready": return "الشريحة جاهزة"
-        case "registered": return "مسجلة على الشبكة"
-        case "data_attached": return "الإنترنت متصل"
-        case "checking": return "جاري الفحص"
-        case "pin_required": return "تحتاج SIM PIN"
-        case "sim_missing": return "الشريحة غير موجودة"
-        case "registration_failed": return "فشل تسجيل الشبكة"
-        case "data_failed": return "فشل اتصال البيانات"
-        case "disabled": return "الشريحة مطفأة"
-        default: return "بانتظار الفحص"
+        case "ready": return JL("الشريحة جاهزة", "Modem ready")
+        case "registered": return JL("مسجلة على الشبكة", "Registered on network")
+        case "data_attached": return JL("الإنترنت متصل", "Internet connected")
+        case "checking": return JL("جاري الفحص", "Checking")
+        case "pin_required": return JL("تحتاج SIM PIN", "SIM PIN required")
+        case "sim_missing": return JL("الشريحة غير موجودة", "SIM missing")
+        case "registration_failed": return JL("فشل تسجيل الشبكة", "Network registration failed")
+        case "data_failed": return JL("فشل اتصال البيانات", "Data connection failed")
+        case "disabled": return JL("الشريحة مطفأة", "Cellular off")
+        default: return JL("بانتظار الفحص", "Waiting for check")
         }
     }
 
@@ -2677,7 +2692,7 @@ private struct MQTTSettingsView: View {
             return
         }
         guard let value = UInt16(port), value > 0 else {
-            errorText = "رقم المنفذ غير صحيح"
+            errorText = JL("رقم المنفذ غير صحيح", "Invalid port number")
             return
         }
         mqtt.saveSettings(host: cleanHost, port: value, username: username, password: password)
@@ -2690,15 +2705,15 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent("إصدار التطبيق", value: "2.4.16 (47)")
-                LabeledContent("Firmware المطلوب", value: "v12.66")
+                LabeledContent(JL("إصدار التطبيق", "App version"), value: "2.4.17 (49)")
+                LabeledContent(JL("Firmware المطلوب", "Required firmware"), value: "v12.66")
             }
-            Section("التحديث") {
-                Label("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", systemImage: "arrow.triangle.2.circlepath")
-                Label("إعدادات الواجهة تُحفظ محلياً وتبقى بعد إعادة تشغيل التطبيق.", systemImage: "internaldrive.fill")
+            Section(JL("التحديث", "Updates")) {
+                Label(JL("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", "ESP OTA updates are available on the diagnostics and maintenance page."), systemImage: "arrow.triangle.2.circlepath")
+                Label(JL("إعدادات الواجهة تُحفظ محلياً وتبقى بعد إعادة تشغيل التطبيق.", "Interface settings are saved locally and remain after restarting the app."), systemImage: "internaldrive.fill")
             }
         }
-        .navigationTitle("النظام والتحديث")
+        .navigationTitle(JL("النظام والتحديث", "System and updates"))
     }
 }
 

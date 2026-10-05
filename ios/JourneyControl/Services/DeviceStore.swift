@@ -18,14 +18,14 @@ final class DeviceStore: ObservableObject {
     init() {
         if let data = UserDefaults.standard.data(forKey: devicesKey),
            let decoded = try? JSONDecoder().decode([DeviceProfile].self, from: data) {
-            devices = decoded.isEmpty ? [DeviceProfile(name: "سيارة جورني", deviceID: Self.productionDeviceID)] : decoded
+            devices = decoded.isEmpty ? [DeviceProfile(name: JL("سيارة جورني", "Journey vehicle"), deviceID: Self.productionDeviceID)] : decoded
         } else {
-            devices = [DeviceProfile(name: "سيارة جورني", deviceID: Self.productionDeviceID)]
+            devices = [DeviceProfile(name: JL("سيارة جورني", "Journey vehicle"), deviceID: Self.productionDeviceID)]
         }
 
         // Migrate only the old placeholder used by earlier build packages.
         if let index = devices.firstIndex(where: { $0.deviceID == "demo-local" || $0.deviceID == "journey-bench-01" }) {
-            devices[index].name = "سيارة جورني"
+            devices[index].name = JL("سيارة جورني", "Journey vehicle")
             devices[index].deviceID = Self.productionDeviceID
         }
 
@@ -45,12 +45,12 @@ final class DeviceStore: ObservableObject {
     func add(name: String, deviceID: String) -> String? {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanID = deviceID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanName.isEmpty, !cleanID.isEmpty else { return "أدخل الاسم ومعرّف الجهاز" }
+        guard !cleanName.isEmpty, !cleanID.isEmpty else { return JL("أدخل الاسم ومعرّف الجهاز", "Enter a name and device ID") }
         guard cleanID.range(of: "^[A-Za-z0-9_-]{3,40}$", options: .regularExpression) != nil else {
-            return "المعرّف يقبل حروف إنكليزية وأرقام و - أو _ فقط"
+            return JL("المعرّف يقبل حروف إنكليزية وأرقام و - أو _ فقط", "Use English letters, numbers, - or _ for the ID")
         }
         guard !devices.contains(where: { $0.deviceID.caseInsensitiveCompare(cleanID) == .orderedSame }) else {
-            return "هذا المعرّف مضاف مسبقاً"
+            return JL("هذا المعرّف مضاف مسبقاً", "This device ID is already added")
         }
 
         let profile = DeviceProfile(name: cleanName, deviceID: cleanID)

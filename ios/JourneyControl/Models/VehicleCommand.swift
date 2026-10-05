@@ -194,124 +194,124 @@ struct BenchEvent: Identifiable, Equatable {
     init(action: BenchAction) {
         switch action {
         case .lock:
-            title = "إرسال أمر القفل"
+            title = JL("إرسال أمر القفل", "Send lock command")
             icon = "lock.fill"
         case .unlock:
-            title = "إرسال أمر الفتح"
+            title = JL("إرسال أمر الفتح", "Send unlock command")
             icon = "lock.open.fill"
         case .start:
-            title = "إرسال أمر التشغيل"
+            title = JL("إرسال أمر التشغيل", "Send start command")
             icon = "power"
         case .remotePowerOn:
-            title = "تشغيل طاقة الريموت"
+            title = JL("تشغيل طاقة الريموت", "Turn remote power on")
             icon = "key.fill"
         case .remotePowerOff:
-            title = "إطفاء طاقة الريموت"
+            title = JL("إطفاء طاقة الريموت", "Turn remote power off")
             icon = "key"
         case .keylessUnlock:
-            title = "فتح الدخول الذكي"
+            title = JL("فتح الدخول الذكي", "Smart entry unlock")
             icon = "key.radiowaves.forward"
         case .keylessLock:
-            title = "قفل الدخول الذكي"
+            title = JL("قفل الدخول الذكي", "Smart entry lock")
             icon = "key.radiowaves.forward"
         case .keylessPresence:
-            title = "تحديث وجود الدخول الذكي"
+            title = JL("تحديث وجود الدخول الذكي", "Update smart entry presence")
             icon = "antenna.radiowaves.left.and.right"
         case .doors:
-            title = "فحص الأبواب"
+            title = JL("فحص الأبواب", "Test doors")
             icon = "door.left.hand.open"
         case .horn:
-            title = "فحص الهورن"
+            title = JL("فحص الهورن", "Test horn")
             icon = "speaker.wave.3.fill"
         case .lights:
-            title = "فحص الإضاءة"
+            title = JL("فحص الإضاءة", "Test lights")
             icon = "light.beacon.max.fill"
         case .leftSignal:
-            title = "فحص إشارة يسار"
+            title = JL("فحص إشارة يسار", "Test left turn signal")
             icon = "arrow.turn.up.left"
         case .rightSignal:
-            title = "فحص إشارة يمين"
+            title = JL("فحص إشارة يمين", "Test right turn signal")
             icon = "arrow.turn.up.right"
         case .ownerStatus:
-            title = "مزامنة حالة المالك"
+            title = JL("مزامنة حالة المالك", "Sync owner status")
             icon = "person.crop.circle.badge.checkmark"
         case .ownerRegister:
-            title = "تسجيل جهاز المالك"
+            title = JL("تسجيل جهاز المالك", "Register owner device")
             icon = "person.badge.key.fill"
         case .ownerRequest:
-            title = "طلب ربط جهاز"
+            title = JL("طلب ربط جهاز", "Request device pairing")
             icon = "person.badge.plus"
         case .ownerApprove:
-            title = "موافقة جهاز مالك"
+            title = JL("موافقة جهاز مالك", "Approve owner device")
             icon = "person.badge.shield.checkmark"
         case .ownerReject:
-            title = "رفض جهاز مالك"
+            title = JL("رفض جهاز مالك", "Reject owner device")
             icon = "person.badge.minus"
         case .ownerRemove:
-            title = "حذف جهاز مالك"
+            title = JL("حذف جهاز مالك", "Remove owner device")
             icon = "person.badge.minus"
         case .ownerClear:
-            title = "مسح أجهزة المالك"
+            title = JL("مسح أجهزة المالك", "Clear owner devices")
             icon = "person.crop.circle.badge.xmark"
         case .keylessConfig:
-            title = "تحديث إعدادات الدخول الذكي"
+            title = JL("تحديث إعدادات الدخول الذكي", "Update smart entry settings")
             icon = "key.radiowaves.forward"
         case .espSettings:
-            title = "تحديث إعدادات ESP"
+            title = JL("تحديث إعدادات ESP", "Update ESP settings")
             icon = "slider.horizontal.3"
         case .otaURL:
-            title = "تحديث ESP عبر 4G"
+            title = JL("تحديث ESP عبر 4G", "Update ESP via 4G")
             icon = "arrow.down.doc"
         case .maintenanceMode:
-            title = "تغيير وضع الصيانة"
+            title = JL("تغيير وضع الصيانة", "Change maintenance mode")
             icon = "wrench.and.screwdriver.fill"
         case .powerSave:
-            title = "تغيير توفير الطاقة"
+            title = JL("تغيير توفير الطاقة", "Change power saving")
             icon = "battery.75percent"
         case .nfcEnroll:
-            title = "إضافة بطاقة NFC"
+            title = JL("إضافة بطاقة NFC", "Add NFC card")
             icon = "wave.3.right.circle.fill"
         case .nfcForget:
-            title = "حذف بطاقة NFC"
+            title = JL("حذف بطاقة NFC", "Delete NFC card")
             icon = "trash.fill"
         case .obdSelect:
-            title = "حفظ قطعة OBD"
+            title = JL("حفظ قطعة OBD", "Save OBD adapter")
             icon = "point.3.connected.trianglepath.dotted"
         case .obdSearch:
-            title = "بحث عن قطعة OBD"
+            title = JL("بحث عن قطعة OBD", "Search OBD adapter")
             icon = "magnifyingglass"
         case .obdForget:
-            title = "نسيان قطعة OBD"
+            title = JL("نسيان قطعة OBD", "Forget OBD adapter")
             icon = "xmark.circle"
         case .obdScanDTC:
-            title = "فحص أخطاء OBD"
+            title = JL("فحص أخطاء OBD", "Scan OBD trouble codes")
             icon = "stethoscope"
         case .obdClearDTC:
-            title = "مسح أخطاء OBD"
+            title = JL("مسح أخطاء OBD", "Clear OBD trouble codes")
             icon = "exclamationmark.triangle"
         case .eventAck:
-            title = "تأكيد استلام حدث ESP"
+            title = JL("تأكيد استلام حدث ESP", "Confirm ESP event received")
             icon = "checkmark.circle.fill"
         case .wifiConfig:
-            title = "تحديث Wi-Fi للـESP"
+            title = JL("تحديث Wi-Fi للـESP", "Update ESP Wi-Fi")
             icon = "wifi"
         case .wifiSearch:
-            title = "بحث شبكات Wi-Fi"
+            title = JL("بحث شبكات Wi-Fi", "Search Wi-Fi networks")
             icon = "magnifyingglass"
         case .wifiForget:
-            title = "نسيان شبكة Wi-Fi"
+            title = JL("نسيان شبكة Wi-Fi", "Forget Wi-Fi network")
             icon = "wifi.slash"
         case .cellularConfig:
-            title = "تحديث إعدادات الشريحة"
+            title = JL("تحديث إعدادات الشريحة", "Update cellular settings")
             icon = "simcard.fill"
         case .cellularTest:
-            title = "فحص اتصال الشريحة"
+            title = JL("فحص اتصال الشريحة", "Check cellular connection")
             icon = "antenna.radiowaves.left.and.right"
         case .cellularForget:
-            title = "مسح إعدادات الشريحة"
+            title = JL("مسح إعدادات الشريحة", "Clear cellular settings")
             icon = "simcard"
         case .connectionPriority:
-            title = "تحديث أولوية الاتصال"
+            title = JL("تحديث أولوية الاتصال", "Update connection priority")
             icon = "arrow.up.arrow.down"
         }
     }

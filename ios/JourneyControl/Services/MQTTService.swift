@@ -6,10 +6,16 @@ import Security
 @MainActor
 final class MQTTService: ObservableObject {
     enum Connection: String {
-        case notConfigured = "غير مهيأ"
-        case disconnected = "غير متصل"
-        case connecting = "جاري الاتصال"
-        case connected = "متصل"
+        case notConfigured, disconnected, connecting, connected
+
+        var title: String {
+            switch self {
+            case .notConfigured: return JL("غير مهيأ", "Not configured")
+            case .disconnected: return JL("غير متصل", "Disconnected")
+            case .connecting: return JL("جاري الاتصال", "Connecting")
+            case .connected: return JL("متصل", "Connected")
+            }
+        }
     }
 
     struct Settings {
@@ -32,9 +38,37 @@ final class MQTTService: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var lastCommand: BenchAction?
     @Published private(set) var lastCommandAt: Date?
+    @Published private(set) var pendingRemotePower: [String: Bool] = [:]
+    private var remotePowerUpdates: [String: Int] = [:]
+    private var lastFeedbackAt: [String: Date] = [:]
+
+    /// Confirm a fresh ESP power report; a BLE write alone is not GPIO feedback.
+    @MainActor
+    func setRemotePower(_ enabled: Bool, for deviceID: String) async -> Bool {
+        guard pendingRemotePower[deviceID] == nil else { return false }
+        let baseline = remotePowerUpdates[deviceID, default: 0]
+        pendingRemotePower[deviceID] = enabled
+        defer { pendingRemotePower.removeValue(forKey: deviceID) }
+        guard send(enabled ? .remotePowerOn : .remotePowerOff, to: deviceID) else { return false }
+        for _ in 0..<30 {
+            do { try await Task.sleep(for: .milliseconds(200)) }
+            catch { return false }
+            if remotePowerUpdates[deviceID, default: 0] > baseline,
+               vehicles[deviceID]?.remotePowered == enabled {
+                lastError = nil
+                return true
+            }
+            if vehicles[deviceID]?.lastEvent == "rejected_unknown_phone" {
+                lastError = JL("هذا الآيفون غير مسجّل كمالك على ESP. سجّله من أجهزة المالك.", "This iPhone is not registered as an ESP owner. Register it in Owner devices.")
+                return false
+            }
+        }
+        lastError = JL("وصل طلب طاقة الريموت لمسار الاتصال، لكن ESP لم يؤكد تغيير الحالة. راجع الاتصال وإصدار ESP.", "The remote power request was sent, but ESP did not confirm the state change. Check the connection and ESP firmware.")
+        return false
+    }
     @Published private(set) var lastStateAt: [String: Date] = [:]
     @Published private(set) var commandHistory: [BenchEvent] = []
-    @Published private(set) var bluetoothStatus = "غير متصل"
+    @Published private(set) var bluetoothStatus = JL("غير متصل", "Disconnected")
     // v12.52: independent real ESP button feedback. Do not use lastEvent because
     // the ESP immediately follows remote_button_*_on with lock/unlock/horn/etc.
     @Published private(set) var buttonFeedback: [String: Set<String>] = [:]
@@ -56,6 +90,16 @@ final class MQTTService: ObservableObject {
         bluetooth.onRSSI = { [weak self] deviceID, rssi in
             Task { @MainActor in
                 guard let self else { return }
+                for (deviceID, feedbackAt) in self.lastFeedbackAt where now.timeIntervalSince(feedbackAt) > 1.5 {
+                    guard var state = self.vehicles[deviceID] else { continue }
+                    if state.feedbackLock || state.feedbackUnlock || state.feedbackStart || state.feedbackAlarm {
+                        state.feedbackLock = false
+                        state.feedbackUnlock = false
+                        state.feedbackStart = false
+                        state.feedbackAlarm = false
+                        self.vehicles[deviceID] = state
+                    }
+                }
                 self.bluetoothRSSIByDevice[deviceID] = rssi
                 var state = self.vehicles[deviceID] ?? VehicleState()
                 state.bluetoothRSSI = rssi
@@ -83,7 +127,6 @@ final class MQTTService: ObservableObject {
                     }
                     guard var state = self.vehicles[deviceID], state.online else { continue }
                     state.online = false
-                    state.remotePowered = false
                     state.simulatedEngineRunning = false
                     state.lastEvent = "esp_disconnected"
                     self.vehicles[deviceID] = state
@@ -120,7 +163,7 @@ final class MQTTService: ObservableObject {
         let config = settings
         guard isConfigured else {
             connection = .notConfigured
-            lastError = "أدخل إعدادات MQTT أولاً"
+            lastError = JL("أدخل إعدادات MQTT أولاً", "Enter MQTT settings first")
             return
         }
 
@@ -147,14 +190,14 @@ final class MQTTService: ObservableObject {
                     mqtt.subscribe(AppConfig.allStateTopics, qos: .qos1)
                 } else {
                     self.connection = .disconnected
-                    self.lastError = "رفض خادم MQTT الاتصال: \(ack)"
+                    self.lastError = JL("رفض خادم MQTT الاتصال: \(ack)", "MQTT server refused connection: \(ack)")
                 }
             }
         }
 
         mqtt.didReceiveMessage = { [weak self] _, message, _ in
             let parts = message.topic.split(separator: "/")
-            guard parts.count == 3,
+            guard !message.retained, parts.count == 3,
                   parts[0] == "journey",
                   parts[2] == "state",
                   let data = message.string?.data(using: .utf8),
@@ -223,7 +266,7 @@ final class MQTTService: ObservableObject {
     @discardableResult
     private func sendByConfiguredPriority(_ command: VehicleCommand, to deviceID: String) -> Bool {
         // Keyless remains BLE-first regardless of the configurable order.
-        if isKeylessAction(command.action) {
+        if isKeylessAction(command.action) || command.action == .remotePowerOn || command.action == .remotePowerOff {
             if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
                 lastCommand = command.action
                 lastCommandAt = Date()
@@ -269,7 +312,7 @@ final class MQTTService: ObservableObject {
 
     func saveConnectionPriority(_ order: [String], to deviceID: String) -> Bool {
         guard order.count == 3, Set(order) == Set(["BLE", "CELLULAR", "WIFI"]) else {
-            lastError = "ترتيب الاتصال غير صحيح"
+            lastError = JL("ترتيب الاتصال غير صحيح", "Invalid connection order")
             return false
         }
         defaults.set(order.joined(separator: ","), forKey: "journey.settings.connectionPriority")
@@ -316,7 +359,7 @@ final class MQTTService: ObservableObject {
     func send(_ action: BenchAction, to deviceID: String) -> Bool {
         let command = VehicleCommand(action: action)
         if sendByConfiguredPriority(command, to: deviceID) { return true }
-        lastError = "لا يوجد مسار اتصال متاح حسب الأولوية المحددة"
+        lastError = JL("لا يوجد مسار اتصال متاح حسب الأولوية المحددة", "No connection route is available in the selected order")
         return false
     }
 
@@ -337,7 +380,7 @@ final class MQTTService: ObservableObject {
         }
         if publishCloud(command, to: deviceID) { return true }
 
-        lastError = "تعذر إرسال إعدادات الدخول الذكي"
+        lastError = JL("تعذر إرسال إعدادات الدخول الذكي", "Could not send smart entry settings")
         return false
     }
 
@@ -357,7 +400,7 @@ final class MQTTService: ObservableObject {
             applyLocal(command.action, to: deviceID)
             return true
         }
-        lastError = "تعذر الاتصال بـ ESP حسب الأولوية المحددة"
+        lastError = JL("تعذر الاتصال بـ ESP حسب الأولوية المحددة", "Could not connect to ESP using the selected order")
         return false
     }
 
@@ -370,8 +413,10 @@ final class MQTTService: ObservableObject {
     }
 
     func isButtonActive(_ button: String, for deviceID: String) -> Bool {
-        // Prefer the explicit GPIO feedback bits from the ESP.  Event edges are
-        // retained as a fallback for older/partial packets.
+        // A local tap or old event name cannot prove an active ESP output.
+        guard let state = vehicles[deviceID], state.online,
+              let receivedAt = lastFeedbackAt[deviceID],
+              Date().timeIntervalSince(receivedAt) <= 1.5 else { return false }
         if let state = vehicles[deviceID] {
             switch button {
             case "lock": if state.feedbackLock { return true }
@@ -381,7 +426,7 @@ final class MQTTService: ObservableObject {
             default: break
             }
         }
-        return buttonFeedback[deviceID]?.contains(button) == true
+        return false
     }
 
     private func updateButtonFeedback(event: String, deviceID: String) {
@@ -421,12 +466,16 @@ final class MQTTService: ObservableObject {
     }
 
     private func receive(_ state: VehicleState, from deviceID: String) {
+        if state.feedbackStatePresent && (!state.partialState || state.coreStatePacket) {
+            lastFeedbackAt[deviceID] = Date()
+        }
+        if state.remotePowerStatePresent && (!state.partialState || state.coreStatePacket) {
+            remotePowerUpdates[deviceID, default: 0] += 1
+        }
         let previous = vehicles[deviceID] ?? cachedOwnerState(for: deviceID)
         // Capture button edges before lastEvent is replaced by the following core packet.
-        if !state.lastEvent.isEmpty { updateButtonFeedback(event: state.lastEvent, deviceID: deviceID) }
 
         if state.vehicleEventPacket {
-            updateButtonFeedback(event: state.vehicleEventType, deviceID: deviceID)
 
             if state.vehicleEventType == "engine_stopped_obd", (previous?.speedKph ?? 0) > 5 {
                 if !state.vehicleEventId.isEmpty {
@@ -490,11 +539,13 @@ final class MQTTService: ObservableObject {
             // erase OBD telemetry, and an OBD packet must never erase keyless state.
             if state.coreStatePacket {
                 merged.online = bluetooth.isConnected(to: deviceID) || state.online
-                merged.remotePowered = state.remotePowered
+                if state.remotePowerStatePresent {
+                    merged.remotePowered = state.remotePowered
+                }
                 // v12.51: some compact core packets can arrive while rp is stale/omitted.
                 // The ESP event is authoritative for the real BD140 output, so keep
                 // the remote-power button green from *_on until *_off.
-                switch state.lastEvent {
+                switch state.remotePowerStatePresent ? "" : state.lastEvent {
                 case "remote_power_on", "remote_power_actual_on":
                     merged.remotePowered = true
                 case "remote_power_off", "remote_power_actual_off":

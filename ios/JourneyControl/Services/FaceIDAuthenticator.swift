@@ -11,7 +11,7 @@ final class FaceIDAuthenticator: ObservableObject {
         var authError: NSError?
 
         guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &authError) else {
-            lastError = "فعّل Face ID من إعدادات iPhone أولاً."
+            lastError = JL("فعّل Face ID من إعدادات iPhone أولاً.", "Enable Face ID in iPhone settings first.")
             return false
         }
 
@@ -23,7 +23,7 @@ final class FaceIDAuthenticator: ObservableObject {
             lastError = nil
             return true
         } catch {
-            lastError = "لم يتم تأكيد Face ID، لذلك لم يُرسل أي أمر إلى السيارة."
+            lastError = JL("لم يتم تأكيد Face ID، لذلك لم يُرسل أي أمر إلى السيارة.", "Face ID was not confirmed. No vehicle command was sent.")
             return false
         }
     }

@@ -8,8 +8,8 @@ enum NFCCredentialKind: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .physicalCard: return "بطاقة أو ميدالية"
-        case .androidPhone: return "هاتف أندرويد HCE"
+        case .physicalCard: return JL("بطاقة أو ميدالية", "Card or key fob")
+        case .androidPhone: return JL("هاتف أندرويد HCE", "Android HCE phone")
         }
     }
 
@@ -64,7 +64,7 @@ struct NFCCredential: Identifiable, Codable, Equatable {
 struct NFCAccessSettings: Codable, Equatable {
     var repeatGuardSeconds = 5
     var iphoneRequiresFaceID = true
-    var iphoneActionTitle = "فتح + تشغيل عن بُعد"
+    var iphoneActionTitle = JL("فتح + تشغيل عن بُعد", "Unlock + Remote start")
 }
 
 struct NFCAccessEvent: Identifiable, Codable, Equatable {

@@ -10,11 +10,11 @@ struct ManageDevicesView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("إضافة من البلوتوث") {
+                Section(JL("إضافة من البلوتوث", "Add via Bluetooth")) {
                     if proximity.discoveredDevices.isEmpty {
                         HStack {
                             ProgressView().opacity(proximity.isScanning ? 1 : 0)
-                            Text(proximity.isScanning ? "جاري البحث عن البوردات…" : "اضغط بحث للعثور على البوردات")
+                            Text(proximity.isScanning ? JL("جاري البحث عن البوردات…", "Searching for boards…") : JL("اضغط بحث للعثور على البوردات", "Tap Search to find boards"))
                                 .foregroundStyle(.secondary)
                         }
                     } else {
@@ -30,7 +30,7 @@ struct ManageDevicesView: View {
                                     }
                                     Spacer()
                                     if devices.devices.contains(where: { $0.deviceID == found.deviceID }) {
-                                        Text("مضاف").font(.caption).foregroundStyle(.green)
+                                        Text(JL("مضاف", "Added")).font(.caption).foregroundStyle(.green)
                                     } else {
                                         Image(systemName: "plus.circle")
                                     }
@@ -42,7 +42,7 @@ struct ManageDevicesView: View {
                     Button {
                         proximity.start()
                     } label: {
-                        Label("بحث بالبلوتوث", systemImage: "arrow.clockwise")
+                        Label(JL("بحث بالبلوتوث", "Search Bluetooth"), systemImage: "arrow.clockwise")
                     }
 
                     if let discoveryError {
@@ -50,7 +50,7 @@ struct ManageDevicesView: View {
                     }
                 }
 
-                Section("الأجهزة المحفوظة") {
+                Section(JL("الأجهزة المحفوظة", "Saved devices")) {
                     ForEach(devices.devices) { device in
                         Button {
                             devices.selectedID = device.id
@@ -71,10 +71,10 @@ struct ManageDevicesView: View {
                     .onDelete(perform: devices.delete)
                 }
             }
-            .navigationTitle("الأجهزة")
+            .navigationTitle(JL("الأجهزة", "Devices"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("تم") { dismiss() }
+                    Button(JL("تم", "Done")) { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showingAdd = true } label: { Image(systemName: "plus") }
@@ -114,14 +114,14 @@ private struct AddDeviceView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("معلومات الجهاز") {
-                    TextField("مثال: جورني أبو سيف", text: $name)
-                    TextField("مثال: journey-02", text: $deviceID)
+                Section(JL("معلومات الجهاز", "Device details")) {
+                    TextField(JL("مثال: جورني أبو سيف", "Example: Abu Saif's Journey"), text: $name)
+                    TextField(JL("مثال: journey-02", "Example: journey-02"), text: $deviceID)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
                 Section {
-                    Text("معرّف الجهاز لازم يطابق DEVICE_ID المكتوب داخل config.h لذلك البورد.")
+                    Text(JL("معرّف الجهاز لازم يطابق DEVICE_ID المكتوب داخل config.h لذلك البورد.", "The device ID must match DEVICE_ID in that board's config.h."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -129,11 +129,11 @@ private struct AddDeviceView: View {
                     Section { Text(errorText).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("إضافة جهاز")
+            .navigationTitle(JL("إضافة جهاز", "Add device"))
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(JL("إلغاء", "Cancel")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("إضافة") {
+                    Button(JL("إضافة", "Add")) {
                         if let error = devices.add(name: name, deviceID: deviceID) {
                             errorText = error
                         } else {

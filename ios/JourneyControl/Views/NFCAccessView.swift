@@ -29,11 +29,11 @@ struct NFCAccessView: View {
                 )
                 .ignoresSafeArea()
             )
-            .navigationTitle("مفاتيح NFC")
+            .navigationTitle(JL("مفاتيح NFC", "NFC keys"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("تم") { dismiss() }
+                    Button(JL("تم", "Done")) { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showingAddCredential = true } label: {
@@ -67,13 +67,13 @@ struct NFCAccessView: View {
                         .background(.cyan.opacity(0.14), in: Circle())
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("مفتاح iPhone").font(.headline)
-                        Text("NFC Tag يفتح التطبيق، ثم Face ID وBLE")
+                        Text(JL("مفتاح iPhone", "iPhone key")).font(.headline)
+                        Text(JL("NFC Tag يفتح التطبيق، ثم Face ID وBLE", "NFC tag opens the app, then Face ID and BLE"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
-                    Text("أساسي")
+                    Text(JL("أساسي", "Primary"))
                         .font(.caption2.bold())
                         .foregroundStyle(.green)
                         .padding(.horizontal, 8)
@@ -86,21 +86,21 @@ struct NFCAccessView: View {
                 Label(store.settings.iphoneActionTitle, systemImage: "lock.open.fill")
                     .font(.subheadline.weight(.semibold))
 
-                Label("Face ID إلزامي قبل تنفيذ أي طلب", systemImage: "faceid")
+                Label(JL("Face ID إلزامي قبل تنفيذ أي طلب", "Face ID is required before every request"), systemImage: "faceid")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Button(action: onTestIPhoneTap) {
-                    Label("اختبار تمرير الآيفون", systemImage: "wave.3.right.circle.fill")
+                    Label(JL("اختبار تمرير الآيفون", "Test iPhone tap"), systemImage: "wave.3.right.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
             }
             .padding(.vertical, 6)
         } header: {
-            Text("الآيفون")
+            Text(JL("الآيفون", "iPhone"))
         } footer: {
-            Text("التاغ لا يحمل أمراً أو مفتاحاً سرياً. للاختبار أنشئ Automation في Shortcuts يفتح journeycontrol://nfc عند تمرير الآيفون.")
+            Text(JL("التاغ لا يحمل أمراً أو مفتاحاً سرياً. للاختبار أنشئ Automation في Shortcuts يفتح journeycontrol://nfc عند تمرير الآيفون.", "The tag contains no command or secret key. For testing, create a Shortcuts automation that opens journeycontrol://nfc when you tap the iPhone."))
         }
     }
 
@@ -111,12 +111,12 @@ struct NFCAccessView: View {
                     Image(systemName: "key.radiowaves.forward.fill")
                         .font(.system(size: 34))
                         .foregroundStyle(.cyan)
-                    Text("ماكو بطاقات مضافة").font(.headline)
-                    Text("حالياً الإضافة تجريبية. التسجيل الحقيقي يتفعل بعد ربط PN532 بالـESP.")
+                    Text(JL("ماكو بطاقات مضافة", "No cards added")).font(.headline)
+                    Text(JL("حالياً الإضافة تجريبية. التسجيل الحقيقي يتفعل بعد ربط PN532 بالـESP.", "Adding cards is currently a test. Real enrollment requires PN532 connected to ESP."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("إضافة بطاقة فحص") { showingAddCredential = true }
+                    Button(JL("إضافة بطاقة فحص", "Add test card")) { showingAddCredential = true }
                         .buttonStyle(.bordered)
                 }
                 .frame(maxWidth: .infinity)
@@ -138,7 +138,7 @@ struct NFCAccessView: View {
                                     Text(credential.maskedIdentifier)
                                         .font(.caption.monospaced())
                                     if credential.isBenchCredential {
-                                        Text("فحص")
+                                        Text(JL("فحص", "Test"))
                                             .font(.caption2.bold())
                                             .foregroundStyle(.orange)
                                     }
@@ -159,26 +159,26 @@ struct NFCAccessView: View {
                         Button(role: .destructive) {
                             store.delete(credential)
                         } label: {
-                            Label("حذف", systemImage: "trash")
+                            Label(JL("حذف", "Delete"), systemImage: "trash")
                         }
                     }
                 }
             }
         } header: {
             HStack {
-                Text("البطاقات والمفاتيح")
+                Text(JL("البطاقات والمفاتيح", "Cards and keys"))
                 Spacer()
-                Text("\(store.enabledCredentialCount) مفعّل")
+                Text(JL("\(store.enabledCredentialCount) مفعّل", "\(store.enabledCredentialCount) enabled"))
             }
         }
     }
 
     private var safetySection: some View {
-        Section("الحماية") {
+        Section(JL("الحماية", "Security")) {
             LabeledContent {
-                Text("إجباري").foregroundStyle(.green)
+                Text(JL("إجباري", "Required")).foregroundStyle(.green)
             } label: {
-                Label("Face ID للآيفون", systemImage: "faceid")
+                Label(JL("Face ID للآيفون", "iPhone Face ID"), systemImage: "faceid")
             }
 
             Stepper(
@@ -192,21 +192,21 @@ struct NFCAccessView: View {
                 ),
                 in: 3...15
             ) {
-                LabeledContent("منع القراءة المكررة") {
-                    Text("\(store.settings.repeatGuardSeconds) ثوانٍ")
+                LabeledContent(JL("منع القراءة المكررة", "Prevent repeated reads")) {
+                    Text(JL("\(store.settings.repeatGuardSeconds) ثوانٍ", "\(store.settings.repeatGuardSeconds) seconds"))
                         .monospacedDigit()
                 }
             }
 
-            Label("لا يوجد أمر إطفاء ضمن مسار NFC", systemImage: "checkmark.shield.fill")
+            Label(JL("لا يوجد أمر إطفاء ضمن مسار NFC", "NFC does not send an engine stop command"), systemImage: "checkmark.shield.fill")
                 .foregroundStyle(.green)
         }
     }
 
     private var recentEventsSection: some View {
-        Section("آخر النشاطات") {
+        Section(JL("آخر النشاطات", "Recent activity")) {
             if store.events.isEmpty {
-                Text("ماكو نشاط مسجل بعد")
+                Text(JL("ماكو نشاط مسجل بعد", "No activity yet"))
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(store.events.prefix(6)) { event in
@@ -255,9 +255,9 @@ private struct AddNFCCredentialView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("المفتاح") {
-                    TextField("مثال: بطاقة أبو سيف", text: $name)
-                    Picker("النوع", selection: $kind) {
+                Section(JL("المفتاح", "Key")) {
+                    TextField(JL("مثال: بطاقة أبو سيف", "Example: Abu Saif's card"), text: $name)
+                    Picker(JL("النوع", "Type"), selection: $kind) {
                         ForEach(NFCCredentialKind.allCases) { item in
                             Label(item.title, systemImage: item.symbol).tag(item)
                         }
@@ -265,10 +265,10 @@ private struct AddNFCCredentialView: View {
                 }
 
                 Section {
-                    Label("هذه إضافة فحص محلية فقط، وما ترسل أمراً إلى السيارة.", systemImage: "hammer.fill")
+                    Label(JL("هذه إضافة فحص محلية فقط، وما ترسل أمراً إلى السيارة.", "This is a local test only. It sends no vehicle command."), systemImage: "hammer.fill")
                         .font(.footnote)
                         .foregroundStyle(.orange)
-                    Text("عند وصول PN532 نستبدل المعرّف التجريبي بالمعرّف الذي يرجعه ESP بعد التحقق من البطاقة.")
+                    Text(JL("عند وصول PN532 نستبدل المعرّف التجريبي بالمعرّف الذي يرجعه ESP بعد التحقق من البطاقة.", "When PN532 is connected, the test ID will be replaced by the ID returned by ESP after card verification."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -277,14 +277,14 @@ private struct AddNFCCredentialView: View {
                     Section { Text(errorText).foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("إضافة مفتاح NFC")
+            .navigationTitle(JL("إضافة مفتاح NFC", "Add NFC key"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("إلغاء") { dismiss() }
+                    Button(JL("إلغاء", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("إضافة") {
+                    Button(JL("إضافة", "Add")) {
                         if let error = store.addBenchCredential(name: name, kind: kind) {
                             errorText = error
                         } else {
@@ -309,31 +309,31 @@ private struct EditNFCCredentialView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("معلومات المفتاح") {
-                    TextField("الاسم", text: $draft.name)
-                    LabeledContent("النوع", value: draft.kind.title)
-                    LabeledContent("المعرّف", value: draft.maskedIdentifier)
+                Section(JL("معلومات المفتاح", "Key details")) {
+                    TextField(JL("الاسم", "Name"), text: $draft.name)
+                    LabeledContent(JL("النوع", "Type"), value: draft.kind.title)
+                    LabeledContent(JL("المعرّف", "ID"), value: draft.maskedIdentifier)
                 }
 
-                Section("الصلاحيات") {
-                    Toggle("المفتاح مفعّل", isOn: $draft.isEnabled)
-                    Toggle("يسمح بالتشغيل عن بُعد", isOn: $draft.allowsRemoteStart)
+                Section(JL("الصلاحيات", "Permissions")) {
+                    Toggle(JL("المفتاح مفعّل", "Key enabled"), isOn: $draft.isEnabled)
+                    Toggle(JL("يسمح بالتشغيل عن بُعد", "Allow remote start"), isOn: $draft.allowsRemoteStart)
                 }
 
                 Section {
-                    Label("إلغاء الإطفاء والقفل بالتمرير الثاني حسب الاتفاق الحالي.", systemImage: "info.circle")
+                    Label(JL("إلغاء الإطفاء والقفل بالتمرير الثاني حسب الاتفاق الحالي.", "Second-tap shutdown and locking are disabled in the current configuration."), systemImage: "info.circle")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("تعديل المفتاح")
+            .navigationTitle(JL("تعديل المفتاح", "Edit key"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("إلغاء") { dismiss() }
+                    Button(JL("إلغاء", "Cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("حفظ") {
+                    Button(JL("حفظ", "Save")) {
                         draft.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !draft.name.isEmpty else { return }
                         store.update(draft)

@@ -33,9 +33,9 @@ enum HomeScreenShortcut: Equatable {
 
     var title: String {
         switch self {
-        case .lockPreview: return "قفل السيارة"
-        case .unlockPreview: return "فتح السيارة"
-        case .startPreview: return "تشغيل السيارة"
+        case .lockPreview: return JL("قفل السيارة", "Lock vehicle")
+        case .unlockPreview: return JL("فتح السيارة", "Unlock vehicle")
+        case .startPreview: return JL("تشغيل السيارة", "Start vehicle")
         }
     }
 

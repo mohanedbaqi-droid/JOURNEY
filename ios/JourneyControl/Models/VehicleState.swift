@@ -21,6 +21,8 @@ struct VehicleState: Codable {
     var simulatedEngineRunning = false
     var simulatedDoorsOpen = false
     var remotePowered = false
+    var remotePowerStatePresent = false
+    var feedbackStatePresent = false
     var feedbackLock = false
     var feedbackUnlock = false
     var feedbackStart = false
@@ -36,7 +38,7 @@ struct VehicleState: Codable {
     var bcmStateValid = false
     var gpsValid = false
     /// Published by the 4G/3G modem on the ESP when available.
-    var cellularNetwork = "غير متاح"
+    var cellularNetwork = JL("غير متاح", "Unavailable")
     var cellularSignalDBm = -120
     var cellularEnabled = false
     var cellularRegistered = false
@@ -176,10 +178,13 @@ struct VehicleState: Codable {
         simulatedEngineRunning = try box.decodeIfPresent(Bool.self, forKey: .simulatedEngineRunning) ?? ((try compact.decodeIfPresent(Int.self, forKey: .engineRunning) ?? 0) == 1)
         simulatedDoorsOpen = try box.decodeIfPresent(Bool.self, forKey: .simulatedDoorsOpen) ?? ((try compact.decodeIfPresent(Int.self, forKey: .doorsOpen) ?? 0) == 1)
         remotePowered = try box.decodeIfPresent(Bool.self, forKey: .remotePowered) ?? ((try compact.decodeIfPresent(Int.self, forKey: .remotePowered) ?? 0) == 1)
+        remotePowerStatePresent = box.contains(.remotePowered) || compact.contains(.remotePowered)
         feedbackLock = try box.decodeIfPresent(Bool.self, forKey: .feedbackLock) ?? false
         feedbackUnlock = try box.decodeIfPresent(Bool.self, forKey: .feedbackUnlock) ?? false
         feedbackStart = try box.decodeIfPresent(Bool.self, forKey: .feedbackStart) ?? false
         feedbackAlarm = try box.decodeIfPresent(Bool.self, forKey: .feedbackAlarm) ?? false
+        feedbackStatePresent = box.contains(.feedbackLock) || box.contains(.feedbackUnlock)
+            || box.contains(.feedbackStart) || box.contains(.feedbackAlarm)
         trustedPhoneConfigured = try box.decodeIfPresent(Bool.self, forKey: .trustedPhoneConfigured) ?? ((try compact.decodeIfPresent(Int.self, forKey: .trusted) ?? 0) == 1)
         authorizedPhoneCount = try box.decodeIfPresent(Int.self, forKey: .authorizedPhoneCount) ?? (try compact.decodeIfPresent(Int.self, forKey: .count) ?? 0)
         ownerAdminPhone = try box.decodeIfPresent(String.self, forKey: .ownerAdminPhone) ?? (try compact.decodeIfPresent(String.self, forKey: .admin) ?? "")
@@ -190,7 +195,7 @@ struct VehicleState: Codable {
         rightSignalOn = try box.decodeIfPresent(Bool.self, forKey: .rightSignalOn) ?? false
         bcmStateValid = try box.decodeIfPresent(Bool.self, forKey: .bcmStateValid) ?? false
         gpsValid = try box.decodeIfPresent(Bool.self, forKey: .gpsValid) ?? false
-        cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? "غير متاح"
+        cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? JL("غير متاح", "Unavailable")
         cellularSignalDBm = try box.decodeIfPresent(Int.self, forKey: .cellularSignalDBm) ?? -120
         cellularEnabled = try box.decodeIfPresent(Bool.self, forKey: .cellularEnabled) ?? false
         cellularRegistered = try box.decodeIfPresent(Bool.self, forKey: .cellularRegistered) ?? false
