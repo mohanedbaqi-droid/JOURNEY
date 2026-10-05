@@ -1,0 +1,29 @@
+name: Build ESP v12.75
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["ESP32/**", ".github/workflows/build-esp.yml"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install platform and libraries
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.3.0
+          arduino-cli lib install ArduinoJson PubSubClient TM1637 "Adafruit PN532"
+      - name: Compile firmware
+        run: |
+          mkdir -p /tmp/JOURNEY_ESP32S3_V12_75
+          cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_75/JOURNEY_ESP32S3_V12_75.ino
+          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h /tmp/JOURNEY_ESP32S3_V12_75/
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_75
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JOURNEY-ESP-v12.75
+          path: build-esp/*.bin

@@ -469,8 +469,9 @@ void applyInternetPriority() {
 }
 
 bool updateFromInternet(const String& url) {
-  // Use the ESP32 network stack, not the modem's AT HTTP mode. That makes one
-  // OTA path work over either the configured 4G/PPP link or Wi-Fi link.
+  // Use the ESP32 network stack, not the modem's AT HTTP mode.  That makes one
+  // OTA path work over either the configured 4G/PPP link or the configured
+  // Wi-Fi link, with no manual stop/start of PPP.
   if (!url.startsWith("https://") || url.indexOf('"') >= 0 || url.indexOf('\r') >= 0 || url.indexOf('\n') >= 0 ||
       chooseInternetRoute() == InternetRoute::NONE) return false;
   if (mqtt.connected()) mqtt.disconnect();
@@ -478,8 +479,9 @@ bool updateFromInternet(const String& url) {
   publishState();
 
   NetworkClientSecure downloadClient;
-  // The URL is accepted from an authenticated owner command. HTTPS protects
-  // transit; certificate pinning is added when the permanent firmware host exists.
+  // The update URL is entered only by the authenticated owner. HTTPS still
+  // protects the transfer in transit; certificate pinning can be added once a
+  // dedicated Journey firmware host is configured.
   downloadClient.setInsecure();
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -1061,6 +1063,10 @@ void publishVehicleEvent(const char* type, const char* arabicText) {
 
 void monitorVehicleEvents() {
   const ObdSnapshot& c = obd.snapshot();
+  if (obd.recoveringBcm() || !c.rpmValid) {
+    engineEventCandidateSince = millis();
+    return;
+  }
   if (!vehicleEventBaselineReady) {
     previousEngineRunning = c.engineRunning;
     engineEventStableState = c.engineRunning || c.rpm > 0;
@@ -1124,13 +1130,13 @@ void publishState() {
   doc["benchMode"] = false;
   // v12.66: body UI now uses confirmed BCM readings whenever available.
   // Manual/keyless state remains the fallback until the BCM reader has a valid frame.
-  const bool liveLocked = c.bcmStateValid ? c.locked : locked;
-  const bool liveDoorsOpen = c.bcmStateValid ? c.doorsOpen : doorsOpen;
-  const bool liveHeadlightsOn = c.bcmStateValid ? c.headlightsOn : headlightsOn;
-  const bool liveLeftSignalOn = c.bcmStateValid ? c.leftSignalOn : leftSignalOn;
-  const bool liveRightSignalOn = c.bcmStateValid ? c.rightSignalOn : rightSignalOn;
+  const bool liveLocked = c.doorsValid ? c.locked : locked;
+  const bool liveDoorsOpen = c.doorsValid ? c.doorsOpen : doorsOpen;
+  const bool liveHeadlightsOn = c.lightsValid ? c.headlightsOn : headlightsOn;
+  const bool liveLeftSignalOn = c.turnsValid ? c.leftSignalOn : leftSignalOn;
+  const bool liveRightSignalOn = c.turnsValid ? c.rightSignalOn : rightSignalOn;
   doc["simulatedLocked"] = liveLocked;
-  doc["simulatedEngineRunning"] = c.connected && c.engineRunning;
+  doc["simulatedEngineRunning"] = c.connected && c.rpmValid && c.engineRunning;
   doc["simulatedDoorsOpen"] = liveDoorsOpen;
   doc["hornActive"] = hornActive;
   doc["headlightsOn"] = liveHeadlightsOn;
@@ -1158,6 +1164,13 @@ void publishState() {
   doc["obdDiscoveredWifiNetworks"] = c.discoveredWifiNetworks;
   doc["obdClearInProgress"] = c.clearInProgress;
   addDiagnosticCodes(doc, c.diagnosticCodes);
+  doc["readDiagnostics"] = c.readDiagnostics;
+  doc["speedValid"] = c.speedValid;
+  doc["rpmValid"] = c.rpmValid;
+  doc["coolantValid"] = c.coolantValid;
+  doc["doorsValid"] = c.doorsValid;
+  doc["lightsValid"] = c.lightsValid;
+  doc["turnsValid"] = c.turnsValid;
   doc["rpm"] = c.rpm;
   doc["speedKph"] = c.speedKph;
   doc["coolantC"] = c.coolantC;
@@ -1224,7 +1237,7 @@ void publishState() {
     coreDoc["leftSignalOn"] = liveLeftSignalOn;
     coreDoc["rightSignalOn"] = liveRightSignalOn;
     coreDoc["bcmStateValid"] = c.bcmStateValid;
-    coreDoc["simulatedEngineRunning"] = c.connected && c.engineRunning;
+    coreDoc["simulatedEngineRunning"] = c.connected && c.rpmValid && c.engineRunning;
     coreDoc["lastEvent"] = lastEvent;
     coreDoc["keylessSessionOpen"] = keylessSessionOpen;
     coreDoc["ownerNearby"] = anyOwnerNearby();
@@ -1312,6 +1325,22 @@ void publishState() {
       delay(12);
     }
 
+    // Independent body packet: no combined BCM gate and no 512-byte core growth.
+    JsonDocument bodyDoc;
+    bodyDoc["bp"]=1;
+    bodyDoc["dv"]=c.doorsValid; bodyDoc["lv"]=c.lightsValid; bodyDoc["iv"]=c.turnsValid;
+    bodyDoc["do"]=c.doorsOpen?1:0; bodyDoc["lk"]=c.locked?1:0;
+    bodyDoc["lo"]=c.headlightsOn; bodyDoc["il"]=c.leftSignalOn; bodyDoc["ir"]=c.rightSignalOn;
+    bodyDoc["dg"]=c.readDiagnostics;
+    char bodyPayload[384];
+    const size_t bodyWritten=serializeJson(bodyDoc,bodyPayload,sizeof(bodyPayload));
+    if(bodyWritten && bodyWritten<sizeof(bodyPayload)-1) {
+      bleStateCharacteristic->setValue((uint8_t*)bodyPayload,bodyWritten);
+      bleStateCharacteristic->notify(); delay(12);
+    }
+    Serial0.printf("[JOURNEY READ] rpm=%u valid=%d door=%d/%d lamp=%d/%d L=%d R=%d turnValid=%d %s\n",
+      c.rpm,c.rpmValid,c.doorsOpen,c.doorsValid,c.headlightsOn,c.lightsValid,c.leftSignalOn,c.rightSignalOn,c.turnsValid,c.readDiagnostics.c_str());
+
     // Send OBD telemetry as a second partial packet. The app can merge it, but
     // a large OBD/discovery payload can no longer block the keyless/owner state.
     JsonDocument teleDoc;
@@ -1330,6 +1359,9 @@ void publishState() {
     teleDoc["an"] = c.adapterName;
     teleDoc["r"] = c.rpm;
     teleDoc["v"] = c.speedKph;
+    teleDoc["sv"] = c.speedValid;
+    teleDoc["rv"] = c.rpmValid;
+    teleDoc["tv"] = c.coolantValid;
     teleDoc["t"] = c.coolantC;
     teleDoc["fl"] = c.fuelLevelPercent;
     teleDoc["fv"] = c.fuelLevelValid ? 1 : 0;
@@ -2169,7 +2201,7 @@ void setup() {
   Serial0.begin(115200);
   delay(2000);
   Network.begin();
-  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.66 CONFIRMED BCM MAP + v12.65 NETWORK");
+  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.75 INDEPENDENT READ VALIDITY");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   remotePulseMs = preferences.getUInt("pulseMs", OUTPUT_PULSE_MS);

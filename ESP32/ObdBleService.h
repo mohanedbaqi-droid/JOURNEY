@@ -6,6 +6,8 @@
 #include <WiFi.h>
 
 struct ObdSnapshot {
+  bool rpmValid = false, coolantValid = false, speedValid = false;
+  bool doorsValid = false, lightsValid = false, turnsValid = false;
   bool connected = false;
   bool engineRunning = false;
   uint16_t rpm = 0;
@@ -18,6 +20,7 @@ struct ObdSnapshot {
   bool fuelLevelValid = false;
   uint32_t engineRuntimeSeconds = 0;
   float batteryVoltage = 0;
+  String readDiagnostics;
   bool canAwake = false;
   String ignitionState = "UNKNOWN"; // OFF_OR_SLEEP / IGN_ON / ENGINE_RUNNING
   uint32_t responseRate = 0;
@@ -69,6 +72,7 @@ class ObdBleService {
   // Safe to call from an exact-filter CAN reader; unknown IDs/values are ignored.
   bool applyConfirmedBcmFrame(uint16_t canId, const uint8_t* bytes, uint8_t len);
   bool canMonitorActive() const { return canMonitorActive_; }
+  bool recoveringBcm() const { return bcmRecoveryActive_; }
   // BLE callback entry points; public only because the Arduino BLE callbacks
   // are small separate helper classes.
   static void onScan(BLEAdvertisedDevice device);
@@ -76,6 +80,21 @@ class ObdBleService {
   static void onNotify(BLERemoteCharacteristic* characteristic, uint8_t* data, size_t length, bool notify);
 
  private:
+  bool journeyRaw_ = false, rawPrompt_ = false, rawBad_ = false;
+  uint8_t rawPhase_ = 0, rawSetup_ = 0, rawStage_ = 0;
+  uint32_t rawDeadline_ = 0, rawStarted_ = 0, rawFrames_ = 0, rawCycles_ = 0;
+  uint32_t bodyAt_ = 0, lightsAt_ = 0, turnsAt_ = 0;
+  String rawLine_, rawAck_;
+  uint8_t rawQueue_[8192];
+  size_t rawRead_ = 0, rawWrite_ = 0;
+  portMUX_TYPE rawMux_ = portMUX_INITIALIZER_UNLOCKED;
+  void pollJourneyRaw();
+  void rawSend(const String& command);
+  void startJourneyRaw();
+  void rawFail(const char* reason = "transport");
+  uint32_t rawReconnects_=0, rawMalformed_=0;
+  uint32_t rawCounts_[5]={0};
+  String rawLastFailure_="none";
   static ObdBleService* instance_;
   BLEClient* client_ = nullptr;
   BLERemoteCharacteristic* writeChar_ = nullptr;
@@ -107,7 +126,8 @@ class ObdBleService {
   uint16_t scanPid_ = 1;
   uint16_t activeStandardPid_ = 0;
   uint32_t supportedMasks_[6]{};
-  enum class QueryMode : uint8_t { Init, Handshake, Vin, SupportMasks, StandardPids, Normal, CanSleep, ResumeLive } mode_ = QueryMode::Init;
+  enum class QueryMode : uint8_t { Init, Handshake, Vin, SupportMasks, StandardPids, Normal, CanSleep, BcmSetup, ResumeLive, VerifyLive } mode_ = QueryMode::Init;
+  bool bcmRecoveryActive_ = false;
   uint32_t nextActionAt_ = 0;
   uint32_t rateWindowAt_ = 0;
   uint32_t rateWindowResponses_ = 0;

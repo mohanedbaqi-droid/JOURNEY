@@ -1,11 +1,16 @@
 #include "ObdBleService.h"
 #include "config.h"
+#include <ctype.h>
 
 ObdBleService* ObdBleService::instance_ = nullptr;
 
 namespace {
 const char* INIT_COMMANDS[] = {"ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"};
-const char* RESUME_LIVE_COMMANDS[] = {"ATE0", "ATL0", "ATS0", "ATH0", "ATCAF1", "ATSP6"};
+// Sent after each short BCM monitor window.  These are deliberately issued
+// through the normal request/reply path; writing them blindly caused KONNWEI
+// to occasionally stay in monitor/filter mode and drop RPM replies.
+const char* RESUME_LIVE_COMMANDS[] = {"ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATCAF1", "ATSP6"};
+const char* BCM_SETUP_COMMANDS[] = {"ATSP6", "ATH1", "ATCAF0", "ATCM000", "ATCF000"};
 const char* PID_COMMANDS[] = {"010C", "010D", "0105", "010F", "0104", "0111", "012F", "011F", "0142"};
 constexpr uint8_t PID_COUNT = sizeof(PID_COMMANDS) / sizeof(PID_COMMANDS[0]);
 constexpr uint8_t INIT_COUNT = sizeof(INIT_COMMANDS) / sizeof(INIT_COMMANDS[0]);
@@ -58,21 +63,31 @@ const char* ObdBleService::statusText() const { return status_.c_str(); }
 
 bool ObdBleService::applyConfirmedBcmFrame(uint16_t canId, const uint8_t* bytes, uint8_t len) {
   if (!bytes) return false;
-  if (canId == BCM_ID_DOORS && len > 5) {
-    data_.doorsOpen = (bytes[5] & 0x01) != 0;
-  } else if (canId == BCM_ID_TURNS && len > 0) {
-    data_.leftSignalOn = (bytes[0] & 0x01) != 0;
-    data_.rightSignalOn = (bytes[0] & 0x02) != 0;
-  } else if (canId == BCM_ID_HEADLIGHT && len > 0) {
-    if (bytes[0] == 0x22) data_.headlightsOn = true;
-    else if (bytes[0] == 0x21) data_.headlightsOn = false;
-    else return false; // untested encoded lighting state: keep last known value
-  } else if (canId == BCM_ID_LOCK && len > 6) {
-    data_.locked = (bytes[6] & 0x10) != 0;
-  } else {
-    return false;
-  }
-  data_.bcmStateValid = true;
+  const uint32_t now=millis();
+  if(canId==0x108 && len==8) {
+    rawCounts_[0]++;
+    data_.rpm=(uint16_t(bytes[0])<<8)|bytes[1]; lastRpmAt_=now;
+    data_.rpmValid=true; data_.engineRunning=data_.rpm>0;
+    data_.ignitionState=data_.engineRunning?"ENGINE_RUNNING":"UNKNOWN";
+  } else if(canId==0x180 && len==8) {
+    rawCounts_[1]++;
+    data_.coolantC=int16_t(bytes[1])-40; lastCoolantAt_=now; data_.coolantValid=true;
+  } else if(canId==0x334 && len==8) {
+    rawCounts_[4]++;
+    // Only verified door bits; rear driver and hood remain unknown.
+    data_.doorsOpen=(bytes[2]&0x56)!=0;
+    data_.locked=(bytes[0]&0x40)==0; bodyAt_=now; data_.doorsValid=true;
+  } else if(canId==0x324 && len==8) {
+    rawCounts_[3]++;
+    if(bytes[3]!=0x04 && bytes[3]!=0x14 && bytes[3]!=0x24) return false;
+    data_.headlightsOn=bytes[3]==0x24; lightsAt_=now; data_.lightsValid=true;
+  } else if(canId==0x318 && len==8) {
+    rawCounts_[2]++;
+    data_.leftSignalOn=(bytes[0]&1)!=0; data_.rightSignalOn=(bytes[0]&2)!=0;
+    turnsAt_=now; data_.turnsValid=true;
+  } else return false;
+  lastEcuReplyAt_=now; data_.canAwake=true;
+  data_.bcmStateValid=data_.doorsValid && data_.lightsValid && data_.turnsValid;
   return true;
 }
 
@@ -197,7 +212,7 @@ bool ObdBleService::requestDiagnosticScan() {
 }
 
 bool ObdBleService::requestClearTroubleCodes() {
-  if (!data_.connected || data_.engineRunning || clearRequested_) return false;
+  if (!data_.connected || !data_.rpmValid || data_.engineRunning || clearRequested_) return false;
   clearRequested_ = true;
   data_.clearInProgress = true;
   status_ = "clear_dtc_requested";
@@ -258,27 +273,37 @@ bool ObdBleService::stopCanMonitor() {
 bool ObdBleService::startAutoBcmSlice() {
   if (preferredTransport_ != "BLE" || !data_.connected || !writeChar_ ||
       commandPending_ || canMonitorActive_ || mode_ != QueryMode::Normal) return false;
-  // One short unfiltered passive window catches short BCM frames. The parser
-  // accepts only confirmed BCM IDs, so unrelated CAN traffic is ignored.
-  const char* setup[] = {"ATSP6\r", "ATH1\r", "ATCAF0\r", "ATCM000\r", "ATCF000\r"};
-  for (const char* cmd : setup) { writeChar_->writeValue((uint8_t*)cmd, strlen(cmd), false); delay(40); }
-  canLineBuffer_ = ""; reply_ = "";
-  const char* monitor = "ATMA\r";
-  writeChar_->writeValue((uint8_t*)monitor, strlen(monitor), false);
-  canMonitorActive_ = true; autoBcmSliceActive_ = true; autoBcmSliceStartedAt_ = millis();
-  status_ = "bcm_engine_timeslice";
+  // Use one unfiltered, bounded passive window.  A filtered rotation missed
+  // short indicator/lock frames; this decoder still accepts only confirmed
+  // BCM IDs, so unrelated traffic is ignored safely.
+  bcmRecoveryActive_ = true;
+  setupStep_ = 0;
+  mode_ = QueryMode::BcmSetup;
+  status_ = "bcm_preparing";
+  nextActionAt_ = millis();
   return true;
 }
 
 void ObdBleService::stopAutoBcmSlice() {
   if (!autoBcmSliceActive_ || !writeChar_) return;
+  // Stop ATMA, then resume ELM through acknowledged commands in poll().
   const char* stop = "\r";
   writeChar_->writeValue((uint8_t*)stop, 1, false);
   delay(50);
-  canMonitorActive_ = false; autoBcmSliceActive_ = false; canLineBuffer_ = ""; reply_ = "";
-  commandPending_ = false; activePid_ = 0; data_.currentPid = "";
-  setupStep_ = 0; mode_ = QueryMode::ResumeLive; status_ = "bcm_resuming_obd";
-  nextActionAt_ = millis() + 350; nextAutoBcmSliceAt_ = millis() + 2000;
+
+  canMonitorActive_ = false;
+  autoBcmSliceActive_ = false;
+  canLineBuffer_ = "";
+  reply_ = "";
+  commandPending_ = false;
+  activePid_ = 0;
+  data_.currentPid = "";
+  setupStep_ = 0;
+  mode_ = QueryMode::ResumeLive;
+  status_ = "bcm_resuming_obd";
+  nextActionAt_ = millis() + 350;
+  // Engine telemetry stays dominant. BCM data is refreshed between windows.
+  nextAutoBcmSliceAt_ = millis() + 10000;
 }
 
 bool ObdBleService::matchesAdapter(BLEAdvertisedDevice& device) const {
@@ -328,6 +353,8 @@ void ObdBleService::onScan(BLEAdvertisedDevice device) {
 
 void ObdBleService::onDisconnect(BLEClient*) {
   if (!instance_) return;
+  instance_->journeyRaw_=false;
+  instance_->data_.rpmValid=false; instance_->data_.bcmStateValid=false;
   instance_->data_.connected = false;
   instance_->writeChar_ = nullptr;
   instance_->notifyChar_ = nullptr;
@@ -339,6 +366,15 @@ void ObdBleService::onDisconnect(BLEClient*) {
 
 void ObdBleService::onNotify(BLERemoteCharacteristic*, uint8_t* bytes, size_t length, bool) {
   if (!instance_) return;
+  if(instance_->journeyRaw_) {
+    portENTER_CRITICAL(&instance_->rawMux_);
+    for(size_t i=0;i<length;i++) {
+      size_t n=(instance_->rawWrite_+1)%sizeof(instance_->rawQueue_);
+      if(n==instance_->rawRead_) { instance_->rawBad_=true; break; }
+      instance_->rawQueue_[instance_->rawWrite_]=bytes[i]; instance_->rawWrite_=n;
+    }
+    portEXIT_CRITICAL(&instance_->rawMux_); return;
+  }
   if (instance_->canMonitorActive_) {
     // ATMA notifications may split a CAN line across BLE packets. Reassemble
     // complete lines, then decode only the four IDs confirmed on this Journey.
@@ -626,10 +662,7 @@ void ObdBleService::sendNextStandardPid() {
     data_.currentPid = "";
     status_ = "obd_live";
     mode_ = QueryMode::Normal;
-    // v12.54: the long initial PID scan must not manufacture an engine-stop
-    // transition before the first live RPM heartbeat. Preserve the validated
-    // RPM briefly and force the live loop to start immediately.
-    if (data_.rpm > 0) lastRpmAt_ = millis();
+    // Scan completion is not a fresh RPM reply. Keep the actual sample time.
     liveStep_ = 0;
     nextActionAt_ = millis();
     dtcStage_ = 3;
@@ -670,6 +703,46 @@ void ObdBleService::consumeReply() {
   commandRetries_ = 0;
   ++data_.totalResponses;
   ++rateWindowResponses_;
+  if (mode_ == QueryMode::BcmSetup || mode_ == QueryMode::ResumeLive) {
+    const bool accepted = pendingCommand_ == "ATZ"
+      ? reply_.indexOf("ELM") >= 0 || reply_.indexOf("OK") >= 0
+      : reply_.indexOf("OK") >= 0;
+    Serial0.printf("[BCM RESTORE] %s => %s\n", pendingCommand_.c_str(), reply_.c_str());
+    reply_ = "";
+    if (!accepted) {
+      // Do not treat STOPPED, '?' or an old prompt as an acknowledgement.
+      mode_ = QueryMode::ResumeLive;
+      setupStep_ = 0;
+      nextActionAt_ = millis() + 350;
+      if (pendingCommand_ == "ATZ") {
+        data_.connected = false;
+        if (client_ && client_->isConnected()) client_->disconnect();
+        nextActionAt_ = millis() + OBD_RECONNECT_DELAY_MS;
+      }
+    } else nextActionAt_ = millis() + (pendingCommand_ == "ATZ" ? 1000 : OBD_COMMAND_GAP_MS);
+    return;
+  }
+  if (mode_ == QueryMode::VerifyLive) {
+    const int rpmAt = compact.indexOf("410C");
+    const bool valid = rpmAt >= 0 && rpmAt + 8 <= static_cast<int>(compact.length());
+    Serial0.printf("[BCM VERIFY RPM] %s\n", reply_.c_str());
+    if (valid) {
+      activePid_ = 1;
+      decodePid(compact);
+      mode_ = QueryMode::Normal;
+      bcmRecoveryActive_ = false;
+      liveStep_ = 1;
+      nextAutoBcmSliceAt_ = millis() + 10000;
+      status_ = "obd_live";
+    } else {
+      data_.connected = false;
+      if (client_ && client_->isConnected()) client_->disconnect();
+      status_ = "bcm_reconnecting_obd";
+      nextActionAt_ = millis() + OBD_RECONNECT_DELAY_MS;
+    }
+    reply_ = "";
+    return;
+  }
   if (pendingPid_ == 0xB0) {
     data_.currentPid = "";
     status_ = "elm_lab_reply";
@@ -703,14 +776,6 @@ void ObdBleService::consumeReply() {
     return;
   }
   if (mode_ == QueryMode::Init) elmValidated_ = true;
-  if (mode_ == QueryMode::ResumeLive) {
-    constexpr uint8_t RESUME_COUNT = sizeof(RESUME_LIVE_COMMANDS) / sizeof(RESUME_LIVE_COMMANDS[0]);
-    if (setupStep_ >= RESUME_COUNT) {
-      mode_ = QueryMode::Normal; status_ = "obd_live"; nextActionAt_ = millis(); return;
-    }
-    send(RESUME_LIVE_COMMANDS[setupStep_++], 0);
-    return;
-  }
   if (mode_ == QueryMode::Handshake) {
     if (compact.indexOf("4100") < 0) {
       status_ = "waiting_for_can";
@@ -800,6 +865,27 @@ void ObdBleService::consumeReply() {
 
 void ObdBleService::poll() {
   const uint32_t now = millis();
+  data_.speedValid=lastSpeedAt_ && now-lastSpeedAt_<3500 && data_.connected;
+  data_.rpmValid=lastRpmAt_ && now-lastRpmAt_<4000 && data_.connected;
+  data_.coolantValid=lastCoolantAt_ && now-lastCoolantAt_<15000 && data_.connected;
+  data_.doorsValid=bodyAt_ && now-bodyAt_<4000 && data_.connected;
+  data_.lightsValid=lightsAt_ && now-lightsAt_<4000 && data_.connected;
+  data_.turnsValid=turnsAt_ && now-turnsAt_<2500 && data_.connected;
+  data_.bcmStateValid=data_.doorsValid && data_.lightsValid && data_.turnsValid;
+  char diagnostic[230];
+  snprintf(diagnostic,sizeof(diagnostic),"RPM:%lu BODY:%lu LAMP:%lu TURN:%lu TEMP:%lu | reconnect:%lu %s | stage:%u",
+    (unsigned long)rawCounts_[0],(unsigned long)rawCounts_[4],(unsigned long)rawCounts_[3],
+    (unsigned long)rawCounts_[2],(unsigned long)rawCounts_[1],(unsigned long)rawReconnects_,rawLastFailure_.c_str(),rawStage_);
+  data_.readDiagnostics=diagnostic;
+  // A missing RPM frame is unknown, never a fabricated zero or engine-stop.
+  if(!data_.rpmValid) data_.ignitionState="UNKNOWN";
+  if(journeyRaw_) { pollJourneyRaw(); return; }
+  // The body bus can be awake while the engine ECU does not answer standard PIDs.
+  if (mode_==QueryMode::CanSleep && elmValidated_ && data_.connected &&
+      preferredTransport_=="BLE" && preferredName_.indexOf("KONNWEI")>=0 &&
+      !commandPending_ && !clearRequested_ && !diagnosticScanRequested_) {
+    startJourneyRaw(); return;
+  }
   if (canMonitorActive_) {
     if (autoBcmSliceActive_ && now - autoBcmSliceStartedAt_ >= 220) stopAutoBcmSlice();
     return;
@@ -924,6 +1010,14 @@ void ObdBleService::poll() {
   consumeReply();
   if (commandPending_) {
     if (now < commandDeadlineAt_) return;
+    if (mode_ == QueryMode::BcmSetup || mode_ == QueryMode::ResumeLive || mode_ == QueryMode::VerifyLive) {
+      commandPending_ = false;
+      data_.connected = false;
+      if (client_ && client_->isConnected()) client_->disconnect();
+      status_ = "bcm_reconnecting_obd";
+      nextActionAt_ = now + OBD_RECONNECT_DELAY_MS;
+      return;
+    }
     if (commandRetries_ < 2) {
       ++commandRetries_;
       String command = pendingCommand_ + "\r";
@@ -995,6 +1089,34 @@ void ObdBleService::poll() {
     send(INIT_COMMANDS[setupStep_++], 0);
     return;
   }
+  if (mode_ == QueryMode::BcmSetup) {
+    constexpr uint8_t count = sizeof(BCM_SETUP_COMMANDS) / sizeof(BCM_SETUP_COMMANDS[0]);
+    if (setupStep_ < count) { send(BCM_SETUP_COMMANDS[setupStep_++], 0); return; }
+    reply_ = "";
+    canLineBuffer_ = "";
+    canMonitorActive_ = autoBcmSliceActive_ = true;
+    const char* monitor = "ATMA\r";
+    writeChar_->writeValue((uint8_t*)monitor, strlen(monitor), writeChar_->canWrite());
+    autoBcmSliceStartedAt_ = millis();
+    status_ = "bcm_engine_timeslice";
+    return;
+  }
+  if (mode_ == QueryMode::VerifyLive) {
+    data_.currentPid = "010C";
+    send("010C", 1);
+    return;
+  }
+  if (mode_ == QueryMode::ResumeLive) {
+    constexpr uint8_t RESUME_COUNT = sizeof(RESUME_LIVE_COMMANDS) / sizeof(RESUME_LIVE_COMMANDS[0]);
+    if (setupStep_ >= RESUME_COUNT) {
+      mode_ = QueryMode::VerifyLive;
+      status_ = "bcm_verifying_rpm";
+      nextActionAt_ = millis();
+      return;
+    }
+    send(RESUME_LIVE_COMMANDS[setupStep_++], 0);
+    return;
+  }
   if (mode_ == QueryMode::Handshake) {
     data_.currentPid = "0100";
     send("0100", 0xE0);
@@ -1061,9 +1183,15 @@ void ObdBleService::poll() {
   // adapters do not restore their PID reply path reliably afterwards, which
   // looks like RPM briefly works then the engine falsely becomes OFF. Keep
   // live telemetry isolated; BCM monitoring remains available only on demand.
-  if (ENABLE_AUTO_BCM_SLICES && preferredTransport_ == "BLE" && now >= nextAutoBcmSliceAt_) {
-    if (startAutoBcmSlice()) return;
-    nextAutoBcmSliceAt_ = now + 500;
+  if (bcmRecoveryActive_ && mode_ == QueryMode::Normal) {
+    mode_ = QueryMode::VerifyLive;
+    nextActionAt_ = now;
+    return;
+  }
+  if (preferredTransport_=="BLE" && preferredName_.indexOf("KONNWEI")>=0 &&
+      mode_==QueryMode::Normal && !commandPending_ && !clearRequested_ &&
+      !diagnosticScanRequested_ && (dtcStage_==0 || dtcStage_>=3)) {
+    startJourneyRaw(); return;
   }
 
   // v12.59: adapter-local battery voltage is sampled every 4 seconds even when
@@ -1086,4 +1214,103 @@ void ObdBleService::poll() {
   data_.currentPid = LIVE_CMDS[step];
   send(LIVE_CMDS[step], LIVE_IDS[step]);
   liveStep_ = (liveStep_ + 1) % LIVE_COUNT;
+}
+
+void ObdBleService::startJourneyRaw() {
+  portENTER_CRITICAL(&rawMux_);
+  rawRead_=rawWrite_=0;
+  portEXIT_CRITICAL(&rawMux_);
+  rawBad_=false; rawPrompt_=false; rawLine_=""; rawAck_="";
+  rawPhase_=0; rawSetup_=0; rawStage_=0; rawCycles_=0;
+  journeyRaw_=true;
+  rawSend("ATS1"); status_="journey_v11_starting";
+}
+// v12.74: V11 schedule. No blocking waits; BLE callback only queues bytes.
+void ObdBleService::rawSend(const String& command) {
+  rawPrompt_=false; rawAck_=""; rawDeadline_=millis()+3000;
+  String text=command+"\r";
+  if(writeChar_) writeChar_->writeValue((uint8_t*)text.c_str(),text.length(),writeChar_->canWrite());
+}
+void ObdBleService::rawFail(const char* reason) {
+  rawLastFailure_=reason; rawReconnects_++;
+  Serial0.printf("[JOURNEY CAN] reconnect=%lu reason=%s phase=%u stage=%u\n",(unsigned long)rawReconnects_,reason,rawPhase_,rawStage_);
+  journeyRaw_=false; data_.rpmValid=false; data_.bcmStateValid=false;
+  commandPending_=false; data_.connected=false;
+  status_="journey_can_reconnecting";
+  if(client_ && client_->isConnected()) client_->disconnect();
+  nextActionAt_=millis()+OBD_RECONNECT_DELAY_MS;
+}
+void ObdBleService::pollJourneyRaw() {
+  if(!client_ || !client_->isConnected() || !writeChar_) { rawFail(); return; }
+  int budget=4096;
+  while(budget--) {
+    portENTER_CRITICAL(&rawMux_);
+    bool have=rawRead_!=rawWrite_; uint8_t ch=0;
+    if(have) { ch=rawQueue_[rawRead_]; rawRead_=(rawRead_+1)%sizeof(rawQueue_); }
+    portEXIT_CRITICAL(&rawMux_);
+    if(!have) break;
+    if(ch=='>' || ch=='\r' || ch=='\n') {
+      rawLine_.trim(); rawLine_.toUpperCase();
+      if(rawLine_.indexOf("BUFFER FULL")>=0 || rawLine_.indexOf("ERROR")>=0 || rawLine_=="?") rawBad_=true;
+      if(rawLine_=="OK") rawAck_="OK";
+      if(rawPhase_==3 || rawPhase_==4) {
+        char copy[240]; rawLine_.toCharArray(copy,sizeof(copy)); char *save=nullptr;
+        char *id=strtok_r(copy," ",&save), *dlc=strtok_r(nullptr," ",&save);
+        bool valid=id && strlen(id)==3 && dlc && strlen(dlc)==1 && dlc[0]>='0' && dlc[0]<='8';
+        char *end=nullptr; unsigned long cid=0; uint8_t bytes[8]; int count=0;
+        if(valid) { for(int i=0;i<3;i++) if(!isxdigit(id[i])) valid=false; cid=strtoul(id,&end,16); valid=*end==0 && cid<=0x7ff; }
+        char *t;
+        while((t=strtok_r(nullptr," ",&save))) {
+          if(count>=8 || strlen(t)!=2 || !isxdigit(t[0]) || !isxdigit(t[1])) { valid=false; break; }
+          unsigned long v=strtoul(t,&end,16);
+          if(*end || v>255) { valid=false; break; } bytes[count++]=v;
+        }
+        if(valid && count==dlc[0]-'0' && applyConfirmedBcmFrame(cid,bytes,count)) {
+          if((rawStage_==1 && cid==0x108)||(rawStage_==2 && cid==0x180)) rawFrames_++;
+          rateWindowResponses_++; data_.totalResponses++;
+        }
+      }
+      rawLine_="";
+      if(ch=='>') rawPrompt_=true;
+    } else if(rawLine_.length()<230) rawLine_+=(char)ch;
+    else rawBad_=true;
+  }
+  if(rawBad_) { rawFail("rx_overflow_or_elm_error"); return; }
+  const uint32_t now=millis();
+  const char* setup[]={"ATS1","ATH1","ATD1","ATCAF0","ATSP6"};
+  if(rawPhase_==0) {
+    if(!rawPrompt_) { if(now>=rawDeadline_) rawFail("prompt_timeout"); return; }
+    if(rawAck_!="OK") { rawFail("setup_rejected"); return; }
+    if(++rawSetup_<5) { rawSend(setup[rawSetup_]); return; }
+    rawPhase_=1; rawSend("ATCM7C3"); return;
+  }
+  if(rawPhase_==1 || rawPhase_==2) {
+    if(!rawPrompt_) { if(now>=rawDeadline_) rawFail("prompt_timeout"); return; }
+    if(rawAck_!="OK") { rawFail("setup_rejected"); return; }
+    if(rawPhase_==1) {
+      rawPhase_=2; rawSend(rawStage_==0?"ATCF300":(rawStage_==1?"ATCF108":"ATCF180")); return;
+    }
+    rawPhase_=3; rawFrames_=0; rawStarted_=now; rawSend("ATMA");
+    data_.currentPid=rawStage_==0?"BODY":(rawStage_==1?"CAN108":"CAN180");
+    status_="journey_v11_live"; return;
+  }
+  if(rawPhase_==3) {
+    if(rawPrompt_) { rawFail("monitor_ended"); return; }
+    bool pause=clearRequested_ || diagnosticScanRequested_;
+    uint32_t elapsed=now-rawStarted_;
+    bool change=rawStage_==0?elapsed>=1200:(rawStage_==1?(elapsed>=120||rawFrames_>=3):(elapsed>=220||rawFrames_>=1));
+    if(!change && !pause) return;
+    rawPhase_=4; rawSend(""); return;
+  }
+  if(rawPhase_==4) {
+    if(!rawPrompt_) { if(now>=rawDeadline_) rawFail("prompt_timeout"); return; }
+    if(clearRequested_ || diagnosticScanRequested_) {
+      journeyRaw_=false; canMonitorActive_=false; reply_=""; commandPending_=false;
+      bcmRecoveryActive_=true; mode_=QueryMode::ResumeLive; setupStep_=0; nextActionAt_=now; return;
+    }
+    if(rawStage_==0) rawStage_=1;
+    else if(rawStage_==1) { rawCycles_++; rawStage_=rawCycles_%5==0?2:0; }
+    else rawStage_=0;
+    rawPhase_=1; rawSend(rawStage_==0?"ATCM7C3":"ATCM7FF");
+  }
 }

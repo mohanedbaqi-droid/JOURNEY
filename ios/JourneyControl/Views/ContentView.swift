@@ -528,7 +528,7 @@ struct ContentView: View {
     private func statusStrip(_ state: VehicleState) -> some View {
         HStack(spacing: 8) {
             statusPill(state.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"), icon: state.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !state.simulatedLocked)
-            statusPill(state.simulatedEngineRunning ? JL("تعمل", "Running") : JL("متوقفة", "Stopped"), icon: "engine.combustion.fill", active: state.simulatedEngineRunning)
+            statusPill(state.engineStateText, icon: "engine.combustion.fill", active: state.simulatedEngineRunning)
             statusPill(state.gpsValid ? JL("GPS متصل", "GPS connected") : JL("GPS غير متاح", "GPS unavailable"), icon: "location.fill", active: state.gpsValid)
         }
     }
@@ -766,6 +766,7 @@ struct ContentView: View {
 
     private func vehicleStatusText(_ state: VehicleState) -> String {
         if !state.online { return JL("ESP غير متصل", "ESP disconnected") }
+        if !state.rpmValid { return JL("قراءة المحرك غير متاحة", "Engine reading unavailable") }
         if state.obdConnected && state.canAwake { return state.rpm > 0 ? JL("OBD مباشر • المحرك شغال", "Live OBD • Engine running") : JL("OBD مباشر • IGN/ACC", "Live OBD • IGN/ACC") }
         if state.obdConnected { return JL("KONNWEI متصلة • CAN نايم", "KONNWEI connected • CAN asleep") }
         return JL("بانتظار OBD", "Waiting for OBD")
@@ -780,9 +781,9 @@ struct ContentView: View {
             }
             Divider().overlay(.white.opacity(0.08))
             HStack {
-                metric("RPM", value: "\(state.rpm)")
-                metric(appText(JL("السرعة", "Speed"), "Speed"), value: appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
-                metric(appText(JL("الحرارة", "Temperature"), "Temperature"), value: state.obdConnected ? (appTemperatureUnit == "f" ? "\(Int((Double(state.coolantC) * 9.0 / 5.0 + 32.0).rounded()))°F" : "\(state.coolantC)°C") : "—")
+                metric("RPM", value: state.rpmValid ? "\(state.rpm)" : "—")
+                metric(appText(JL("السرعة", "Speed"), "Speed"), value: !state.speedValid ? "—" : appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
+                metric(appText(JL("الحرارة", "Temperature"), "Temperature"), value: state.coolantValid ? (appTemperatureUnit == "f" ? "\(Int((Double(state.coolantC) * 9.0 / 5.0 + 32.0).rounded()))°F" : "\(state.coolantC)°C") : "—")
             }
             HStack {
                 metric(JL("فولت البطارية", "Battery voltage"), value: state.batteryVoltage > 0 ? String(format: "%.2f V", state.batteryVoltage) : "—")
@@ -796,7 +797,7 @@ struct ContentView: View {
             }
             .font(.caption)
             .foregroundStyle(.white.opacity(0.47))
-                Label(JL("السرعة وRPM والحرارة والبنزين من OBD؛ حالة الباب واللايت والإشارات تحتاج فحص BCM مخصص", "Speed, RPM, temperature and fuel come from OBD. Door, light and turn signal states require a dedicated BCM test."), systemImage: "info.circle.fill")
+                Label(JL("RPM والحرارة وحالة الأبواب واللايت والإشارات من إطارات CAN المؤكدة عبر OBD؛ السرعة والبنزين من PIDs القياسية", "RPM, coolant, doors, lights and turn signals use confirmed CAN frames through OBD; speed and fuel use standard PIDs."), systemImage: "info.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.cyan)
         }
@@ -1448,8 +1449,13 @@ private struct OBDStatusView: View {
                         obdRow(JL("فحص PIDs", "PID scan"), vehicle.obdStandardScanComplete ? JL("اكتمل: \(vehicle.obdSupportedPids) مدعوم", "Complete: \(vehicle.obdSupportedPids) supported") : "\(vehicle.obdScanProgress)% — \(vehicle.obdScannedPids)/\(vehicle.obdSupportedPids)")
                         obdRow(JL("PID الحالي", "Current PID"), vehicle.obdCurrentPid.isEmpty ? "—" : vehicle.obdCurrentPid)
                         obdRow(JL("مجموع الردود", "Total responses"), "\(vehicle.obdTotalResponses)")
-                        obdRow("RPM", "\(vehicle.rpm)")
-                        obdRow(JL("السرعة", "Speed"), UserDefaults.standard.string(forKey: "journey.settings.speedUnit") == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
+                        obdRow(JL("صلاحية المحرك", "Engine reading"), vehicle.rpmValid ? JL("صالحة", "Valid") : JL("غير متاحة", "Unavailable"))
+                        obdRow(JL("الأبواب", "Doors"), vehicle.doorsValid ? (vehicle.simulatedDoorsOpen ? JL("مفتوحة", "Open") : JL("مغلقة", "Closed")) : "—")
+                        obdRow(JL("الإضاءة", "Lights"), vehicle.lightsValid ? (vehicle.headlightsOn ? "ON" : "OFF") : "—")
+                        obdRow(JL("الإشارات", "Turn signals"), vehicle.turnsValid ? "L:\(vehicle.leftSignalOn ? 1 : 0) R:\(vehicle.rightSignalOn ? 1 : 0)" : "—")
+                        Text(vehicle.readDiagnostics).font(.caption.monospaced()).textSelection(.enabled)
+                        obdRow("RPM", vehicle.rpmValid ? "\(vehicle.rpm)" : "—")
+                        obdRow(JL("السرعة", "Speed"), !vehicle.speedValid ? "—" : UserDefaults.standard.string(forKey: "journey.settings.speedUnit") == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")
                         obdRow(JL("فولت البطارية", "Battery voltage"), vehicle.batteryVoltage > 0 ? String(format: "%.2f V", vehicle.batteryVoltage) : "—")
                         obdRow(JL("حالة السويتش / ACC", "Ignition / ACC status"), ignitionStateArabic(vehicle.ignitionState))
                         obdRow(JL("حالة CAN", "CAN status"), vehicle.canAwake ? JL("صاحي", "Awake") : JL("نايم / بانتظار الاستيقاظ", "Asleep / Waiting to wake"))
@@ -1517,7 +1523,7 @@ private struct OBDStatusView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.red)
-                        .disabled(deviceID == nil || vehicle.simulatedEngineRunning || !clearConfirmation || vehicle.obdClearInProgress)
+                        .disabled(deviceID == nil || !vehicle.rpmValid || vehicle.simulatedEngineRunning || !clearConfirmation || vehicle.obdClearInProgress)
                         if vehicle.simulatedEngineRunning {
                             Text(JL("أطفئ المحرك أولاً؛ المسح مقفول أثناء التشغيل.", "Stop the engine first. Clearing is blocked while running."))
                                 .font(.caption).foregroundStyle(.orange)
@@ -1794,7 +1800,7 @@ private struct VehicleMapView: View {
 
                 HStack(spacing: 8) {
                     mapStatus(vehicle.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"), icon: vehicle.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !vehicle.simulatedLocked)
-                    mapStatus(vehicle.simulatedEngineRunning ? JL("تعمل", "Running") : JL("متوقفة", "Stopped"), icon: "engine.combustion.fill", active: vehicle.simulatedEngineRunning)
+                    mapStatus(vehicle.engineStateText, icon: "engine.combustion.fill", active: vehicle.simulatedEngineRunning)
                     mapStatus(vehicle.gpsValid ? JL("GPS متصل", "GPS connected") : JL("GPS بانتظار", "Waiting for GPS"), icon: "location.fill", active: vehicle.gpsValid)
                 }
 

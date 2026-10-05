@@ -41,6 +41,8 @@ final class MQTTService: ObservableObject {
     @Published private(set) var pendingRemotePower: [String: Bool] = [:]
     private var remotePowerUpdates: [String: Int] = [:]
     private var remotePowerRejections: [String: Int] = [:]
+    private var lastObdAt: [String: Date] = [:]
+    private var lastBodyAt: [String: Date] = [:]
     private var lastFeedbackAt: [String: Date] = [:]
 
     /// Confirm a fresh ESP power report; a BLE write alone is not GPIO feedback.
@@ -107,6 +109,18 @@ final class MQTTService: ObservableObject {
             .autoconnect()
             .sink { [weak self] now in
                 guard let self else { return }
+                for (deviceID, seenAt) in self.lastObdAt where now.timeIntervalSince(seenAt) > 4 {
+                    guard var state = self.vehicles[deviceID] else { continue }
+                    state.rpmValid = false; state.speedValid = false; state.coolantValid = false
+                    state.simulatedEngineRunning = false
+                    self.vehicles[deviceID] = state
+                }
+                for (deviceID, seenAt) in self.lastBodyAt where now.timeIntervalSince(seenAt) > 4 {
+                    guard var state = self.vehicles[deviceID] else { continue }
+                    state.doorsValid = false; state.lightsValid = false; state.turnsValid = false
+                    state.leftSignalOn = false; state.rightSignalOn = false; state.headlightsOn = false
+                    self.vehicles[deviceID] = state
+                }
                 for (deviceID, feedbackAt) in self.lastFeedbackAt where now.timeIntervalSince(feedbackAt) > 1.5 {
                     guard var state = self.vehicles[deviceID] else { continue }
                     if state.feedbackLock || state.feedbackUnlock || state.feedbackStart || state.feedbackAlarm {
@@ -539,10 +553,27 @@ final class MQTTService: ObservableObject {
             return
         }
 
+        // Packet freshness is separate from owner/keyless heartbeat freshness.
+        if state.obdTelemetryPacket { lastObdAt[deviceID] = Date() }
+        if state.bodyStatePacket { lastBodyAt[deviceID] = Date() }
+        if !state.partialState {
+            lastObdAt[deviceID] = Date()
+            lastBodyAt[deviceID] = Date()
+        }
+
         if state.partialState, var merged = previous {
             // v12.38: partial packets are typed. A keyless/core packet must never
             // erase OBD telemetry, and an OBD packet must never erase keyless state.
-            if state.coreStatePacket {
+            if state.bodyStatePacket {
+                lastBodyAt[deviceID] = Date()
+                merged.doorsValid = state.doorsValid; merged.lightsValid = state.lightsValid; merged.turnsValid = state.turnsValid
+                merged.simulatedDoorsOpen = state.doorsValid && state.simulatedDoorsOpen
+                if state.doorsValid { merged.simulatedLocked = state.simulatedLocked }
+                merged.headlightsOn = state.lightsValid && state.headlightsOn
+                merged.leftSignalOn = state.turnsValid && state.leftSignalOn
+                merged.rightSignalOn = state.turnsValid && state.rightSignalOn
+                merged.readDiagnostics = state.readDiagnostics
+            } else if state.coreStatePacket {
                 merged.online = bluetooth.isConnected(to: deviceID) || state.online
                 if state.remotePowerStatePresent {
                     merged.remotePowered = state.remotePowered
@@ -558,12 +589,11 @@ final class MQTTService: ObservableObject {
                 default:
                     break
                 }
-                merged.simulatedLocked = state.simulatedLocked
-                merged.simulatedDoorsOpen = state.simulatedDoorsOpen
-                merged.simulatedEngineRunning = state.simulatedEngineRunning
+                if !merged.doorsValid { merged.simulatedLocked = state.simulatedLocked }
+                // Live body/engine fields are owned by their dedicated packets.
                 // v12.66 body state is decoded by ESP from confirmed Journey CAN IDs.
                 merged.bcmStateValid = state.bcmStateValid
-                if state.bcmStateValid {
+                if state.bcmStateValid && !merged.turnsValid && !merged.lightsValid {
                     merged.headlightsOn = state.headlightsOn
                     merged.leftSignalOn = state.leftSignalOn
                     merged.rightSignalOn = state.rightSignalOn
@@ -606,6 +636,8 @@ final class MQTTService: ObservableObject {
                     }
                 }
             } else if state.obdTelemetryPacket {
+                lastObdAt[deviceID] = Date()
+                merged.rpmValid = state.rpmValid; merged.coolantValid = state.coolantValid; merged.speedValid = state.speedValid
                 merged.obdConnected = state.obdConnected
                 merged.obdStatus = state.obdStatus
                 merged.obdResponseRate = state.obdResponseRate
@@ -625,7 +657,7 @@ final class MQTTService: ObservableObject {
                 if state.batteryVoltage > 0 { merged.batteryVoltage = state.batteryVoltage }
                 merged.canAwake = state.canAwake
                 merged.ignitionState = state.ignitionState
-                merged.simulatedEngineRunning = state.rpm > 0 && state.canAwake
+                merged.simulatedEngineRunning = state.rpmValid && state.rpm > 0
             } else {
                 // Discovery-only partial packets.
                 if state.obdDiscoveryKind == "BLE" {

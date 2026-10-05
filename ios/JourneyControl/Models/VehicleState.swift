@@ -3,6 +3,15 @@ import Foundation
 struct VehicleState: Codable {
     /// Small BLE discovery packets carry only OBD results.  They must merge
     /// into, rather than replace, the last complete vehicle state.
+    var bodyStatePacket = false
+    var rpmValid = false
+    var coolantValid = false
+    var speedValid = false
+    var doorsValid = false
+    var lightsValid = false
+    var turnsValid = false
+    var readDiagnostics = ""
+    var engineStateText: String { rpmValid ? (simulatedEngineRunning ? JL("تعمل", "Running") : JL("متوقفة", "Stopped")) : JL("غير متاح", "Unavailable") }
     var partialState = false
     var ownerStatePacket = false
     var ownerStateKnown = false
@@ -108,6 +117,10 @@ struct VehicleState: Codable {
     var powerSaveActive = false
 
     private enum CompactCodingKeys: String, CodingKey {
+        case bodyPacket = "bp"
+        case doorsValid = "dv", lightsValid = "lv", turnsValid = "iv"
+        case lampOn = "lo", leftOn = "il", rightOn = "ir", diagnostics = "dg"
+        case rpmValid = "rv", coolantValid = "tv", speedValid = "sv"
         case packet = "p"       // 1 = owner/core BLE packet
         case online = "on"
         case trusted = "tc"
@@ -142,6 +155,7 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case bodyStatePacket, rpmValid, coolantValid, speedValid, doorsValid, lightsValid, turnsValid, readDiagnostics
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
         case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn, bcmStateValid
         case cellularNetwork, cellularSignalDBm, cellularEnabled, cellularRegistered, cellularDataAttached, cellularAPN, cellularStatus, hotspotEnabled, hotspotRunning, hotspotSSID, internetRoute, bluetoothRSSI, espSleeping
@@ -194,6 +208,21 @@ struct VehicleState: Codable {
         leftSignalOn = try box.decodeIfPresent(Bool.self, forKey: .leftSignalOn) ?? false
         rightSignalOn = try box.decodeIfPresent(Bool.self, forKey: .rightSignalOn) ?? false
         bcmStateValid = try box.decodeIfPresent(Bool.self, forKey: .bcmStateValid) ?? false
+        bodyStatePacket = (try compact.decodeIfPresent(Int.self, forKey: .bodyPacket) ?? 0) == 1
+        if bodyStatePacket { partialState = true }
+        rpmValid = try box.decodeIfPresent(Bool.self, forKey: .rpmValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .rpmValid) ?? false)
+        coolantValid = try box.decodeIfPresent(Bool.self, forKey: .coolantValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .coolantValid) ?? false)
+        speedValid = try box.decodeIfPresent(Bool.self, forKey: .speedValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .speedValid) ?? false)
+        doorsValid = try box.decodeIfPresent(Bool.self, forKey: .doorsValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .doorsValid) ?? false)
+        lightsValid = try box.decodeIfPresent(Bool.self, forKey: .lightsValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .lightsValid) ?? false)
+        turnsValid = try box.decodeIfPresent(Bool.self, forKey: .turnsValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .turnsValid) ?? false)
+        readDiagnostics = try box.decodeIfPresent(String.self, forKey: .readDiagnostics) ?? (try compact.decodeIfPresent(String.self, forKey: .diagnostics) ?? "")
+        if bodyStatePacket {
+            headlightsOn = try compact.decodeIfPresent(Bool.self, forKey: .lampOn) ?? false
+            leftSignalOn = try compact.decodeIfPresent(Bool.self, forKey: .leftOn) ?? false
+            rightSignalOn = try compact.decodeIfPresent(Bool.self, forKey: .rightOn) ?? false
+        }
+
         gpsValid = try box.decodeIfPresent(Bool.self, forKey: .gpsValid) ?? false
         cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? JL("غير متاح", "Unavailable")
         cellularSignalDBm = try box.decodeIfPresent(Int.self, forKey: .cellularSignalDBm) ?? -120
