@@ -4,6 +4,10 @@
 #include <BLEDevice.h>
 #include <BLE2902.h>
 #include <BLESecurity.h>
+#include "sdkconfig.h"
+#if defined(CONFIG_NIMBLE_ENABLED)
+#include <host/ble_hs.h>
+#endif
 #include <Preferences.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
@@ -1011,10 +1015,20 @@ void advertiseBle() {
   bleCommandCharacteristic->setCallbacks(new BleCommandCallbacks());
   bleStateCharacteristic->addDescriptor(new BLE2902());
   service->start();
+#if defined(CONFIG_NIMBLE_ENABLED)
+  // Configure NimBLE directly: BLESecurity's static state is not link-complete in ESP32 Arduino 3.3.0.
+  ble_hs_cfg.sm_io_cap = BLE_HS_IO_NO_INPUT_OUTPUT;
+  ble_hs_cfg.sm_bonding = 1;
+  ble_hs_cfg.sm_mitm = 0;
+  ble_hs_cfg.sm_sc = 1;
+  ble_hs_cfg.sm_our_key_dist |= BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+  ble_hs_cfg.sm_their_key_dist |= BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+#else
   BLESecurity* security = new BLESecurity();
   // ESP-IDF GAP values: SC + bond (0x09), no input/output (0x03).
   security->setAuthenticationMode(0x09);
   security->setCapability(0x03);
+#endif
   BLEAdvertising* advertising = BLEDevice::getAdvertising();
   advertising->addServiceUUID(BLE_SERVICE_UUID);
   advertising->setScanResponse(true);
