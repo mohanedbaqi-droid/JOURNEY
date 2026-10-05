@@ -215,8 +215,8 @@ struct NFCAccessView: View {
                             .foregroundStyle(eventColor(event.result))
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(event.title).font(.subheadline)
-                            Text(event.detail).font(.caption).foregroundStyle(.secondary)
+                            Text(JLStored(event.title)).font(.subheadline)
+                            Text(JLStored(event.detail)).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Text(event.timestamp, style: .time)
@@ -274,7 +274,7 @@ private struct AddNFCCredentialView: View {
                 }
 
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section { Text(JLStored(errorText)).foregroundStyle(.red) }
                 }
             }
             .navigationTitle(JL("إضافة مفتاح NFC", "Add NFC key"))

@@ -1,0 +1,3 @@
+"NSBluetoothAlwaysUsageDescription" = "يتصل التطبيق مباشرةً ببورد ESP32 للتحكم المحلي بالسيارة وقراءة حالتها عند عدم توفر الإنترنت أو الشريحة.";
+"NSLocalNetworkUsageDescription" = "يتصل التطبيق بشبكة ESP32 المحلية لرفع تحديث firmware من الآيفون.";
+"NSFaceIDUsageDescription" = "يستخدم التطبيق Face ID لتأكيد اختصارات الشاشة الرئيسية ومفتاح NFC قبل إرسال أمر إلى ESP.";

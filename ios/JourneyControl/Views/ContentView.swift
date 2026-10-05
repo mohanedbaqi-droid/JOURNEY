@@ -245,7 +245,7 @@ struct ContentView: View {
             )) {
                 Button(JL("حسنًا", "OK"), role: .cancel) { faceIDError = nil }
             } message: {
-                Text(faceIDError ?? "")
+                Text(JLStored(faceIDError ?? ""))
             }
         }
         .preferredColorScheme(preferredScheme)
@@ -830,13 +830,13 @@ struct ContentView: View {
                     HStack(spacing: 7) {
                         Image(systemName: insight.severity.symbol)
                             .foregroundStyle(aiColor(insight.severity))
-                        Text(insight.title).font(.subheadline.bold())
+                        Text(JLStored(insight.title)).font(.subheadline.bold())
                         Spacer()
                         Text(insight.severity.title)
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(aiColor(insight.severity))
                     }
-                    Text(insight.explanation)
+                    Text(JLStored(insight.explanation))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.70))
                     Label(insight.nextStep, systemImage: "wrench.and.screwdriver.fill")
@@ -1248,8 +1248,8 @@ private struct ESPStatusView: View {
     var body: some View {
         List {
             Section(JL("الاتصال المباشر", "Direct connection")) {
-                Label(bluetoothStatus, systemImage: "antenna.radiowaves.left.and.right")
-                    .foregroundStyle(bluetoothStatus.hasPrefix(JL("BLE متصل", "BLE connected")) ? .green : .orange)
+                Label(JLStored(bluetoothStatus), systemImage: "antenna.radiowaves.left.and.right")
+                    .foregroundStyle(JLStored(bluetoothStatus).hasPrefix(JL("BLE متصل", "BLE connected")) ? .green : .orange)
                 statusRow(JL("حالة ESP", "ESP status"), vehicle.online ? JL("متصل", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
                 statusRow(JL("وقت التشغيل", "Uptime"), JL("\(vehicle.uptimeSeconds) ثانية", "\(vehicle.uptimeSeconds) seconds"))
                 statusRow(JL("طاقة الريموت", "Remote power"), !vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off")))
@@ -1304,7 +1304,7 @@ private struct ESPStatusView: View {
                 }
                 .disabled(isUpdating)
                 if !updateStatus.isEmpty {
-                    Text(updateStatus).font(.footnote).foregroundStyle(.secondary)
+                    Text(JLStored(updateStatus)).font(.footnote).foregroundStyle(.secondary)
                 }
                 TextField(JL("رابط HTTPS لملف firmware.bin", "HTTPS URL for firmware.bin"), text: $firmwareURL)
                     .textInputAutocapitalization(.never)
@@ -1522,7 +1522,7 @@ private struct OBDStatusView: View {
                             Text(JL("أطفئ المحرك أولاً؛ المسح مقفول أثناء التشغيل.", "Stop the engine first. Clearing is blocked while running."))
                                 .font(.caption).foregroundStyle(.orange)
                         }
-                        if !statusMessage.isEmpty { Text(statusMessage).font(.caption).foregroundStyle(.cyan) }
+                        if !statusMessage.isEmpty { Text(JLStored(statusMessage)).font(.caption).foregroundStyle(.cyan) }
                     }
                     .padding(14)
                     .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
@@ -2248,7 +2248,7 @@ private struct MQTTSettingsView: View {
                     .disabled(selectedDeviceID == nil)
 
                     if let priorityMessage {
-                        Text(priorityMessage)
+                        Text(JLStored(priorityMessage))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -2329,7 +2329,7 @@ private struct MQTTSettingsView: View {
                     }
 
                     if let wifiMessage {
-                        Text(wifiMessage)
+                        Text(JLStored(wifiMessage))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -2427,7 +2427,7 @@ private struct MQTTSettingsView: View {
                     .disabled(selectedDeviceID == nil)
 
                     if let cellularMessage {
-                        Text(cellularMessage)
+                        Text(JLStored(cellularMessage))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -2442,7 +2442,7 @@ private struct MQTTSettingsView: View {
                 Section {
                     Toggle(tr(JL("وضع المطور", "Developer mode"), "Developer Mode"), isOn: $developerMode)
                     if developerMode {
-                        LabeledContent(JL("حالة BLE", "BLE status"), value: mqtt.bluetoothStatus)
+                        LabeledContent(JL("حالة BLE", "BLE status"), value: JLStored(mqtt.bluetoothStatus))
                         LabeledContent("MQTT", value: mqtt.connection.title)
                         Text(JL("وضع المطور للـLogs وCAN/OBD والفحص، ولا يغيّر مخارج السيارة وحده.", "Developer mode shows logs and CAN/OBD diagnostics. It does not change vehicle outputs by itself."))
                             .font(.footnote)
@@ -2476,7 +2476,7 @@ private struct MQTTSettingsView: View {
                 }
 
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section { Text(JLStored(errorText)).foregroundStyle(.red) }
                 }
             }
             .navigationTitle(JL("الإعدادات", "Settings"))

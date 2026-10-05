@@ -126,7 +126,7 @@ private struct AddDeviceView: View {
                         .foregroundStyle(.secondary)
                 }
                 if let errorText {
-                    Section { Text(errorText).foregroundStyle(.red) }
+                    Section { Text(JLStored(errorText)).foregroundStyle(.red) }
                 }
             }
             .navigationTitle(JL("إضافة جهاز", "Add device"))

@@ -1,0 +1,3 @@
+"NSBluetoothAlwaysUsageDescription" = "Connect to the ESP32 board for local vehicle control and live state when Internet or cellular data is unavailable.";
+"NSLocalNetworkUsageDescription" = "Connect to the local ESP32 network to upload firmware updates from this iPhone.";
+"NSFaceIDUsageDescription" = "Use Face ID to confirm home screen shortcuts and NFC requests before sending a command to ESP.";
