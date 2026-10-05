@@ -4,6 +4,7 @@
 #include <BLEDevice.h>
 #include <BLE2902.h>
 #include <BLESecurity.h>
+#include <esp_gap_ble_api.h>
 #include <Preferences.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
