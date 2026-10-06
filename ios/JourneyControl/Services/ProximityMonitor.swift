@@ -33,7 +33,7 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
 
     override init() {
         super.init()
-        central = CBCentralManager(delegate: self, queue: .main)
+        if !AppConfig.isDemo { central = CBCentralManager(delegate: self, queue: .main) }
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -45,7 +45,7 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
     }
 
     func start() {
-        guard central.state == .poweredOn else { return }
+        guard let central, central.state == .poweredOn else { return }
         samples.removeAll()
         discoveredDevices.removeAll()
         central.scanForPeripherals(withServices: [service], options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
@@ -53,7 +53,7 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
     }
 
     func stop() {
-        central.stopScan()
+        central?.stopScan()
         isScanning = false
     }
 

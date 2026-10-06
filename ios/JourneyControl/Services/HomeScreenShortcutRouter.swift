@@ -10,9 +10,9 @@ enum HomeScreenShortcut: Equatable {
 
     init?(shortcutItem: UIApplicationShortcutItem) {
         switch shortcutItem.type {
-        case "com.example.JourneyControlBench.preview.lock":
+        case "com.abuseif.journey.demo.preview.lock":
             self = .lockPreview
-        case "com.example.JourneyControlBench.preview.unlock":
+        case "com.abuseif.journey.demo.preview.unlock":
             self = .unlockPreview
         default:
             return nil
@@ -20,7 +20,7 @@ enum HomeScreenShortcut: Equatable {
     }
 
     init?(url: URL) {
-        guard url.scheme?.lowercased() == "journeycontrol",
+        guard url.scheme?.lowercased() == "journey-demo",
               url.host?.lowercased() == "widget" else { return nil }
 
         switch url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased() {

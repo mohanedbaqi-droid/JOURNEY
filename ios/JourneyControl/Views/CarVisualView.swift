@@ -22,6 +22,9 @@ struct CarVisualView: View {
                     .frame(width: min(proxy.size.width + 18, 430))
                     .shadow(color: .black.opacity(0.72), radius: 18, y: 12)
 
+                DemoOpenStateBadges(state: state)
+                    .allowsHitTesting(false)
+
                 // The U-shaped white trim stays untouched.  Headlight output
                 // is drawn only inside the four circular lamp lenses.
                 if state.headlightsOn {
@@ -56,11 +59,13 @@ struct CarVisualView: View {
     }
 
     private var vehicleAssetName: String {
-        if state.simulatedDoorsOpen {
-            return "JourneyLEDOpen"
-        } else {
-            return "JourneyLEDClosed"
+        let illuminated = state.demoDRLOn || state.headlightsOn
+        let doorsOpen = state.demoDriverFrontOpen || state.demoPassengerFrontOpen ||
+            state.demoDriverRearOpen || state.demoPassengerRearOpen
+        if doorsOpen {
+            return illuminated ? "JourneyLEDOpen" : "JourneyLEDOpenOff"
         }
+        return illuminated ? "JourneyLEDClosed" : "JourneyLEDClosedOff"
     }
 
     private func frontLightGlow(in canvasSize: CGSize) -> some View {
@@ -85,10 +90,10 @@ struct CarVisualView: View {
             // The aftermarket Journey lamps use the thin lower amber strip.
             // Each side is a separate overlay, so one indicator never turns
             // the other side on and the white U light remains independent.
-            // Button directions follow the screen: left lights the left side
-            // of the picture and right lights the right side.
+            // Vehicle LEFT is the driver side, on the RIGHT of a front-view picture.
+            // Vehicle RIGHT is the passenger side, on picture LEFT.
             JourneyTurnSignalStrip()
-                .opacity(state.leftSignalOn ? 1 : 0)
+                .opacity(state.rightSignalOn ? 1 : 0)
                 .frame(width: imageRect.width * strips.left.width / carSourceSize.width,
                        height: imageRect.height * strips.left.height / carSourceSize.height)
                 .rotationEffect(.degrees(strips.left.rotation))
@@ -96,7 +101,7 @@ struct CarVisualView: View {
                 .opacity(pulse ? 1 : 0.12)
                 .shadow(color: .orange.opacity(0.88), radius: 2.1)
             JourneyTurnSignalStrip()
-                .opacity(state.rightSignalOn ? 1 : 0)
+                .opacity(state.leftSignalOn ? 1 : 0)
                 .frame(width: imageRect.width * strips.right.width / carSourceSize.width,
                        height: imageRect.height * strips.right.height / carSourceSize.height)
                 .rotationEffect(.degrees(strips.right.rotation))

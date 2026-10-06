@@ -261,6 +261,7 @@ struct ContentView: View {
             VStack(spacing: 18) {
                 AnyView(quickNavigation)
                 AnyView(CarVisualView(state: vehicle))
+                AnyView(DemoControlsView(deviceID: device.deviceID, state: vehicle).environmentObject(mqtt))
                 AnyView(statusStrip(vehicle))
                 AnyView(mainControls(device, state: vehicle))
                 AnyView(telemetryCard(vehicle))
@@ -1654,7 +1655,7 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
 
     override init() {
         super.init()
-        central = CBCentralManager(delegate: self, queue: .main)
+        if !AppConfig.isDemo { central = CBCentralManager(delegate: self, queue: .main) }
     }
 
     func start() {
@@ -1672,13 +1673,13 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
     }
 
     private func stop() {
-        central.stopScan()
+        central?.stopScan()
         isScanning = false
         status = adapters.isEmpty ? JL("لم يظهر أي جهاز BLE؛ تأكد من تفعيل Bluetooth ومن أن الجهاز القريب يعلن عن نفسه.", "No BLE devices found. Enable Bluetooth and make sure the nearby device is advertising.") : JL("ظهرت أجهزة BLE القريبة. اختر قطعة OBD ثم اضغط اختيار وحفظ واتصال.", "Nearby BLE devices found. Select an OBD adapter, then tap Select, save and connect.")
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        guard central.state == .poweredOn else { return }
+        guard let central, central.state == .poweredOn else { return }
         if pendingStart { start() }
     }
 
@@ -2711,7 +2712,7 @@ private struct SettingsAboutView: View {
     var body: some View {
         List {
             Section("JOURNEY") {
-                LabeledContent(JL("إصدار التطبيق", "App version"), value: "2.4.17 (49)")
+                LabeledContent(JL("إصدار التطبيق", "App version"), value: "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))")
                 LabeledContent(JL("Firmware المطلوب", "Required firmware"), value: "v12.66")
             }
             Section(JL("التحديث", "Updates")) {

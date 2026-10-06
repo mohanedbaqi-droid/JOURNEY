@@ -1,9 +1,9 @@
-name: Build unsigned iOS IPA
+name: Build JOURNEY DEMO iOS IPA
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [ios-demo-car-states]
     paths:
       - "ios/**"
       - ".github/workflows/build-ios-ipa.yml"
@@ -18,6 +18,11 @@ jobs:
         run: |
           swiftc ios/JourneyControl/Models/VehicleState.swift ios/Tests/TelemetryDecoderTests.swift -o "$RUNNER_TEMP/decoder-tests"
           "$RUNNER_TEMP/decoder-tests"
+
+      - name: Check demo simulation
+        run: |
+          swiftc ios/JourneyControl/Models/VehicleState.swift ios/JourneyControl/Models/DemoVehicleSimulation.swift ios/Tests/DemoSimulationTests.swift -o "$RUNNER_TEMP/demo-tests"
+          "$RUNNER_TEMP/demo-tests"
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -56,6 +61,10 @@ jobs:
           test -f "$APP/JourneyControl"
           test -f "$WIDGET_INFO"
 
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_INFO")" = "com.abuseif.journey.demo"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$APP_INFO")" = "JOURNEY DEMO"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WIDGET_INFO")" = "com.abuseif.journey.demo.widget"
+
           # These are now compiled from the source plist, not patched afterwards.
           /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$APP_INFO"
           /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO"
@@ -64,17 +73,17 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/JourneyControl.app"
           cd "$RUNNER_TEMP/ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/JOURNEY-2.4.18-50-unsigned.ipa" Payload
-          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.18-50-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
-          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.18-50-unsigned.ipa" "Payload/JourneyControl.app/Info.plist" > "$RUNNER_TEMP/Info.plist"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/JOURNEY-DEMO-2.4.19-51-unsigned.ipa" Payload
+          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-DEMO-2.4.19-51-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
+          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-DEMO-2.4.19-51-unsigned.ipa" "Payload/JourneyControl.app/Info.plist" > "$RUNNER_TEMP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$RUNNER_TEMP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$RUNNER_TEMP/Info.plist"
-          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.18-50-unsigned.ipa" "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist" > "$RUNNER_TEMP/Widget-Info.plist"
+          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-DEMO-2.4.19-51-unsigned.ipa" "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist" > "$RUNNER_TEMP/Widget-Info.plist"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$RUNNER_TEMP/Widget-Info.plist" | grep "^com.apple.widgetkit-extension$"
-          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.18-50-unsigned.ipa" | grep "Payload/JourneyControl.app/JourneyControl"
+          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-DEMO-2.4.19-51-unsigned.ipa" | grep "Payload/JourneyControl.app/JourneyControl"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-2.4.18-50-unsigned-IPA
-          path: JOURNEY-2.4.18-50-unsigned.ipa
+          name: JOURNEY-DEMO-2.4.19-51-unsigned-IPA
+          path: JOURNEY-DEMO-2.4.19-51-unsigned.ipa
           if-no-files-found: error

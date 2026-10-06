@@ -25,7 +25,7 @@ final class NFCLaunchRouter: ObservableObject {
 
     @discardableResult
     func route(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "journeycontrol",
+        guard url.scheme?.lowercased() == "journey-demo",
               url.host?.lowercased() == "nfc" else {
             return false
         }

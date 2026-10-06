@@ -2,10 +2,11 @@ import Foundation
 import Security
 
 enum AppConfig {
+    static let isDemo = Bundle.main.bundleIdentifier?.hasSuffix(".demo") == true
     static let cellularCarrier = "Zain Iraq"
     static let cellularAPN = "internet"
     static let defaultBrokerPort: UInt16 = 8883
-    static let keychainService = "com.example.JourneyControl.mqtt"
+    static let keychainService = "com.abuseif.journey.demo.mqtt"
     static let bleServiceUUID = "AF10A000-17B7-4A86-A7D7-9A3B40C8D001"
     /// ESP32 GATT protocol used when the car has no SIM / internet connection.
     static let bleCommandCharacteristicUUID = "AF10A001-17B7-4A86-A7D7-9A3B40C8D001"
@@ -15,7 +16,7 @@ enum AppConfig {
     /// iOS does not expose the phone's hardware Bluetooth address.
     static var phoneID: String {
         let account = "journey.owner.phoneID"
-        let service = "com.abuseif.journey.owner"
+        let service = "com.abuseif.journey.demo.owner"
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

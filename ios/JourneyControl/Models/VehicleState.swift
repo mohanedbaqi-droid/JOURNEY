@@ -29,6 +29,14 @@ struct VehicleState: Codable {
     var simulatedLocked = true
     var simulatedEngineRunning = false
     var simulatedDoorsOpen = false
+    // Local demo controls; these are never decoded from live ESP packets.
+    var demoDriverFrontOpen = false
+    var demoPassengerFrontOpen = false
+    var demoDriverRearOpen = false
+    var demoPassengerRearOpen = false
+    var demoLiftgateOpen = false
+    var demoHoodOpen = false
+    var demoDRLOn = false
     var remotePowered = false
     var remotePowerStatePresent = false
     var feedbackStatePresent = false

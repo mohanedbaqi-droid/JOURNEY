@@ -33,7 +33,7 @@ private struct JourneyWidgetView: View {
             }
         }
         .journeyWidgetBackground { widgetBackground }
-        .widgetURL(URL(string: "journeycontrol://widget/open"))
+        .widgetURL(URL(string: "journey-demo://widget/open"))
     }
 
     private var smallWidget: some View {
@@ -111,7 +111,7 @@ private struct JourneyWidgetView: View {
     }
 
     private func actionLink(_ icon: String, path: String, tint: Color) -> some View {
-        Link(destination: URL(string: "journeycontrol://widget/\(path)")!) {
+        Link(destination: URL(string: "journey-demo://widget/\(path)")!) {
             Image(systemName: icon)
                 .font(.caption.bold())
                 .foregroundStyle(tint)

@@ -48,6 +48,7 @@ final class MQTTService: ObservableObject {
     /// Confirm a fresh ESP power report; a BLE write alone is not GPIO feedback.
     @MainActor
     func setRemotePower(_ enabled: Bool, for deviceID: String) async -> Bool {
+        if demoMode { return send(enabled ? .remotePowerOn : .remotePowerOff, to: deviceID) }
         guard pendingRemotePower[deviceID] == nil else { return false }
         let baseline = remotePowerUpdates[deviceID, default: 0]
         let rejectionBaseline = remotePowerRejections[deviceID, default: 0]
@@ -78,14 +79,22 @@ final class MQTTService: ObservableObject {
     @Published private(set) var buttonFeedback: [String: Set<String>] = [:]
 
     private var client: CocoaMQTT?
-    private let bluetooth = BluetoothVehicleService()
+    private lazy var bluetooth = BluetoothVehicleService()
+    let demoMode: Bool
     private let defaults = UserDefaults.standard
     private let passwordAccount = "mqtt-password"
     private var bluetoothRSSIByDevice: [String: Int] = [:]
     private var feedbackGeneration: [String: UUID] = [:]
     private var cancellables: Set<AnyCancellable> = []
 
-    init() {
+    init(demoMode: Bool = false) {
+        self.demoMode = demoMode
+        if demoMode {
+            connection = .disconnected
+            bluetoothStatus = "DEMO"
+            vehicles["journey-esp32s3-01"] = DemoVehicleSimulation.initialState()
+            return
+        }
         bluetooth.onState = { [weak self] deviceID, state in
             Task { @MainActor in
                 self?.receive(state, from: deviceID)
@@ -176,6 +185,7 @@ final class MQTTService: ObservableObject {
     }
 
     func connect() {
+        guard !demoMode else { return }
         let config = settings
         guard isConfigured else {
             connection = .notConfigured
@@ -281,6 +291,7 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     private func sendByConfiguredPriority(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        if demoMode { return applyDemoCommand(command, to: deviceID) }
         // Keyless remains BLE-first regardless of the configurable order.
         if isKeylessAction(command.action) || command.action == .remotePowerOn || command.action == .remotePowerOff {
             if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
@@ -359,6 +370,10 @@ final class MQTTService: ObservableObject {
 
     /// Registers the selected ESP32 for BLE background reconnection.
     func prepareBluetooth(for deviceID: String) {
+        if demoMode {
+            if vehicles[deviceID] == nil { vehicles[deviceID] = DemoVehicleSimulation.initialState() }
+            return
+        }
         restoreCachedOwnerStateIfNeeded(for: deviceID)
         bluetooth.prepareConnection(to: deviceID)
     }
@@ -367,6 +382,10 @@ final class MQTTService: ObservableObject {
     /// separate from sending a vehicle command, so the status becomes connected
     /// before the user touches any control.
     func resumeBluetooth(for deviceID: String) {
+        if demoMode {
+            if vehicles[deviceID] == nil { vehicles[deviceID] = DemoVehicleSimulation.initialState() }
+            return
+        }
         restoreCachedOwnerStateIfNeeded(for: deviceID)
         bluetooth.resumeConnection(to: deviceID)
     }
@@ -383,6 +402,7 @@ final class MQTTService: ObservableObject {
     /// still enforce authenticated BLE and its own RSSI calibration.
     @discardableResult
     func sendKeylessConfig(_ config: KeylessEntryConfig, to deviceID: String) -> Bool {
+        if demoMode { return applyDemoCommand(VehicleCommand(action: .keylessConfig, keyless: config), to: deviceID) }
         bluetooth.configureKeyless(config, for: deviceID)
         let command = VehicleCommand(action: .keylessConfig, keyless: config)
 
@@ -423,6 +443,50 @@ final class MQTTService: ObservableObject {
     /// v12.37: commands never fake vehicle/remote state locally.
     /// The ESP state packet is authoritative, so the key icon and notifications
     /// change only when the real remote-power GPIO changes on the ESP.
+    func demoToggle(_ item: String, for deviceID: String) {
+        guard demoMode else { return }
+        var state = vehicles[deviceID] ?? DemoVehicleSimulation.initialState()
+        DemoVehicleSimulation.toggle(item, state: &state)
+        vehicles[deviceID] = state
+        lastStateAt[deviceID] = Date()
+    }
+
+    @discardableResult
+    private func applyDemoCommand(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        var state = vehicles[deviceID] ?? DemoVehicleSimulation.initialState()
+        guard DemoVehicleSimulation.apply(command.action.rawValue, state: &state) else {
+            lastError = JL("هذا الإجراء يحتاج ESP حقيقي؛ غير متاح بالديمو", "This action requires a real ESP and is unavailable in Demo")
+            return false
+        }
+        if let settings = command.espSettings {
+            state.remotePulseMs = settings.remotePulseMs
+            state.remoteWakeDelayMs = settings.remoteWakeDelayMs
+            state.remotePowerOffDelayMs = settings.remotePowerOffDelayMs
+            state.hudBrightness = settings.hudBrightness
+        }
+        if let maintenance = command.maintenanceMode { state.maintenanceMode = maintenance }
+        if let powerSave = command.powerSave {
+            state.powerSaveMode = powerSave.mode
+            state.powerSaveIdleMinutes = powerSave.idleMinutes
+        }
+        vehicles[deviceID] = state
+        lastStateAt[deviceID] = Date()
+        lastFeedbackAt[deviceID] = Date()
+        lastCommand = command.action
+        lastCommandAt = Date()
+        lastError = nil
+        record(command.action)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard let self, var current = self.vehicles[deviceID] else { return }
+            current.feedbackLock = false; current.feedbackUnlock = false
+            current.feedbackStart = false; current.feedbackAlarm = false
+            current.hornActive = false
+            self.vehicles[deviceID] = current
+        }
+        return true
+    }
+
     private func applyLocal(_ action: BenchAction, to deviceID: String) {
         // v12.38: intentionally no optimistic UI mutation. The ESP is the only
         // source of truth for connection, remote power and button feedback.
