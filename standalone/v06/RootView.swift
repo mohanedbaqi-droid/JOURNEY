@@ -29,7 +29,10 @@ struct RootView: View {
             Group {
                 switch selectedTab {
                 case 1: GarageView()
-                case 2: SettingsView()
+                case 2: FleetMapView()
+                case 3: SettingsView()
+                case 4:
+                    NavigationStack { AboutView() }
                 default: homeView
                 }
             }
@@ -311,10 +314,12 @@ struct RootView: View {
     }
 
     private var liquidTabBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             tabButton(1, title: "الكراج", icon: "car.2.fill")
+            tabButton(2, title: "الخارطة", icon: "map.fill")
             tabButton(0, title: "الرئيسية", icon: "house.fill", prominent: true)
-            tabButton(2, title: "الإعدادات", icon: "gearshape.fill")
+            tabButton(3, title: "الإعدادات", icon: "gearshape.fill")
+            tabButton(4, title: "حول", icon: "info.circle.fill")
         }
         .padding(.horizontal, 14)
         .padding(.top, 9)
