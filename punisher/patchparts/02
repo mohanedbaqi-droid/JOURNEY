@@ -1,0 +1,74 @@
+ofiles.first { $0.id == id } }
++    static var brands: [String] { Array(Set(profiles.map(\.brand))).sorted() }
++    static func models(for brand: String) -> [String] { Array(Set(profiles.filter { $0.brand == brand }.map(\.model))).sorted() }
++    static func years(for brand: String, model: String) -> [Int] {
++        Array(Set(profiles.filter { $0.brand == brand && $0.model == model }.flatMap { Array($0.years) })).sorted(by: >)
++    }
++    static func resolve(brand: String, model: String, year: Int) -> PunisherVehicleProfile? {
++        profiles.first { $0.brand == brand && $0.model == model && $0.years.contains(year) }
++    }
++}
+ 
+ struct ContentView: View {
+     @EnvironmentObject private var mqtt: MQTTService
+@@ -32,8 +65,10 @@
+     @AppStorage("journey.settings.language") private var appLanguage = "ar"
+     @AppStorage("journey.settings.speedUnit") private var appSpeedUnit = "kmh"
+     @AppStorage("journey.settings.temperatureUnit") private var appTemperatureUnit = "c"
++    @AppStorage("punisher.vehicle.profileID") private var selectedVehicleProfileID = ""
+ 
+     private func appText(_ ar: String, _ en: String) -> String { appLanguage == "en" ? en : ar }
++    private var selectedVehicleProfile: PunisherVehicleProfile? { PunisherVehicleCatalog.profile(id: selectedVehicleProfileID) }
+ 
+     private var preferredScheme: ColorScheme? {
+         switch appAppearance {
+@@ -260,13 +295,15 @@
+         ScrollView {
+             VStack(spacing: 18) {
+                 AnyView(quickNavigation)
+-                AnyView(CarVisualView(state: vehicle))
+-                AnyView(statusStrip(vehicle))
+-                AnyView(mainControls(device, state: vehicle))
+-                AnyView(telemetryCard(vehicle))
+-                AnyView(keylessEntryCard)
+-                AnyView(systemHealthCard(device: device, state: vehicle))
+-                AnyView(ownerManagementCard(device: device, state: vehicle))
++                AnyView(vehicleVisualOrSelection(state: vehicle))
++                if selectedVehicleProfile != nil {
++                    AnyView(statusStrip(vehicle))
++                    AnyView(mainControls(device, state: vehicle))
++                    AnyView(telemetryCard(vehicle))
++                    AnyView(keylessEntryCard)
++                    AnyView(systemHealthCard(device: device, state: vehicle))
++                    AnyView(ownerManagementCard(device: device, state: vehicle))
++                }
+                 if let error = mqtt.lastError {
+                     Label(error, systemImage: "exclamationmark.triangle.fill")
+                         .font(.footnote)
+@@ -275,7 +312,7 @@
+                         .frame(maxWidth: .infinity, alignment: .leading)
+                         .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+                 }
+-                Text("JOURNEY CONNECTED CONTROL")
++                Text("PUNISHER DRIVE")
+                     .font(.caption2.weight(.bold))
+                     .tracking(2)
+                     .foregroundStyle(.white.opacity(0.34))
+@@ -286,15 +323,48 @@
+         }
+     }
+ 
++    @ViewBuilder
++    private func vehicleVisualOrSelection(state: VehicleState) -> some View {
++        if selectedVehicleProfile == nil {
++            Button {
++                showingMQTTSettings = true
++            } label: {
++                VStack(spacing: 14) {
++                    Image(systemName: "car.side.front.open")
++                        .font(.system(size: 52, weight: .semibold))
++                        .foregroundStyle(.cyan)
++                    Text(appText("اختيار نوع السيارة", "Choose vehicle type"))
++                        .font(.title3.bold())
++                        .foregroundStyle(.white)
++                    Text(appText("اختَر الماركة والموديل وسنة الصنع حتى يحمّل Punisher Drive بروفايل السيارة والإمكانيات المتاحة لها.", "Choose the make, model and year so Punisher D
