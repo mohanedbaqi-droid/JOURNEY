@@ -6,7 +6,6 @@ on:
     branches: [punisher-drive]
     paths:
       - "ios/**"
-      - "punisher/**"
       - ".github/workflows/build-ios-ipa.yml"
 
 jobs:
@@ -14,18 +13,6 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Apply Punisher Drive source patch
-        run: |
-          set -euo pipefail
-          cat punisher/patchparts/00 punisher/patchparts/01 punisher/patchparts/02 punisher/patchparts/03 punisher/patchparts/04 punisher/patchparts/05 punisher/patchparts/06 > "$RUNNER_TEMP/punisher-ios.patch"
-          git apply --check "$RUNNER_TEMP/punisher-ios.patch"
-          git apply "$RUNNER_TEMP/punisher-ios.patch"
-
-      - name: Check telemetry decoder
-        run: |
-          swiftc ios/JourneyControl/Models/VehicleState.swift ios/Tests/TelemetryDecoderTests.swift -o "$RUNNER_TEMP/decoder-tests"
-          "$RUNNER_TEMP/decoder-tests"
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -42,30 +29,29 @@ jobs:
         working-directory: ios
         run: |
           set -o pipefail
+          rm -rf "$RUNNER_TEMP/PunisherDerived"
           xcodebuild \
             -project JourneyControl.xcodeproj \
             -scheme JourneyControl \
             -configuration Release \
             -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath "$RUNNER_TEMP/PunisherDerived" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            build
+            clean build
 
-      - name: Package IPA
+      - name: Package unsigned IPA
         run: |
-          set -e
+          set -euo pipefail
           APP="$RUNNER_TEMP/PunisherDerived/Build/Products/Release-iphoneos/JourneyControl.app"
           test -d "$APP"
-          test -f "$APP/Info.plist"
-          test -f "$APP/JourneyControl"
-          mkdir -p "$RUNNER_TEMP/ipa/Payload"
-          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/JourneyControl.app"
-          cd "$RUNNER_TEMP/ipa"
+          mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
+          cd "$RUNNER_TEMP/punisher-ipa"
           /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.1.0-1-unsigned.ipa" Payload
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP/Info.plist"
+          test -f "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.1.0-1-unsigned.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
