@@ -1,0 +1,453 @@
+--- a/ios/JourneyControl/Info.plist
++++ b/ios/JourneyControl/Info.plist
+@@ -3,7 +3,7 @@
+ <plist version="1.0">
+ <dict>
+     <key>CFBundleDisplayName</key>
+-    <string>JOURNEY</string>
++    <string>Punisher Drive</string>
+     <key>CFBundleIdentifier</key>
+     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+     <key>CFBundleExecutable</key>
+@@ -15,9 +15,9 @@
+     <key>CFBundlePackageType</key>
+     <string>APPL</string>
+     <key>CFBundleShortVersionString</key>
+-    <string>2.4.18</string>
++    <string>0.1.0</string>
+     <key>CFBundleVersion</key>
+-    <string>50</string>
++    <string>1</string>
+     <key>LSRequiresIPhoneOS</key>
+     <true/>
+     <key>NSBluetoothAlwaysUsageDescription</key>
+@@ -34,10 +34,10 @@
+     <array>
+         <dict>
+             <key>CFBundleURLName</key>
+-            <string>com.abuseif.journey.nfc</string>
++            <string>com.abuseif.punisherdrive.nfc</string>
+             <key>CFBundleURLSchemes</key>
+             <array>
+-                <string>journey</string>
++                <string>punisherdrive</string>
+             </array>
+         </dict>
+     </array>
+@@ -45,7 +45,7 @@
+     <array>
+         <dict>
+             <key>UIApplicationShortcutItemType</key>
+-            <string>com.abuseif.journey.preview.lock</string>
++            <string>com.abuseif.punisherdrive.preview.lock</string>
+             <key>UIApplicationShortcutItemTitle</key>
+             <string>قفل السيارة</string>
+             <key>UIApplicationShortcutItemSubtitle</key>
+@@ -55,7 +55,7 @@
+         </dict>
+         <dict>
+             <key>UIApplicationShortcutItemType</key>
+-            <string>com.abuseif.journey.preview.unlock</string>
++            <string>com.abuseif.punisherdrive.preview.unlock</string>
+             <key>UIApplicationShortcutItemTitle</key>
+             <string>فتح السيارة</string>
+             <key>UIApplicationShortcutItemSubtitle</key>
+--- a/ios/JourneyControl/Models/VehicleCommand.swift
++++ b/ios/JourneyControl/Models/VehicleCommand.swift
+@@ -45,6 +45,7 @@
+     case cellularTest = "cellular_test"
+     case cellularForget = "cellular_forget"
+     case connectionPriority = "connection_priority"
++    case vehicleProfile = "vehicle_profile"
+ }
+ 
+ struct KeylessEntryConfig: Codable, Equatable {
+@@ -78,6 +79,7 @@
+     let wifiSettings: ESPWiFiSettings?
+     let cellularSettings: ESPCellularSettings?
+     let connectionPriority: ESPConnectionPriority?
++    let vehicleProfileID: String?
+ 
+     /// BLE commands must stay compact.  Encoding Swift optionals with the
+     /// compiler-generated encoder writes every unused field as `null`, which
+@@ -86,10 +88,10 @@
+     private enum CodingKeys: String, CodingKey {
+         case id, phoneID, action, schema, timestamp
+         case keyless, presence, espSettings, firmwareURL, maintenanceMode
+-        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings, cellularSettings, connectionPriority
+-    }
+-
+-    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil, connectionPriority: ESPConnectionPriority? = nil) {
++        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings, cellularSettings, connectionPriority, vehicleProfileID
++    }
++
++    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil, connectionPriority: ESPConnectionPriority? = nil, vehicleProfileID: String? = nil) {
+         self.id = UUID().uuidString
+         self.phoneID = AppConfig.phoneID
+         self.action = action
+@@ -107,6 +109,7 @@
+         self.wifiSettings = wifiSettings
+         self.cellularSettings = cellularSettings
+         self.connectionPriority = connectionPriority
++        self.vehicleProfileID = vehicleProfileID
+     }
+ 
+     func encode(to encoder: Encoder) throws {
+@@ -128,6 +131,7 @@
+         try container.encodeIfPresent(wifiSettings, forKey: .wifiSettings)
+         try container.encodeIfPresent(cellularSettings, forKey: .cellularSettings)
+         try container.encodeIfPresent(connectionPriority, forKey: .connectionPriority)
++        try container.encodeIfPresent(vehicleProfileID, forKey: .vehicleProfileID)
+     }
+ }
+ 
+@@ -310,6 +314,9 @@
+         case .cellularForget:
+             title = JL("مسح إعدادات الشريحة", "Clear cellular settings")
+             icon = "simcard"
++        case .vehicleProfile:
++            title = JL("تحديث بروفايل السيارة", "Update vehicle profile")
++            icon = "car.badge.gearshape"
+         case .connectionPriority:
+             title = JL("تحديث أولوية الاتصال", "Update connection priority")
+             icon = "arrow.up.arrow.down"
+--- a/ios/JourneyControl/Services/DeviceStore.swift
++++ b/ios/JourneyControl/Services/DeviceStore.swift
+@@ -18,14 +18,14 @@
+     init() {
+         if let data = UserDefaults.standard.data(forKey: devicesKey),
+            let decoded = try? JSONDecoder().decode([DeviceProfile].self, from: data) {
+-            devices = decoded.isEmpty ? [DeviceProfile(name: JL("سيارة جورني", "Journey vehicle"), deviceID: Self.productionDeviceID)] : decoded
++            devices = decoded.isEmpty ? [DeviceProfile(name: JL("سيارتي", "My vehicle"), deviceID: Self.productionDeviceID)] : decoded
+         } else {
+-            devices = [DeviceProfile(name: JL("سيارة جورني", "Journey vehicle"), deviceID: Self.productionDeviceID)]
++            devices = [DeviceProfile(name: JL("سيارتي", "My vehicle"), deviceID: Self.productionDeviceID)]
+         }
+ 
+         // Migrate only the old placeholder used by earlier build packages.
+         if let index = devices.firstIndex(where: { $0.deviceID == "demo-local" || $0.deviceID == "journey-bench-01" }) {
+-            devices[index].name = JL("سيارة جورني", "Journey vehicle")
++            devices[index].name = JL("سيارتي", "My vehicle")
+             devices[index].deviceID = Self.productionDeviceID
+         }
+ 
+--- a/ios/JourneyControl/Views/ContentView.swift
++++ b/ios/JourneyControl/Views/ContentView.swift
+@@ -5,6 +5,39 @@
+ import SwiftUI
+ import UIKit
+ import UniformTypeIdentifiers
++
++
++private struct PunisherVehicleProfile: Identifiable, Hashable {
++    let id: String
++    let brand: String
++    let model: String
++    let years: ClosedRange<Int>
++    let visualAsset: String?
++    let supportsLock: Bool
++    let supportsUnlock: Bool
++    let supportsRemoteStart: Bool
++    let supportsAlarm: Bool
++
++    var displayName: String { "\(brand) \(model)" }
++}
++
++private enum PunisherVehicleCatalog {
++    static let profiles: [PunisherVehicleProfile] = [
++        .init(id: "dodge_journey_2017", brand: "Dodge", model: "Journey", years: 2017...2017, visualAsset: "JourneySEClosed", supportsLock: true, supportsUnlock: true, supportsRemoteStart: true, supportsAlarm: true),
++        .init(id: "toyota_camry_2024", brand: "Toyota", model: "Camry", years: 2024...2024, visualAsset: nil, supportsLock: false, supportsUnlock: false, supportsRemoteStart: false, supportsAlarm: false),
++        .init(id: "toyota_land_cruiser_2024", brand: "Toyota", model: "Land Cruiser", years: 2024...2024, visualAsset: nil, supportsLock: false, supportsUnlock: false, supportsRemoteStart: false, supportsAlarm: false)
++    ]
++
++    static func profile(id: String) -> PunisherVehicleProfile? { profiles.first { $0.id == id } }
++    static var brands: [String] { Array(Set(profiles.map(\.brand))).sorted() }
++    static func models(for brand: String) -> [String] { Array(Set(profiles.filter { $0.brand == brand }.map(\.model))).sorted() }
++    static func years(for brand: String, model: String) -> [Int] {
++        Array(Set(profiles.filter { $0.brand == brand && $0.model == model }.flatMap { Array($0.years) })).sorted(by: >)
++    }
++    static func resolve(brand: String, model: String, year: Int) -> PunisherVehicleProfile? {
++        profiles.first { $0.brand == brand && $0.model == model && $0.years.contains(year) }
++    }
++}
+ 
+ struct ContentView: View {
+     @EnvironmentObject private var mqtt: MQTTService
+@@ -32,8 +65,10 @@
+     @AppStorage("journey.settings.language") private var appLanguage = "ar"
+     @AppStorage("journey.settings.speedUnit") private var appSpeedUnit = "kmh"
+     @AppStorage("journey.settings.temperatureUnit") private var appTemperatureUnit = "c"
++    @AppStorage("punisher.vehicle.profileID") private var selectedVehicleProfileID = ""
+ 
+     private func appText(_ ar: String, _ en: String) -> String { appLanguage == "en" ? en : ar }
++    private var selectedVehicleProfile: PunisherVehicleProfile? { PunisherVehicleCatalog.profile(id: selectedVehicleProfileID) }
+ 
+     private var preferredScheme: ColorScheme? {
+         switch appAppearance {
+@@ -260,13 +295,15 @@
+         ScrollView {
+             VStack(spacing: 18) {
+                 AnyView(quickNavigation)
+-                AnyView(CarVisualView(state: vehicle))
+-                AnyView(statusStrip(vehicle))
+-                AnyView(mainControls(device, state: vehicle))
+-                AnyView(telemetryCard(vehicle))
+-                AnyView(keylessEntryCard)
+-                AnyView(systemHealthCard(device: device, state: vehicle))
+-                AnyView(ownerManagementCard(device: device, state: vehicle))
++                AnyView(vehicleVisualOrSelection(state: vehicle))
++                if selectedVehicleProfile != nil {
++                    AnyView(statusStrip(vehicle))
++                    AnyView(mainControls(device, state: vehicle))
++                    AnyView(telemetryCard(vehicle))
++                    AnyView(keylessEntryCard)
++                    AnyView(systemHealthCard(device: device, state: vehicle))
++                    AnyView(ownerManagementCard(device: device, state: vehicle))
++                }
+             }
+             .padding(.horizontal)
+             .padding(.bottom, 30)
+@@ -277,6 +314,37 @@
+         .background(Color.black.ignoresSafeArea())
+     }
++
++    @ViewBuilder
++    private func vehicleVisualOrSelection(state: VehicleState) -> some View {
++        if let profile = selectedVehicleProfile {
++            VStack(spacing: 7) {
++                CarVisualView(state: state)
++                Text("\(profile.brand) \(profile.model)")
++                    .font(.caption.weight(.semibold))
++                    .foregroundStyle(.secondary)
++            }
++        } else {
++            Button {
++                selectedTab = .settings
++            } label: {
++                VStack(spacing: 14) {
++                    Image(systemName: "car.badge.gearshape")
++                        .font(.system(size: 40, weight: .semibold))
++                        .foregroundStyle(.blue)
++                    Text(appText("اختيار نوع السيارة", "Choose vehicle type"))
++                        .font(.title3.bold())
++                        .foregroundStyle(.primary)
++                    Text(appText("حدد ماركة الصنع والموديل وسنة الصنع حتى يتم تحميل بروفايل السيارة والإمكانيات المتاحة.", "Choose make, model and year to load the correct vehicle profile and available features."))
++                        .font(.footnote)
++                        .multilineTextAlignment(.center)
++                        .foregroundStyle(.secondary)
++                }
++                .frame(maxWidth: .infinity, minHeight: 235)
++                .padding(22)
++                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
++                .overlay(RoundedRectangle(cornerRadius: 26).stroke(.blue.opacity(0.35), lineWidth: 1))
++            }
++            .buttonStyle(.plain)
++        }
++    }
+ 
+     private func statusStrip(_ vehicle: VehicleState) -> some View {
+         HStack(spacing: 10) {
+@@ -355,10 +423,24 @@
+     private func mainControls(_ device: DeviceProfile, state: VehicleState) -> some View {
+         VStack(spacing: 12) {
+             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+-                largeControl(JL("قفل", "Lock"), subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID), feedbackKey: "lock") { mqtt.send(.lock, to: device.deviceID) }
+-                largeControl(JL("فتح", "Unlock"), subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID), feedbackKey: "unlock") { mqtt.send(.unlock, to: device.deviceID) }
+-                largeControl(JL("تشغيل", "Start"), subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID), feedbackKey: "start") { confirmStart = true }
+-                largeControl(JL("إنذار", "Alarm"), subtitle: "Alarm", icon: "bell.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID), feedbackKey: "alarm") { mqtt.send(.horn, to: device.deviceID) }
++                if selectedVehicleProfile?.supportsLock == true {
++                    largeControl(JL("قفل", "Lock"), subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID), feedbackKey: "lock") { mqtt.send(.lock, to: device.deviceID) }
++                }
++                if selectedVehicleProfile?.supportsUnlock == true {
++                    largeControl(JL("فتح", "Unlock"), subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID), feedbackKey: "unlock") { mqtt.send(.unlock, to: device.deviceID) }
++                }
++                if selectedVehicleProfile?.supportsRemoteStart == true {
++                    largeControl(JL("تشغيل", "Start"), subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID), feedbackKey: "start") { confirmStart = true }
++                }
++                if selectedVehicleProfile?.supportsAlarm == true {
++                    largeControl(JL("إنذار", "Alarm"), subtitle: "Alarm", icon: "bell.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID), feedbackKey: "alarm") { mqtt.send(.horn, to: device.deviceID) }
++                }
++            }
++            if let profile = selectedVehicleProfile,
++               !profile.supportsLock && !profile.supportsUnlock && !profile.supportsRemoteStart && !profile.supportsAlarm {
++                Label(JL("هذا البروفايل مضاف للمكتبة، وتفعيل أوامر التحكم الخاصة به سيكون بعد اعتماد بروتوكوله.", "This vehicle is in the catalog. Its control commands will be enabled after its protocol is verified."), systemImage: "wrench.and.screwdriver.fill")
++                    .font(.footnote)
++                    .foregroundStyle(.orange)
++                    .padding(12)
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+             }
+             // زر الطاقة تحت الأزرار وبعرض صف كامل، مثل حجم زرين متجاورين.
+             largeControl(
+@@ -2150,6 +2237,11 @@
+     @AppStorage("journey.settings.notifyLocks") private var notifyLocks = true
+     @AppStorage("journey.settings.notifyOBD") private var notifyOBD = false
+     @AppStorage("journey.settings.developerMode") private var developerMode = false
++    @AppStorage("punisher.vehicle.profileID") private var selectedVehicleProfileID = ""
++    @State private var vehicleBrand = ""
++    @State private var vehicleModel = ""
++    @State private var vehicleYear = 0
++    @State private var vehicleProfileMessage: String?
+ 
+     private func tr(_ ar: String, _ en: String) -> String { language == "en" ? en : ar }
+ 
+@@ -2168,6 +2260,59 @@
+     var body: some View {
+         NavigationStack {
+             Form {
++                Section {
++                    Picker(JL("ماركة الصنع", "Make"), selection: $vehicleBrand) {
++                        Text(JL("اختيار الماركة", "Choose make")).tag("")
++                        ForEach(PunisherVehicleCatalog.brands, id: \.self) { Text($0).tag($0) }
++                    }
++                    .onChange(of: vehicleBrand) { _, _ in
++                        let models = PunisherVehicleCatalog.models(for: vehicleBrand)
++                        if !models.contains(vehicleModel) { vehicleModel = models.first ?? "" }
++                        let years = PunisherVehicleCatalog.years(for: vehicleBrand, model: vehicleModel)
++                        if !years.contains(vehicleYear) { vehicleYear = years.first ?? 0 }
++                    }
++
++                    Picker(JL("الموديل", "Model"), selection: $vehicleModel) {
++                        Text(JL("اختيار الموديل", "Choose model")).tag("")
++                        ForEach(PunisherVehicleCatalog.models(for: vehicleBrand), id: \.self) { Text($0).tag($0) }
++                    }
++                    .disabled(vehicleBrand.isEmpty)
++                    .onChange(of: vehicleModel) { _, _ in
++                        let years = PunisherVehicleCatalog.years(for: vehicleBrand, model: vehicleModel)
++                        if !years.contains(vehicleYear) { vehicleYear = years.first ?? 0 }
++                    }
++
++                    Picker(JL("سنة الصنع", "Model year"), selection: $vehicleYear) {
++                        Text("—").tag(0)
++                        ForEach(PunisherVehicleCatalog.years(for: vehicleBrand, model: vehicleModel), id: \.self) { Text(String($0)).tag($0) }
++                    }
++                    .disabled(vehicleModel.isEmpty)
++
++                    Button {
++                        saveVehicleProfile()
++                    } label: {
++                        Label(JL("اعتماد نوع السيارة", "Apply vehicle"), systemImage: "car.badge.gearshape")
++                    }
++                    .buttonStyle(.borderedProminent)
++                    .disabled(PunisherVehicleCatalog.resolve(brand: vehicleBrand, model: vehicleModel, year: vehicleYear) == nil)
++
++                    if let profile = PunisherVehicleCatalog.profile(id: selectedVehicleProfileID) {
++                        LabeledContent(JL("السيارة الحالية", "Current vehicle"), value: "\(profile.brand) \(profile.model) \(vehicleYearFor(profile))")
++                    } else {
++                        Text(JL("لم يتم اختيار سيارة بعد. يبقى مكان نموذج السيارة في الرئيسية مخصصاً لاختيار النوع.", "No vehicle selected yet. The vehicle area on Home stays as the vehicle selector."))
++                            .font(.footnote)
++                            .foregroundStyle(.secondary)
++                    }
++
++                    if let vehicleProfileMessage {
++                        Text(JLStored(vehicleProfileMessage)).font(.footnote).foregroundStyle(.secondary)
++                    }
++                } header: {
++                    Label(JL("نوع السيارة", "Vehicle type"), systemImage: "car.fill")
++                } footer: {
++                    Text(JL("اختيار الماركة والموديل والسنة يحدد بروفايل السيارة ونموذجها والإمكانيات المتاحة، ويرسل معرف البروفايل إلى ESP تلقائياً.", "Make, model and year select the vehicle profile, visuals and available features, and send the profile ID to ESP automatically."))
++                }
++
+                 Section {
+                     Picker(tr(JL("المظهر", "Appearance"), "Appearance"), selection: $appearance) {
+                         Text(tr(JL("داكن", "Dark"), "Dark")).tag("dark")
+@@ -2496,6 +2641,7 @@
+                 }
+             }
+             .onAppear {
++                loadVehicleProfileSelection()
+                 let saved = mqtt.settings
+                 host = saved.host
+                 port = String(saved.port)
+@@ -2510,6 +2656,39 @@
+                 loadConnectionPriority()
+             }
+         }
++    }
++
++    private func vehicleYearFor(_ profile: PunisherVehicleProfile) -> Int {
++        if profile.years.contains(vehicleYear) { return vehicleYear }
++        return profile.years.upperBound
++    }
++
++    private func loadVehicleProfileSelection() {
++        guard let profile = PunisherVehicleCatalog.profile(id: selectedVehicleProfileID) else {
++            vehicleBrand = ""
++            vehicleModel = ""
++            vehicleYear = 0
++            return
++        }
++        vehicleBrand = profile.brand
++        vehicleModel = profile.model
++        vehicleYear = profile.years.upperBound
++    }
++
++    private func saveVehicleProfile() {
++        guard let profile = PunisherVehicleCatalog.resolve(brand: vehicleBrand, model: vehicleModel, year: vehicleYear) else {
++            vehicleProfileMessage = JL("اختيار السيارة غير مكتمل", "Vehicle selection is incomplete")
++            return
++        }
++        selectedVehicleProfileID = profile.id
++        guard let id = selectedDeviceID else {
++            vehicleProfileMessage = JL("تم حفظ السيارة في التطبيق. سيتم إرسال البروفايل إلى ESP عند توفر الجهاز.", "Vehicle saved in the app. The profile will be sent to ESP when the device is available.")
++            return
++        }
++        let command = VehicleCommand(action: .vehicleProfile, vehicleProfileID: profile.id)
++        vehicleProfileMessage = mqtt.sendESPCommand(command, to: id)
++            ? JL("تم اعتماد السيارة وإرسال البروفايل إلى ESP", "Vehicle applied and profile sent to ESP")
++            : JL("تم حفظ السيارة في التطبيق، وتعذر إرسال البروفايل إلى ESP حالياً", "Vehicle saved in the app, but the profile could not be sent to ESP right now")
+     }
+ 
+     private func loadConnectionPriority() {
+--- a/ios/JourneyWidget/Info.plist
++++ b/ios/JourneyWidget/Info.plist
+@@ -15,9 +15,9 @@
+     <key>CFBundlePackageType</key>
+     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+     <key>CFBundleShortVersionString</key>
+-    <string>2.4.18</string>
++    <string>0.1.0</string>
+     <key>CFBundleVersion</key>
+-    <string>50</string>
++    <string>1</string>
+     <key>NSExtension</key>
+     <dict>
+         <key>NSExtensionPointIdentifier</key>
+--- a/ios/project.yml
++++ b/ios/project.yml
+@@ -15,15 +15,15 @@
+       - JourneyControl
+     settings:
+       base:
+-        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
++        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.punisherdrive
+         INFOPLIST_FILE: JourneyControl/Info.plist
+         GENERATE_INFOPLIST_FILE: NO
+         SWIFT_VERSION: 5.9
+         DEVELOPMENT_TEAM: 6778LWD4ZB
+         CODE_SIGN_STYLE: Automatic
+         TARGETED_DEVICE_FAMILY: "1,2"
+-        MARKETING_VERSION: 2.4.18
+-        CURRENT_PROJECT_VERSION: 50
++        MARKETING_VERSION: 0.1.0
++        CURRENT_PROJECT_VERSION: 1
+     dependencies:
+       - package: CocoaMQTT
+       - target: JourneyWidgetExtension
+@@ -34,7 +34,7 @@
+       - JourneyWidget
+     settings:
+       base:
+-        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
++        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.punisherdrive.widget
+         PRODUCT_NAME: JourneyWidget
+         INFOPLIST_FILE: JourneyWidget/Info.plist
+         GENERATE_INFOPLIST_FILE: NO
+@@ -43,5 +43,5 @@
+         DEVELOPMENT_TEAM: 6778LWD4ZB
+         CODE_SIGN_STYLE: Automatic
+         TARGETED_DEVICE_FAMILY: "1,2"
+-        MARKETING_VERSION: 2.4.18
+-        CURRENT_PROJECT_VERSION: 50
++        MARKETING_VERSION: 0.1.0
++        CURRENT_PROJECT_VERSION: 1
