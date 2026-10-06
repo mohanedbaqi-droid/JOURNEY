@@ -93,10 +93,13 @@ struct VehicleAppearanceView: View {
                     ))
 
                 VStack(spacing: 6) {
-                    Image(systemName: "car.side.fill")
-                        .font(.system(size: 88, weight: .light))
-                        .foregroundStyle(Color(hex: selectedHex))
-                        .shadow(color: Color(hex: selectedHex).opacity(0.30), radius: 12)
+                    if let profile = vehicle.profile {
+                        VehicleAssetImage(
+                            profile: profile,
+                            colorHex: selectedHex,
+                            maxHeight: 118
+                        )
+                    }
 
                     Text(plateText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "رقم السيارة" : plateText)
                         .font(.system(size: 15, weight: .black, design: .monospaced))
