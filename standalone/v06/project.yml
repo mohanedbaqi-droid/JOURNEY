@@ -1,0 +1,22 @@
+name: PunisherDrive
+options:
+  bundleIdPrefix: com.abuseif
+  deploymentTarget:
+    iOS: "18.0"
+targets:
+  PunisherDrive:
+    type: application
+    platform: iOS
+    sources:
+      - PunisherDrive
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.punisherdrive
+        INFOPLIST_KEY_CFBundleDisplayName: "Punisher Drive"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_VERSION: 5.9
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MARKETING_VERSION: 0.6.0
+        CURRENT_PROJECT_VERSION: 7
