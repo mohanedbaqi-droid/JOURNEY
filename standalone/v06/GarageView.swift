@@ -70,10 +70,20 @@ struct GarageView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18)
                         .fill(.white.opacity(0.055))
-                        .frame(width: 86, height: 70)
-                    Image(systemName: "car.side.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(active ? .cyan : .white)
+                        .frame(width: 102, height: 74)
+
+                    if let profile {
+                        VehicleAssetImage(
+                            profile: profile,
+                            colorHex: vehicle.vehicleColorHex,
+                            maxHeight: 58
+                        )
+                        .frame(width: 94, height: 66)
+                    } else {
+                        Image(systemName: "car.side.fill")
+                            .font(.system(size: 34))
+                            .foregroundStyle(active ? .cyan : .white)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
