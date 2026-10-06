@@ -1,0 +1,71 @@
+deredProminent)
++                    .disabled(PunisherVehicleCatalog.resolve(brand: vehicleBrand, model: vehicleModel, year: vehicleYear) == nil)
++
++                    if let profile = PunisherVehicleCatalog.profile(id: selectedVehicleProfileID) {
++                        LabeledContent(JL("السيارة الحالية", "Current vehicle"), value: "\(profile.brand) \(profile.model) \(vehicleYearFor(profile))")
++                    } else {
++                        Text(JL("لم يتم اختيار سيارة بعد. يبقى مكان نموذج السيارة في الرئيسية مخصصاً لاختيار النوع.", "No vehicle selected yet. The vehicle area on Home stays as the vehicle selector."))
++                            .font(.footnote)
++                            .foregroundStyle(.secondary)
++                    }
++
++                    if let vehicleProfileMessage {
++                        Text(JLStored(vehicleProfileMessage)).font(.footnote).foregroundStyle(.secondary)
++                    }
++                } header: {
++                    Label(JL("نوع السيارة", "Vehicle type"), systemImage: "car.fill")
++                } footer: {
++                    Text(JL("اختيار الماركة والموديل والسنة يحدد بروفايل السيارة ونموذجها والإمكانيات المتاحة، ويرسل معرف البروفايل إلى ESP تلقائياً.", "Make, model and year select the vehicle profile, visuals and available features, and send the profile ID to ESP automatically."))
++                }
++
+                 Section {
+                     Picker(tr(JL("المظهر", "Appearance"), "Appearance"), selection: $appearance) {
+                         Text(tr(JL("داكن", "Dark"), "Dark")).tag("dark")
+@@ -2496,6 +2641,7 @@
+                 }
+             }
+             .onAppear {
++                loadVehicleProfileSelection()
+                 let saved = mqtt.settings
+                 host = saved.host
+                 port = String(saved.port)
+@@ -2510,6 +2656,39 @@
+                 loadConnectionPriority()
+             }
+         }
++    }
++
++    private func vehicleYearFor(_ profile: PunisherVehicleProfile) -> Int {
++        if profile.years.contains(vehicleYear) { return vehicleYear }
++        return profile.years.upperBound
++    }
++
++    private func loadVehicleProfileSelection() {
++        guard let profile = PunisherVehicleCatalog.profile(id: selectedVehicleProfileID) else {
++            vehicleBrand = ""
++            vehicleModel = ""
++            vehicleYear = 0
++            return
++        }
++        vehicleBrand = profile.brand
++        vehicleModel = profile.model
++        vehicleYear = profile.years.upperBound
++    }
++
++    private func saveVehicleProfile() {
++        guard let profile = PunisherVehicleCatalog.resolve(brand: vehicleBrand, model: vehicleModel, year: vehicleYear) else {
++            vehicleProfileMessage = JL("اختيار السيارة غير مكتمل", "Vehicle selection is incomplete")
++            return
++        }
++        selectedVehicleProfileID = profile.id
++        guard let id = selectedDeviceID else {
++            vehicleProfileMessage = JL("تم حفظ السيارة في التطبيق. سيتم إرسال البروفايل إلى ESP عند توفر الجهاز.", "Vehicle saved in the app. The profile will be sent to ESP when the device is available.")
++            return
++        }
++        let command = VehicleCommand(action: .vehicleProfile, vehicleProfileID: profile.id)
++        vehicleProfileMessage = mqtt.sendESPCommand(command, to: id)
++            ? JL("تم اعتماد السيارة وإرسال البروفايل إلى ESP", "Vehicle applied and profile sent to ESP")
++            : JL("تم حفظ السيارة في التطبيق، وتعذر إرسال البروفايل إلى ESP حالياً", "Vehicle saved in the app, but the profile could not be sent to ESP right now")
+     }
+ 
+     privat
