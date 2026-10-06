@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.6.3 IPA
+name: Build Punisher Drive Standalone v0.7.0 IPA
 
 on:
   workflow_dispatch:
@@ -8,6 +8,7 @@ on:
       - "standalone/v04/**"
       - "standalone/v05/**"
       - "standalone/v06/**"
+      - "standalone/v07/**"
       - ".github/workflows/build-ios-ipa.yml"
 
 jobs:
@@ -16,233 +17,165 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore standalone base and apply v0.6 UI
+      - name: Restore standalone base and apply v0.7 UI
         run: |
           set -euo pipefail
           cat standalone/v04/part00.b64 standalone/v04/part01.b64 standalone/v04/part02.b64 standalone/v04/part03.b64 standalone/v04/part04.b64 > "$RUNNER_TEMP/pd_v04.b64"
           base64 -D -i "$RUNNER_TEMP/pd_v04.b64" -o "$RUNNER_TEMP/pd_v04.zip"
           rm -rf PunisherDrive PunisherDrive.xcodeproj project.yml
           unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
-          cp standalone/v06/project.yml project.yml
-          cp standalone/v06/RootView.swift PunisherDrive/Views/RootView.swift
-          cp standalone/v06/GarageView.swift PunisherDrive/Views/GarageView.swift
+          cp standalone/v07/project.yml project.yml
+          cp standalone/v07/PunisherDriveApp.swift PunisherDrive/PunisherDriveApp.swift
+          cp standalone/v07/LaunchSplashView.swift PunisherDrive/Views/LaunchSplashView.swift
+          cp standalone/v07/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
+          cp standalone/v07/RootView.swift PunisherDrive/Views/RootView.swift
+          cp standalone/v07/GarageView.swift PunisherDrive/Views/GarageView.swift
           cp standalone/v06/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
           cp standalone/v06/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
-          cp standalone/v06/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
+          cp standalone/v07/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
           cp standalone/v06/FleetMapView.swift PunisherDrive/Views/FleetMapView.swift
-                    cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
+          cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
           cp standalone/v05/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
-          cp standalone/v06/AboutView.swift PunisherDrive/Views/AboutView.swift
-          cp standalone/v06/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
-          test -f PunisherDrive/PunisherDriveApp.swift
+          cp standalone/v07/AboutView.swift PunisherDrive/Views/AboutView.swift
 
-      - name: Generate Punisher red-cyan app icon
+      - name: Install image tools
+        run: |
+          brew install librsvg
+          python3 -m venv "$RUNNER_TEMP/pdvenv"
+          source "$RUNNER_TEMP/pdvenv/bin/activate"
+          python -m pip install --upgrade pip
+          python -m pip install pillow rembg onnxruntime
+
+      - name: Build approved Punisher assets
         run: |
           set -euo pipefail
           mkdir -p PunisherDrive/Assets.xcassets/AppIcon.appiconset
+          mkdir -p PunisherDrive/Assets.xcassets/PunisherMark.imageset
+
+          rsvg-convert -w 1024 -h 1024 standalone/v07/assets/PunisherMark.svg -o "$RUNNER_TEMP/PunisherMark-1024.png"
+          cp "$RUNNER_TEMP/PunisherMark-1024.png" PunisherDrive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          cp "$RUNNER_TEMP/PunisherMark-1024.png" PunisherDrive/Assets.xcassets/PunisherMark.imageset/PunisherMark.png
+
           cat > PunisherDrive/Assets.xcassets/Contents.json <<'JSON'
-          {
-            "info" : { "author" : "xcode", "version" : 1 }
-          }
+          {"info":{"author":"xcode","version":1}}
           JSON
           cat > PunisherDrive/Assets.xcassets/AppIcon.appiconset/Contents.json <<'JSON'
           {
-            "images" : [
-              {
-                "filename" : "AppIcon-1024.png",
-                "idiom" : "universal",
-                "platform" : "ios",
-                "size" : "1024x1024"
-              }
-            ],
-            "info" : { "author" : "xcode", "version" : 1 }
+            "images":[{"filename":"AppIcon-1024.png","idiom":"universal","platform":"ios","size":"1024x1024"}],
+            "info":{"author":"xcode","version":1}
           }
           JSON
-          cat > "$RUNNER_TEMP/make_icon.swift" <<'SWIFT'
-          import AppKit
-
-          let size = NSSize(width: 1024, height: 1024)
-          let image = NSImage(size: size)
-          image.lockFocus()
-          let rect = NSRect(origin: .zero, size: size)
-          NSGradient(
-            colors: [
-              NSColor(calibratedRed: 0.005, green: 0.008, blue: 0.015, alpha: 1),
-              NSColor(calibratedRed: 0.075, green: 0.005, blue: 0.012, alpha: 1),
-              NSColor(calibratedRed: 0.0, green: 0.08, blue: 0.12, alpha: 1)
-            ]
-          )!.draw(in: rect, angle: -55)
-
-          let ring = NSBezierPath(ovalIn: NSRect(x: 108, y: 108, width: 808, height: 808))
-          ring.lineWidth = 28
-          NSColor(calibratedRed: 0.0, green: 0.78, blue: 1.0, alpha: 0.72).setStroke()
-          ring.stroke()
-
-          let arc = NSBezierPath()
-          arc.appendArc(withCenter: NSPoint(x: 512, y: 512), radius: 404, startAngle: 28, endAngle: 152)
-          arc.lineWidth = 34
-          arc.lineCapStyle = .round
-          NSColor(calibratedRed: 1.0, green: 0.05, blue: 0.04, alpha: 0.94).setStroke()
-          arc.stroke()
-
-          let skull = "☠" as NSString
-          let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 620, weight: .black),
-            .foregroundColor: NSColor(calibratedRed: 0.94, green: 0.05, blue: 0.035, alpha: 1)
-          ]
-          let s = skull.size(withAttributes: attrs)
-          skull.draw(at: NSPoint(x: (1024-s.width)/2, y: 190), withAttributes: attrs)
-
-          image.unlockFocus()
-          guard let tiff = image.tiffRepresentation,
-                let rep = NSBitmapImageRep(data: tiff),
-                let png = rep.representation(using: .png, properties: [.compressionFactor: 1.0]) else {
-            fatalError("icon generation failed")
+          cat > PunisherDrive/Assets.xcassets/PunisherMark.imageset/Contents.json <<'JSON'
+          {
+            "images":[
+              {"filename":"PunisherMark.png","idiom":"universal","scale":"1x"},
+              {"idiom":"universal","scale":"2x"},
+              {"idiom":"universal","scale":"3x"}
+            ],
+            "info":{"author":"xcode","version":1}
           }
-          try png.write(to: URL(fileURLWithPath: "PunisherDrive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"))
-          SWIFT
-          swift "$RUNNER_TEMP/make_icon.swift"
-          test -s PunisherDrive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          JSON
 
-      - name: Download 56 vehicle images into assets
+      - name: Prepare 56 clean transparent vehicle assets
         run: |
           set -euo pipefail
-          python3 <<'PY'
-          import json, os, re, time, urllib.parse, urllib.request, subprocess
+          source "$RUNNER_TEMP/pdvenv/bin/activate"
+          python <<'PY'
+          import io, json, os, time, urllib.parse, urllib.request
+          from PIL import Image
+          from rembg import remove, new_session
 
-          profiles_path = "PunisherDrive/Resources/vehicle_profiles.json"
-          assets_root = "PunisherDrive/Assets.xcassets"
-          os.makedirs(assets_root, exist_ok=True)
+          profiles_path="PunisherDrive/Resources/vehicle_profiles.json"
+          assets_root="PunisherDrive/Assets.xcassets"
+          with open(profiles_path,encoding="utf-8") as f:
+              profiles=json.load(f)
+          assert len(profiles)==56, len(profiles)
 
-          with open(profiles_path, "r", encoding="utf-8") as f:
-              profiles = json.load(f)
+          headers={"User-Agent":"PunisherDriveAssets/0.7.0"}
+          session=new_session("u2netp")
 
-          headers = {"User-Agent": "PunisherDriveVehicleAssets/0.6.3 (GitHub Actions)"}
-          manifest = []
-          failures = []
+          def bing_url(q):
+              qq=urllib.parse.quote_plus(q)
+              return f"https://tse1.mm.bing.net/th?q={qq}&w=1600&h=1050&c=7&rs=1&p=0"
 
-          def fetch_json(url):
-              req = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(req, timeout=25) as r:
-                  return json.load(r)
+          def download(url):
+              req=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(req,timeout=40) as r:
+                  data=r.read()
+              if len(data)<7000:
+                  raise RuntimeError("image too small")
+              return data
 
-          def image_from_wikipedia(query):
-              params = {
-                  "action": "query",
-                  "generator": "search",
-                  "gsrsearch": query,
-                  "gsrnamespace": "0",
-                  "gsrlimit": "8",
-                  "prop": "pageimages|info",
-                  "piprop": "thumbnail|original",
-                  "pithumbsize": "1400",
-                  "inprop": "url",
-                  "format": "json",
-                  "origin": "*",
-              }
-              url = "https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode(params)
-              data = fetch_json(url)
-              pages = list((data.get("query") or {}).get("pages", {}).values())
-              pages.sort(key=lambda p: p.get("index", 9999))
-              for page in pages:
-                  thumb = (page.get("thumbnail") or {}).get("source")
-                  if thumb and "logo" not in thumb.lower() and "badge" not in thumb.lower():
-                      return thumb, page.get("fullurl") or "", page.get("title") or query
-              return None
-
-          def image_from_bing(query):
-              q = urllib.parse.quote_plus(query + " white car side view")
-              return f"https://tse1.mm.bing.net/th?q={q}&w=1200&h=700&c=7&rs=1&p=0", "https://www.bing.com/images/search?q=" + q, query
-
-          def download(url, dest):
-              req = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(req, timeout=35) as r:
-                  ctype = (r.headers.get("Content-Type") or "").lower()
-                  data = r.read()
-              if len(data) < 5000:
-                  raise RuntimeError(f"image too small: {len(data)} bytes")
-              tmp = dest + ".download"
-              with open(tmp, "wb") as f:
-                  f.write(data)
-              subprocess.run(["sips", "-s", "format", "jpeg", tmp, "--out", dest], check=True,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-              os.remove(tmp)
-              if os.path.getsize(dest) < 5000:
-                  raise RuntimeError("converted image too small")
-
-          for idx, profile in enumerate(profiles, 1):
-              asset = profile["assetKey"]
-              make = profile["make"]
-              model = profile["model"]
-              generation = profile.get("generation", "")
-              queries = [
-                  f"{make} {model} {generation} automobile",
-                  f"{make} {model} car",
-              ]
-
-              chosen = None
-              for query in queries:
-                  try:
-                      chosen = image_from_wikipedia(query)
-                  except Exception as e:
-                      print(f"[WARN] Wikipedia {asset}: {e}")
-                  if chosen:
-                      break
-
-              if not chosen:
-                  chosen = image_from_bing(f"{make} {model} {generation}")
-
-              imageset = os.path.join(assets_root, asset + ".imageset")
-              os.makedirs(imageset, exist_ok=True)
-              dest = os.path.join(imageset, asset + ".jpg")
-              source_url = chosen[1]
-              source_title = chosen[2]
-
+          def clean_asset(data):
               try:
-                  download(chosen[0], dest)
-              except Exception as first_error:
-                  print(f"[WARN] primary image failed {asset}: {first_error}")
+                  out=remove(data,session=session)
+                  im=Image.open(io.BytesIO(out)).convert("RGBA")
+              except Exception:
+                  im=Image.open(io.BytesIO(data)).convert("RGBA")
+                  pix=im.load()
+                  for y in range(im.height):
+                      for x in range(im.width):
+                          r,g,b,a=pix[x,y]
+                          if r>238 and g>238 and b>238:
+                              pix[x,y]=(r,g,b,0)
+              bbox=im.getbbox()
+              if bbox:
+                  im=im.crop(bbox)
+              canvas=Image.new("RGBA",(1500,1000),(0,0,0,0))
+              maxw,maxh=1380,900
+              scale=min(maxw/im.width,maxh/im.height)
+              nw,nh=max(1,int(im.width*scale)),max(1,int(im.height*scale))
+              im=im.resize((nw,nh),Image.Resampling.LANCZOS)
+              x=(1500-nw)//2
+              y=(1000-nh)//2
+              canvas.alpha_composite(im,(x,y))
+              return canvas
+
+          manifest=[]
+          for i,p in enumerate(profiles,1):
+              asset=p["assetKey"]
+              make=p["make"]; model=p["model"]; gen=p.get("generation","")
+              queries=[
+                  f"{make} {model} {gen} white front three quarter view transparent png",
+                  f"{make} {model} {gen} silver front 3/4 studio car",
+                  f"{make} {model} white front three quarter"
+              ]
+              last=None
+              for q in queries:
                   try:
-                      fallback = image_from_bing(f"{make} {model} {generation}")
-                      download(fallback[0], dest)
-                      source_url, source_title = fallback[1], fallback[2]
-                  except Exception as second_error:
-                      failures.append((asset, str(second_error)))
-                      print(f"[FAIL] {asset}: {second_error}")
-                      continue
+                      data=download(bing_url(q))
+                      car=clean_asset(data)
+                      if car.getbbox() and car.getbbox()[2]-car.getbbox()[0] > 500:
+                          last=(q,car)
+                          break
+                  except Exception as e:
+                      print("retry",asset,e)
+              if not last:
+                  raise RuntimeError(f"failed image {asset}")
+              q,car=last
+              imageset=os.path.join(assets_root,asset+".imageset")
+              os.makedirs(imageset,exist_ok=True)
+              dest=os.path.join(imageset,asset+".png")
+              car.save(dest,optimize=True)
+              with open(os.path.join(imageset,"Contents.json"),"w") as f:
+                  json.dump({
+                      "images":[
+                          {"filename":asset+".png","idiom":"universal","scale":"1x"},
+                          {"idiom":"universal","scale":"2x"},
+                          {"idiom":"universal","scale":"3x"}
+                      ],
+                      "info":{"author":"xcode","version":1}
+                  },f)
+              manifest.append({"assetKey":asset,"query":q})
+              print(f"[{i:02d}/56] {asset}")
+              time.sleep(.04)
 
-              contents = {
-                  "images": [
-                      {"filename": asset + ".jpg", "idiom": "universal", "scale": "1x"},
-                      {"idiom": "universal", "scale": "2x"},
-                      {"idiom": "universal", "scale": "3x"}
-                  ],
-                  "info": {"author": "xcode", "version": 1}
-              }
-              with open(os.path.join(imageset, "Contents.json"), "w", encoding="utf-8") as f:
-                  json.dump(contents, f, ensure_ascii=False, indent=2)
-
-              manifest.append({
-                  "assetKey": asset,
-                  "make": make,
-                  "model": model,
-                  "source": source_url,
-                  "sourceTitle": source_title
-              })
-              print(f"[{idx:02d}/{len(profiles)}] {asset} OK")
-              time.sleep(0.08)
-
-          manifest_path = "PunisherDrive/Resources/vehicle_image_sources.json"
-          with open(manifest_path, "w", encoding="utf-8") as f:
-              json.dump(manifest, f, ensure_ascii=False, indent=2)
-
-          print(f"VEHICLE_IMAGE_COUNT={len(manifest)}")
-          if failures or len(manifest) != len(profiles):
-              print("FAILURES:", failures)
-              raise SystemExit(f"Expected {len(profiles)} images, got {len(manifest)}")
+          with open("PunisherDrive/Resources/vehicle_image_sources.json","w") as f:
+              json.dump(manifest,f,ensure_ascii=False,indent=2)
+          if len(manifest)!=56:
+              raise SystemExit("expected 56 assets")
           PY
-
-          test "$(find PunisherDrive/Assets.xcassets -maxdepth 1 -name '*.imageset' | wc -l | tr -d ' ')" -eq 56
+          test "$(find PunisherDrive/Assets.xcassets -maxdepth 1 -name '*.imageset' | grep -v PunisherMark | wc -l | tr -d ' ')" -eq 56
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -273,11 +206,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.3-10-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.3-10-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.0-11-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.0-11-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-0.6.3-10-TEST-IPA
-          path: PUNISHER-DRIVE-0.6.3-10-TEST.ipa
+          name: PUNISHER-DRIVE-IOS-0.7.0-11-TEST-IPA
+          path: PUNISHER-DRIVE-IOS-0.7.0-11-TEST.ipa
           if-no-files-found: error
