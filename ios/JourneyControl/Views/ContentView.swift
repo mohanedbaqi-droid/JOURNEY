@@ -251,7 +251,7 @@ struct ContentView: View {
         ScrollView {
             VStack(spacing: 18) {
                 AnyView(quickNavigation)
-                AnyView(CarVisualView(state: vehicle))
+                AnyView(CarVisualView(state: vehicle).padding(.horizontal, -14))
                 AnyView(DemoControlsView(deviceID: device.deviceID, state: vehicle).environmentObject(mqtt))
                 AnyView(statusStrip(vehicle))
                 AnyView(mainControls(device, state: vehicle))
