@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDisplayName</key>
-    <string>JOURNEY</string>
+    <string>Punisher Drive</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleExecutable</key>
@@ -15,67 +15,22 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.4.18</string>
+    <string>0.1.0</string>
     <key>CFBundleVersion</key>
-    <string>50</string>
+    <string>1</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>يتصل التطبيق مباشرةً ببورد ESP32 للتحكم المحلي بالسيارة وقراءة حالتها عند عدم توفر الإنترنت أو الشريحة.</string>
+    <string>يتصل التطبيق مباشرةً بوحدة Punisher Drive للتحكم المحلي بالسيارة وقراءة حالتها.</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>يتصل التطبيق بشبكة ESP32 المحلية لرفع تحديث firmware من الآيفون.</string>
+    <string>يتصل التطبيق بشبكة وحدة Punisher Drive المحلية للتحديث والاتصال.</string>
     <key>UIBackgroundModes</key>
-    <array>
-        <string>bluetooth-central</string>
-    </array>
+    <array><string>bluetooth-central</string></array>
     <key>NSFaceIDUsageDescription</key>
-    <string>يستخدم التطبيق Face ID لتأكيد اختصارات الشاشة الرئيسية ومفتاح NFC قبل إرسال أمر إلى ESP.</string>
+    <string>يستخدم التطبيق Face ID لتأكيد أوامر التحكم الحساسة.</string>
     <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>com.abuseif.journey.nfc</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>journey</string>
-            </array>
-        </dict>
-    </array>
-    <key>UIApplicationShortcutItems</key>
-    <array>
-        <dict>
-            <key>UIApplicationShortcutItemType</key>
-            <string>com.abuseif.journey.preview.lock</string>
-            <key>UIApplicationShortcutItemTitle</key>
-            <string>قفل السيارة</string>
-            <key>UIApplicationShortcutItemSubtitle</key>
-            <string>يتطلب Face ID</string>
-            <key>UIApplicationShortcutItemIconType</key>
-            <string>UIApplicationShortcutIconTypeLock</string>
-        </dict>
-        <dict>
-            <key>UIApplicationShortcutItemType</key>
-            <string>com.abuseif.journey.preview.unlock</string>
-            <key>UIApplicationShortcutItemTitle</key>
-            <string>فتح السيارة</string>
-            <key>UIApplicationShortcutItemSubtitle</key>
-            <string>يتطلب Face ID</string>
-            <key>UIApplicationShortcutItemIconType</key>
-            <string>UIApplicationShortcutIconTypeUnlock</string>
-        </dict>
-    </array>
-    <key>UILaunchScreen</key>
-    <dict/>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
+    <array><dict><key>CFBundleURLName</key><string>com.abuseif.punisherdrive.nfc</string><key>CFBundleURLSchemes</key><array><string>punisherdrive</string></array></dict></array>
+    <key>UILaunchScreen</key><dict/>
+    <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
 </dict>
 </plist>
