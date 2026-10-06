@@ -41,6 +41,8 @@ class DashboardSmokeTest {
  private fun capture(name:String){
   val i=InstrumentationRegistry.getInstrumentation()
   i.waitForIdleSync()
+  UiDevice.getInstance(i).waitForIdle()
+  Thread.sleep(400)
   val image=i.uiAutomation.takeScreenshot()
   assertNotNull(image)
   val dir=File(i.targetContext.getExternalFilesDir(null),"ui-review").also{it.mkdirs()}

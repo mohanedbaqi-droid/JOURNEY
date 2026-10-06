@@ -23,8 +23,14 @@ jobs:
       - name: Preserve install signing key
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: journey-android-install-signing-v1
+          path: Android/.signing/debug.keystore
+          key: journey-android-install-signing-v2
+      - name: Prepare persistent install signing key
+        run: |
+          mkdir -p Android/.signing
+          if [ ! -f Android/.signing/debug.keystore ]; then
+            keytool -genkeypair -keystore Android/.signing/debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=JOURNEY Android Test,O=Journey,C=IQ"
+          fi
       - name: Test and build signed install APK
         working-directory: Android
         run: gradle testDebugUnitTest assembleDebug assembleDebugAndroidTest --stacktrace

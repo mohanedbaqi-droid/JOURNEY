@@ -33,7 +33,7 @@ private val English=staticCompositionLocalOf{false}
   MaterialTheme(colorScheme=if(dark)darkColorScheme(
    primary=Cyan,onPrimary=Color.Black,primaryContainer=Color(0xFF082D3B),onPrimaryContainer=Cyan,
    background=Color(0xFF02070C),onBackground=Color(0xFFF2F6FA),surface=Color(0xFF09141F),onSurface=Color(0xFFF2F6FA),
-   surfaceVariant=Color(0xFF122330),onSurfaceVariant=Color(0xFF98ADB9),outline=Color(0xFF254353),secondary=Cyan,tertiary=Cyan
+   surfaceVariant=Color(0xFF122330),onSurfaceVariant=Color(0xFF98ADB9),outline=Color(0xFF254353),secondary=Cyan,tertiary=Cyan,secondaryContainer=Color(0xFF133C4A),onSecondaryContainer=Cyan,surfaceTint=Color.Transparent,surfaceContainer=Color(0xFF09141F),surfaceContainerLow=Color(0xFF09141F),surfaceContainerHighest=Color(0xFF122330)
   )else lightColorScheme(primary=Color(0xFF006E88),onPrimary=Color.White,primaryContainer=Color(0xFFE0F4FB),onPrimaryContainer=Color(0xFF006078),background=Color(0xFFF2F7FA),surface=Color.White,onSurface=Color(0xFF12232D),surfaceVariant=Color(0xFFE4EEF3),onSurfaceVariant=Color(0xFF536876),outline=Color(0xFFCEDFE7))){
    Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Header(vm,s){tab=5}},bottomBar={Nav(tab){tab=it}}){pad->Box(Modifier.padding(pad).fillMaxSize()){when(tab){0->About(s);1->Obd(vm,s);2->Home(vm,s);3->Car(vm,s);4->MapPage(s);else->Settings(vm,s)}}}
   }
