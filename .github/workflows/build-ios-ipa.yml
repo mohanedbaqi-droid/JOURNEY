@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.5.1 IPA
+name: Build Punisher Drive Standalone v0.6.0 IPA
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
     paths:
       - "standalone/v04/**"
       - "standalone/v05/**"
+      - "standalone/v06/**"
       - ".github/workflows/build-ios-ipa.yml"
 
 jobs:
@@ -15,21 +16,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore standalone base and apply v0.5 UI
+      - name: Restore standalone base and apply v0.6 UI
         run: |
           set -euo pipefail
           cat standalone/v04/part00.b64 standalone/v04/part01.b64 standalone/v04/part02.b64 standalone/v04/part03.b64 standalone/v04/part04.b64 > "$RUNNER_TEMP/pd_v04.b64"
           base64 -D -i "$RUNNER_TEMP/pd_v04.b64" -o "$RUNNER_TEMP/pd_v04.zip"
           rm -rf PunisherDrive PunisherDrive.xcodeproj project.yml
           unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
-          cp standalone/v05/project.yml project.yml
-          cp standalone/v05/RootView.swift PunisherDrive/Views/RootView.swift
+          cp standalone/v06/project.yml project.yml
+          cp standalone/v06/RootView.swift PunisherDrive/Views/RootView.swift
           cp standalone/v05/GarageView.swift PunisherDrive/Views/GarageView.swift
-          cp standalone/v05/SettingsView.swift PunisherDrive/Views/SettingsView.swift
+          cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
           cp standalone/v05/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
+          cp standalone/v06/AboutView.swift PunisherDrive/Views/AboutView.swift
+          cp standalone/v06/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
           test -f PunisherDrive/PunisherDriveApp.swift
 
-      - name: Generate Punisher app icon
+      - name: Generate Punisher red-cyan app icon
         run: |
           set -euo pipefail
           mkdir -p PunisherDrive/Assets.xcassets/AppIcon.appiconset
@@ -58,45 +61,39 @@ jobs:
           let image = NSImage(size: size)
           image.lockFocus()
           let rect = NSRect(origin: .zero, size: size)
+          NSGradient(
+            colors: [
+              NSColor(calibratedRed: 0.005, green: 0.008, blue: 0.015, alpha: 1),
+              NSColor(calibratedRed: 0.075, green: 0.005, blue: 0.012, alpha: 1),
+              NSColor(calibratedRed: 0.0, green: 0.08, blue: 0.12, alpha: 1)
+            ]
+          )!.draw(in: rect, angle: -55)
 
-          let bg1 = NSColor(calibratedRed: 0.015, green: 0.025, blue: 0.055, alpha: 1)
-          let bg2 = NSColor(calibratedRed: 0.00, green: 0.23, blue: 0.34, alpha: 1)
-          NSGradient(starting: bg1, ending: bg2)!.draw(in: rect, angle: -45)
+          let ring = NSBezierPath(ovalIn: NSRect(x: 108, y: 108, width: 808, height: 808))
+          ring.lineWidth = 28
+          NSColor(calibratedRed: 0.0, green: 0.78, blue: 1.0, alpha: 0.72).setStroke()
+          ring.stroke()
 
-          let glow = NSBezierPath(ovalIn: NSRect(x: 580, y: 540, width: 360, height: 360))
-          NSColor(calibratedRed: 0.0, green: 0.75, blue: 1.0, alpha: 0.16).setFill()
-          glow.fill()
+          let arc = NSBezierPath()
+          arc.appendArc(withCenter: NSPoint(x: 512, y: 512), radius: 404, startAngle: 28, endAngle: 152)
+          arc.lineWidth = 34
+          arc.lineCapStyle = .round
+          NSColor(calibratedRed: 1.0, green: 0.05, blue: 0.04, alpha: 0.94).setStroke()
+          arc.stroke()
 
-          let p = "P" as NSString
+          let skull = "☠" as NSString
           let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 590, weight: .black),
-            .foregroundColor: NSColor(calibratedWhite: 0.93, alpha: 1)
+            .font: NSFont.systemFont(ofSize: 620, weight: .black),
+            .foregroundColor: NSColor(calibratedRed: 0.94, green: 0.05, blue: 0.035, alpha: 1)
           ]
-          let pSize = p.size(withAttributes: attrs)
-          p.draw(at: NSPoint(x: 132, y: 215), withAttributes: attrs)
-
-          let road = NSBezierPath()
-          road.lineWidth = 34
-          road.lineCapStyle = .round
-          road.move(to: NSPoint(x: 498, y: 170))
-          road.line(to: NSPoint(x: 730, y: 815))
-          NSColor(calibratedRed: 0.0, green: 0.82, blue: 1.0, alpha: 0.95).setStroke()
-          road.stroke()
-
-          let dash = NSBezierPath()
-          dash.lineWidth = 12
-          dash.lineCapStyle = .round
-          dash.setLineDash([42, 34], count: 2, phase: 0)
-          dash.move(to: NSPoint(x: 525, y: 210))
-          dash.line(to: NSPoint(x: 716, y: 760))
-          NSColor.white.withAlphaComponent(0.88).setStroke()
-          dash.stroke()
+          let s = skull.size(withAttributes: attrs)
+          skull.draw(at: NSPoint(x: (1024-s.width)/2, y: 190), withAttributes: attrs)
 
           image.unlockFocus()
           guard let tiff = image.tiffRepresentation,
                 let rep = NSBitmapImageRep(data: tiff),
                 let png = rep.representation(using: .png, properties: [.compressionFactor: 1.0]) else {
-              fatalError("Unable to generate icon")
+            fatalError("icon generation failed")
           }
           try png.write(to: URL(fileURLWithPath: "PunisherDrive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png"))
           SWIFT
@@ -113,24 +110,13 @@ jobs:
         run: |
           set -o pipefail
           rm -rf "$RUNNER_TEMP/PunisherDerived"
-          xcodebuild \
-            -project PunisherDrive.xcodeproj \
-            -scheme PunisherDrive \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath "$RUNNER_TEMP/PunisherDerived" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            clean build
+          xcodebuild             -project PunisherDrive.xcodeproj             -scheme PunisherDrive             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -derivedDataPath "$RUNNER_TEMP/PunisherDerived"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             clean build
 
       - name: Verify icon and sign app
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/PunisherDerived/Build/Products/Release-iphoneos/PunisherDrive.app"
           test -d "$APP"
-          ls -lah "$APP"
           test -f "$APP/Assets.car"
           /usr/bin/codesign --force --deep --sign - --timestamp=none "$APP"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
@@ -139,17 +125,15 @@ jobs:
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/PunisherDerived/Build/Products/Release-iphoneos/PunisherDrive.app"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP/Info.plist"
           rm -rf "$RUNNER_TEMP/punisher-ipa"
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.5.1-6-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.5.1-6-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.0-7-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.0-7-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-0.5.1-6-TEST-IPA
-          path: PUNISHER-DRIVE-0.5.1-6-TEST.ipa
+          name: PUNISHER-DRIVE-0.6.0-7-TEST-IPA
+          path: PUNISHER-DRIVE-0.6.0-7-TEST.ipa
           if-no-files-found: error
