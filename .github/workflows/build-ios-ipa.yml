@@ -18,8 +18,10 @@ jobs:
       - name: Apply Punisher Drive source overlay
         run: |
           set -euo pipefail
-          test -f punisher/punisher-ios-overlay.zip
-          unzip -oq punisher/punisher-ios-overlay.zip -d .
+          test -f punisher/chunks/00.txt
+          /usr/bin/base64 -D < punisher/chunks/00.txt > "$RUNNER_TEMP/punisher-ios-overlay.zip"
+          unzip -t "$RUNNER_TEMP/punisher-ios-overlay.zip"
+          unzip -oq "$RUNNER_TEMP/punisher-ios-overlay.zip" -d .
 
       - name: Check telemetry decoder
         run: |
