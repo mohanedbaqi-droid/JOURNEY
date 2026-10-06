@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.6.2 IPA
+name: Build Punisher Drive Standalone v0.6.3 IPA
 
 on:
   workflow_dispatch:
@@ -28,6 +28,7 @@ jobs:
           cp standalone/v06/GarageView.swift PunisherDrive/Views/GarageView.swift
           cp standalone/v06/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
           cp standalone/v06/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
+          cp standalone/v06/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
           cp standalone/v06/FleetMapView.swift PunisherDrive/Views/FleetMapView.swift
                     cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
           cp standalone/v05/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
@@ -103,6 +104,146 @@ jobs:
           swift "$RUNNER_TEMP/make_icon.swift"
           test -s PunisherDrive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
 
+      - name: Download 56 vehicle images into assets
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, os, re, time, urllib.parse, urllib.request, subprocess
+
+          profiles_path = "PunisherDrive/Resources/vehicle_profiles.json"
+          assets_root = "PunisherDrive/Assets.xcassets"
+          os.makedirs(assets_root, exist_ok=True)
+
+          with open(profiles_path, "r", encoding="utf-8") as f:
+              profiles = json.load(f)
+
+          headers = {"User-Agent": "PunisherDriveVehicleAssets/0.6.3 (GitHub Actions)"}
+          manifest = []
+          failures = []
+
+          def fetch_json(url):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=25) as r:
+                  return json.load(r)
+
+          def image_from_wikipedia(query):
+              params = {
+                  "action": "query",
+                  "generator": "search",
+                  "gsrsearch": query,
+                  "gsrnamespace": "0",
+                  "gsrlimit": "8",
+                  "prop": "pageimages|info",
+                  "piprop": "thumbnail|original",
+                  "pithumbsize": "1400",
+                  "inprop": "url",
+                  "format": "json",
+                  "origin": "*",
+              }
+              url = "https://en.wikipedia.org/w/api.php?" + urllib.parse.urlencode(params)
+              data = fetch_json(url)
+              pages = list((data.get("query") or {}).get("pages", {}).values())
+              pages.sort(key=lambda p: p.get("index", 9999))
+              for page in pages:
+                  thumb = (page.get("thumbnail") or {}).get("source")
+                  if thumb and "logo" not in thumb.lower() and "badge" not in thumb.lower():
+                      return thumb, page.get("fullurl") or "", page.get("title") or query
+              return None
+
+          def image_from_bing(query):
+              q = urllib.parse.quote_plus(query + " white car side view")
+              return f"https://tse1.mm.bing.net/th?q={q}&w=1200&h=700&c=7&rs=1&p=0", "https://www.bing.com/images/search?q=" + q, query
+
+          def download(url, dest):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=35) as r:
+                  ctype = (r.headers.get("Content-Type") or "").lower()
+                  data = r.read()
+              if len(data) < 5000:
+                  raise RuntimeError(f"image too small: {len(data)} bytes")
+              tmp = dest + ".download"
+              with open(tmp, "wb") as f:
+                  f.write(data)
+              subprocess.run(["sips", "-s", "format", "jpeg", tmp, "--out", dest], check=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+              os.remove(tmp)
+              if os.path.getsize(dest) < 5000:
+                  raise RuntimeError("converted image too small")
+
+          for idx, profile in enumerate(profiles, 1):
+              asset = profile["assetKey"]
+              make = profile["make"]
+              model = profile["model"]
+              generation = profile.get("generation", "")
+              queries = [
+                  f"{make} {model} {generation} automobile",
+                  f"{make} {model} car",
+              ]
+
+              chosen = None
+              for query in queries:
+                  try:
+                      chosen = image_from_wikipedia(query)
+                  except Exception as e:
+                      print(f"[WARN] Wikipedia {asset}: {e}")
+                  if chosen:
+                      break
+
+              if not chosen:
+                  chosen = image_from_bing(f"{make} {model} {generation}")
+
+              imageset = os.path.join(assets_root, asset + ".imageset")
+              os.makedirs(imageset, exist_ok=True)
+              dest = os.path.join(imageset, asset + ".jpg")
+              source_url = chosen[1]
+              source_title = chosen[2]
+
+              try:
+                  download(chosen[0], dest)
+              except Exception as first_error:
+                  print(f"[WARN] primary image failed {asset}: {first_error}")
+                  try:
+                      fallback = image_from_bing(f"{make} {model} {generation}")
+                      download(fallback[0], dest)
+                      source_url, source_title = fallback[1], fallback[2]
+                  except Exception as second_error:
+                      failures.append((asset, str(second_error)))
+                      print(f"[FAIL] {asset}: {second_error}")
+                      continue
+
+              contents = {
+                  "images": [
+                      {"filename": asset + ".jpg", "idiom": "universal", "scale": "1x"},
+                      {"idiom": "universal", "scale": "2x"},
+                      {"idiom": "universal", "scale": "3x"}
+                  ],
+                  "info": {"author": "xcode", "version": 1}
+              }
+              with open(os.path.join(imageset, "Contents.json"), "w", encoding="utf-8") as f:
+                  json.dump(contents, f, ensure_ascii=False, indent=2)
+
+              manifest.append({
+                  "assetKey": asset,
+                  "make": make,
+                  "model": model,
+                  "source": source_url,
+                  "sourceTitle": source_title
+              })
+              print(f"[{idx:02d}/{len(profiles)}] {asset} OK")
+              time.sleep(0.08)
+
+          manifest_path = "PunisherDrive/Resources/vehicle_image_sources.json"
+          with open(manifest_path, "w", encoding="utf-8") as f:
+              json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+          print(f"VEHICLE_IMAGE_COUNT={len(manifest)}")
+          if failures or len(manifest) != len(profiles):
+              print("FAILURES:", failures)
+              raise SystemExit(f"Expected {len(profiles)} images, got {len(manifest)}")
+          PY
+
+          test "$(find PunisherDrive/Assets.xcassets -maxdepth 1 -name '*.imageset' | wc -l | tr -d ' ')" -eq 56
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -132,11 +273,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.2-9-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.2-9-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.3-10-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.3-10-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-0.6.2-9-TEST-IPA
-          path: PUNISHER-DRIVE-0.6.2-9-TEST.ipa
+          name: PUNISHER-DRIVE-0.6.3-10-TEST-IPA
+          path: PUNISHER-DRIVE-0.6.3-10-TEST.ipa
           if-no-files-found: error
