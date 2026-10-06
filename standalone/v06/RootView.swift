@@ -178,10 +178,11 @@ struct RootView: View {
                     }
 
                 VStack(spacing: 7) {
-                    Image(systemName: "car.side.fill")
-                        .font(.system(size: 72, weight: .light))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(Color(hex: vehicle.vehicleColorHex))
+                    VehicleAssetImage(
+                        profile: profile,
+                        colorHex: vehicle.vehicleColorHex,
+                        maxHeight: 96
+                    )
 
                     Text(vehicle.vehiclePlateText.isEmpty ? "رقم السيارة" : vehicle.vehiclePlateText)
                         .font(.system(size: 12, weight: .black, design: .monospaced))
