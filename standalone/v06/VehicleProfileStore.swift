@@ -13,6 +13,14 @@ struct GarageVehicle: Codable, Identifiable, Hashable {
     var colorHex: String?
     var plateText: String?
 
+    // Live telemetry is stored per garage vehicle so fleet map can show all cars.
+    // Optional fields preserve compatibility with vehicles already saved by older builds.
+    var latitude: Double?
+    var longitude: Double?
+    var speedKmh: Double?
+    var telemetryOnline: Bool?
+    var telemetryUpdatedAt: Date?
+
     init(
         id: UUID = UUID(),
         profileID: String,
@@ -21,7 +29,12 @@ struct GarageVehicle: Codable, Identifiable, Hashable {
         espDeviceID: String? = nil,
         espDisplayName: String? = nil,
         colorHex: String? = "#F2F2F2",
-        plateText: String? = nil
+        plateText: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        speedKmh: Double? = nil,
+        telemetryOnline: Bool? = nil,
+        telemetryUpdatedAt: Date? = nil
     ) {
         self.id = id
         self.profileID = profileID
@@ -31,6 +44,11 @@ struct GarageVehicle: Codable, Identifiable, Hashable {
         self.espDisplayName = espDisplayName
         self.colorHex = colorHex
         self.plateText = plateText
+        self.latitude = latitude
+        self.longitude = longitude
+        self.speedKmh = speedKmh
+        self.telemetryOnline = telemetryOnline
+        self.telemetryUpdatedAt = telemetryUpdatedAt
     }
 
     var profile: VehicleProfile? {
@@ -63,6 +81,14 @@ struct GarageVehicle: Codable, Identifiable, Hashable {
     var vehiclePlateText: String {
         (plateText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    var hasGPSFix: Bool {
+        guard let latitude, let longitude else { return false }
+        return (-90...90).contains(latitude) && (-180...180).contains(longitude)
+    }
+
+    var currentSpeedKmh: Double { max(0, speedKmh ?? 0) }
+    var isTelemetryOnline: Bool { telemetryOnline ?? false }
 }
 
 @MainActor
@@ -121,6 +147,47 @@ final class VehicleProfileStore: ObservableObject {
         vehicles[index].plateText = plateText.trimmingCharacters(in: .whitespacesAndNewlines)
         persist()
         if activeVehicleID == vehicle.id { postVehicleChanged(vehicles[index]) }
+    }
+
+    func updateTelemetry(
+        vehicleID: UUID,
+        latitude: Double?,
+        longitude: Double?,
+        speedKmh: Double?,
+        online: Bool,
+        updatedAt: Date = Date()
+    ) {
+        guard let index = vehicles.firstIndex(where: { $0.id == vehicleID }) else { return }
+        if let latitude, (-90...90).contains(latitude) { vehicles[index].latitude = latitude }
+        if let longitude, (-180...180).contains(longitude) { vehicles[index].longitude = longitude }
+        if let speedKmh { vehicles[index].speedKmh = max(0, speedKmh) }
+        vehicles[index].telemetryOnline = online
+        vehicles[index].telemetryUpdatedAt = updatedAt
+        persist()
+        NotificationCenter.default.post(
+            name: .punisherTelemetryChanged,
+            object: nil,
+            userInfo: ["garageVehicleID": vehicleID.uuidString]
+        )
+    }
+
+    func updateTelemetry(
+        espDeviceID: String,
+        latitude: Double?,
+        longitude: Double?,
+        speedKmh: Double?,
+        online: Bool,
+        updatedAt: Date = Date()
+    ) {
+        guard let vehicle = vehicles.first(where: { $0.espDeviceID == espDeviceID }) else { return }
+        updateTelemetry(
+            vehicleID: vehicle.id,
+            latitude: latitude,
+            longitude: longitude,
+            speedKmh: speedKmh,
+            online: online,
+            updatedAt: updatedAt
+        )
     }
 
     func bindESP(_ vehicle: GarageVehicle, deviceID: String, displayName: String = "") {
@@ -234,4 +301,5 @@ final class VehicleProfileStore: ObservableObject {
 extension Notification.Name {
     static let punisherVehicleProfileChanged = Notification.Name("punisherVehicleProfileChanged")
     static let punisherESPBindingChanged = Notification.Name("punisherESPBindingChanged")
+    static let punisherTelemetryChanged = Notification.Name("punisherTelemetryChanged")
 }
