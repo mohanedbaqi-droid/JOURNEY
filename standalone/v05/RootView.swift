@@ -27,8 +27,15 @@ struct RootView: View {
                 default: homeView
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) { topHeader }
-            .safeAreaInset(edge: .bottom, spacing: 0) { liquidTabBar }
+            .padding(.top, 92)
+            .padding(.bottom, 92)
+
+            VStack(spacing: 0) {
+                topHeader
+                Spacer(minLength: 0)
+                liquidTabBar
+            }
+            .ignoresSafeArea(edges: [.top, .bottom])
         }
         .sheet(isPresented: $showPicker) {
             VehiclePickerView(title: garage.vehicles.isEmpty ? "اختيار أول سيارة" : "إضافة سيارة")
@@ -69,7 +76,8 @@ struct RootView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 9)
+        .padding(.top, 48)
+        .padding(.bottom, 10)
         .background { Color.black.opacity(0.94).ignoresSafeArea(edges: .top) }
         .overlay(alignment: .bottom) {
             Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5)
@@ -77,7 +85,12 @@ struct RootView: View {
     }
 
     private var headerSubtitle: String {
-        garage.activeVehicle?.displayName ?? "Smart Vehicle Control"
+        {
+            guard let vehicle = garage.activeVehicle, let profile = vehicle.profile else {
+                return "Smart Vehicle Control"
+            }
+            return "\(profile.make) \(profile.model) \(String(format: "%d", vehicle.year))"
+        }()
     }
 
     private var homeView: some View {
@@ -104,7 +117,7 @@ struct RootView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(vehicle.displayName)
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                    Text("\(profile.make) \(profile.model) • \(vehicle.year)")
+                    Text("\(profile.make) \(profile.model) • \(String(format: "%d", vehicle.year))")
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.58))
                 }
@@ -130,7 +143,7 @@ struct RootView: View {
                     }
                 VStack(spacing: 10) {
                     Image(systemName: "car.side.fill")
-                        .font(.system(size: 86, weight: .light))
+                        .font(.system(size: 72, weight: .light))
                         .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(.white)
                     Text(profile.assetKey)
@@ -138,9 +151,9 @@ struct RootView: View {
                         .foregroundStyle(.white.opacity(0.35))
                 }
             }
-            .frame(height: 210)
+            .frame(height: 152)
         }
-        .glassCard(padding: 16)
+        .glassCard(padding: 14)
     }
 
     private func statusStrip(vehicle: GarageVehicle) -> some View {
@@ -197,7 +210,7 @@ struct RootView: View {
                     .font(.caption2)
                     .foregroundStyle(enabled ? .green : .white.opacity(0.45))
             }
-            .frame(maxWidth: .infinity, minHeight: 98)
+            .frame(maxWidth: .infinity, minHeight: 82)
             .background(.white.opacity(enabled ? 0.075 : 0.035), in: RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.08)))
         }
@@ -221,7 +234,7 @@ struct RootView: View {
             Text(value).font(.subheadline.bold()).lineLimit(1)
             Text(subtitle).font(.caption2).foregroundStyle(.white.opacity(0.38)).lineLimit(1)
         }
-        .frame(maxWidth: .infinity, minHeight: 108, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
         .padding(12)
         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.07)))
@@ -261,7 +274,7 @@ struct RootView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 9)
-        .padding(.bottom, 8)
+        .padding(.bottom, 28)
         .background { Color.black.opacity(0.96).ignoresSafeArea(edges: .bottom) }
         .overlay(alignment: .top) {
             Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5)
