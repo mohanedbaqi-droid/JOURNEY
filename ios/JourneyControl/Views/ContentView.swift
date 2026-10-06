@@ -251,7 +251,7 @@ struct ContentView: View {
         ScrollView {
             VStack(spacing: 18) {
                 AnyView(quickNavigation)
-                AnyView(CarVisualView(state: vehicle).padding(.horizontal, -14))
+                AnyView(JourneySelectedCarView(state: vehicle).padding(.horizontal, -14))
                 AnyView(DemoControlsView(deviceID: device.deviceID, state: vehicle).environmentObject(mqtt))
                 AnyView(statusStrip(vehicle))
                 AnyView(mainControls(device, state: vehicle))
@@ -2169,6 +2169,7 @@ private struct MQTTSettingsView: View {
                     Label(tr(JL("المظهر واللغة", "Appearance and language"), "Appearance & Language"), systemImage: "paintbrush.pointed.fill")
                 }
 
+                JourneyCarAppearanceSettingsSection()
                 JourneyWallpaperSettingsSection()
                 JourneyWidgetSettingsSection()
 
