@@ -9,7 +9,7 @@ data class VehicleState(
     val lightsValid:Boolean=false, val turnsValid:Boolean=false, val leftSignal:Boolean=false, val rightSignal:Boolean=false,
     val rpmValid:Boolean=false, val speedValid:Boolean=false, val coolantValid:Boolean=false, val fuelValid:Boolean=false,
     val feedbackLock:Boolean=false, val feedbackUnlock:Boolean=false, val feedbackStart:Boolean=false, val feedbackAlarm:Boolean=false,
-    val remotePowered:Boolean=false, val rpm:Int=0, val speed:Int=0, val coolant:Int=0, val fuel:Int=0,
+    val firmwareVersion:String="", val remotePowered:Boolean=false, val rpm:Int=0, val speed:Int=0, val coolant:Int=0, val fuel:Int=0,
     val battery:Double=0.0, val obdConnected:Boolean=false, val obdStatus:String="waiting", val diagnostics:String="",
     val wifiEnabled:Boolean=false, val wifiConnected:Boolean=false, val wifiSsid:String="", val wifiStatus:String="off",
     val cellularEnabled:Boolean=false, val cellularStatus:String="off", val cellularNetwork:String="",
@@ -54,6 +54,7 @@ object JourneyStateDecoder {
         val rpm=i("rpm","r",old.rpm)
         val result=old.copy(
             online=true,lastPacket=now,lastBody=if(body)now else old.lastBody,lastObd=if(obd)now else old.lastObd,lastFeedback=if(feedback)now else old.lastFeedback,
+            firmwareVersion=t("firmwareVersion","fw",old.firmwareVersion),
             locked=b("simulatedLocked","lk",old.locked),remotePowered=b("remotePowered","rp",old.remotePowered),
             doorsOpen=if(body)b("simulatedDoorsOpen","do") else old.doorsOpen,
             doorOpenMask=if(body)i("doorOpenMask","dm") else old.doorOpenMask,doorKnownMask=if(body)i("doorKnownMask","dk") else old.doorKnownMask,

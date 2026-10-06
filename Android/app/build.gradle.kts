@@ -10,8 +10,8 @@ android {
         applicationId = "com.journey.control"
         minSdk = 21
         targetSdk = 35
-        versionCode = 63
-        versionName = "2.4.31"
+        versionCode = 64
+        versionName = "2.4.32"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }

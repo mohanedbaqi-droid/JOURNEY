@@ -35,11 +35,11 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -4
-          cp "$APK" JOURNEY-Android-2.4.31-63.apk
+          cp "$APK" JOURNEY-Android-2.4.32-64.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-Android-2.4.31-63-APK
-          path: JOURNEY-Android-2.4.31-63.apk
+          name: JOURNEY-Android-2.4.32-64-APK
+          path: JOURNEY-Android-2.4.32-64.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

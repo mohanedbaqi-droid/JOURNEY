@@ -11,6 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -24,55 +28,115 @@ private val Cyan=Color(0xFF35D9FF)
 private val English=staticCompositionLocalOf{false}
 @Composable private fun L(ar:String,en:String)=if(English.current)en else ar
 @Composable fun JourneyApp(vm:JourneyViewModel){
- val s by vm.state.collectAsState();val en by vm.english.collectAsState();val dark by vm.dark.collectAsState();var tab by remember{mutableIntStateOf(2)}
+ val s by vm.state.collectAsState();val en by vm.english.collectAsState();val dark by vm.dark.collectAsState();var tab by rememberSaveable{mutableIntStateOf(2)}
  CompositionLocalProvider(English provides en,LocalLayoutDirection provides if(en)LayoutDirection.Ltr else LayoutDirection.Rtl){
-  MaterialTheme(colorScheme=if(dark)darkColorScheme(primary=Cyan,background=Color.Black,surface=Color(0xFF06121E))else lightColorScheme(primary=Color(0xFF006881),surface=Color(0xFFECF5F8))){
-   Scaffold(topBar={Header(vm,s){tab=5}},bottomBar={Nav(tab){tab=it}}){pad->Box(Modifier.padding(pad).fillMaxSize()){when(tab){0->About();1->Obd(vm,s);2->Home(vm,s);3->Car(vm,s);4->MapPage(s);else->Settings(vm,s)}}}
+  MaterialTheme(colorScheme=if(dark)darkColorScheme(
+   primary=Cyan,onPrimary=Color.Black,primaryContainer=Color(0xFF082D3B),onPrimaryContainer=Cyan,
+   background=Color(0xFF02070C),onBackground=Color(0xFFF2F6FA),surface=Color(0xFF09141F),onSurface=Color(0xFFF2F6FA),
+   surfaceVariant=Color(0xFF122330),onSurfaceVariant=Color(0xFF98ADB9),outline=Color(0xFF254353),secondary=Cyan,tertiary=Cyan
+  )else lightColorScheme(primary=Color(0xFF006E88),onPrimary=Color.White,primaryContainer=Color(0xFFE0F4FB),onPrimaryContainer=Color(0xFF006078),background=Color(0xFFF2F7FA),surface=Color.White,onSurface=Color(0xFF12232D),surfaceVariant=Color(0xFFE4EEF3),onSurfaceVariant=Color(0xFF536876),outline=Color(0xFFCEDFE7))){
+   Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Header(vm,s){tab=5}},bottomBar={Nav(tab){tab=it}}){pad->Box(Modifier.padding(pad).fillMaxSize()){when(tab){0->About(s);1->Obd(vm,s);2->Home(vm,s);3->Car(vm,s);4->MapPage(s);else->Settings(vm,s)}}}
   }
  }
 }
 @Composable private fun Header(vm:JourneyViewModel,s:VehicleState,settings:()->Unit){
  val status by vm.status.collectAsState()
- Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal=16.dp,vertical=8.dp)){
-  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){IconButton(settings){Icon(Icons.Default.Menu,L("الإعدادات","Settings"),tint=Cyan)};Column(horizontalAlignment=Alignment.CenterHorizontally){Text("J O U R N E Y",fontWeight=FontWeight.Black,style=MaterialTheme.typography.headlineSmall);Text(L("سيارة جورني","Journey vehicle"),style=MaterialTheme.typography.labelMedium)};Icon(Icons.Default.Bluetooth,null,tint=if(s.online)Cyan else Color.Gray)}
-  Text(statusText(status),color=if(s.online)Cyan else MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelSmall)
+ Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal=16.dp,vertical=6.dp)){
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr){
+   Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
+    IconButton(settings,Modifier.testTag("settings")){Icon(Icons.Default.Menu,L("الإعدادات","Settings"),tint=MaterialTheme.colorScheme.primary)}
+    Column(horizontalAlignment=Alignment.CenterHorizontally){Text("J O U R N E Y",fontWeight=FontWeight.Black,style=MaterialTheme.typography.titleLarge);Text(L("سيارة جورني","Journey vehicle"),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelMedium)}
+    Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),contentAlignment=Alignment.Center){Icon(Icons.Default.Bluetooth,L("البلوتوث","Bluetooth"),tint=if(s.online)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
+   }
+  }
+  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
+   Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)){Box(Modifier.size(6.dp).background(if(s.online)Color(0xFF40D89C)else Color(0xFF71828D),CircleShape));Text(statusText(status),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelSmall,modifier=Modifier.widthIn(max=240.dp),maxLines=2)}
+   if(!s.online)TextButton({vm.connect()},contentPadding=PaddingValues(horizontal=10.dp,vertical=0.dp)){Text(L("ربط ESP","Connect ESP"),style=MaterialTheme.typography.labelMedium)}
+  }
  }
 }
 @Composable private fun statusText(s:String):String=when(s){"CONNECTED"->L("BLE متصل","BLE connected");"SEARCHING"->L("جاري البحث عن ESP","Searching for ESP");"CONNECTING"->L("جاري الربط","Connecting");"SENT_WAITING_ESP"->L("تم الإرسال؛ بانتظار رد ESP","Sent; waiting for ESP");"BLE_PERMISSION"->L("اسمح بالبلوتوث من إعدادات التطبيق","Allow Bluetooth in app settings");"BLE_DISABLED"->L("فعّل البلوتوث","Enable Bluetooth");"NOT_FOUND"->L("لم نجد ESP؛ أعد البحث","ESP not found; search again");"NO_CONNECTION","DISCONNECTED"->L("غير متصل","Disconnected");else->s}
-@Composable private fun Nav(sel:Int,set:(Int)->Unit)=NavigationBar{
- listOf(L("معلومات","About") to Icons.Default.Info,"OBD" to Icons.Default.Build,L("الرئيسية","Home") to Icons.Default.Home,L("السيارة","Car") to Icons.Default.DirectionsCar,L("الخريطة","Map") to Icons.Default.Map).forEachIndexed{i,x->NavigationBarItem(selected=sel==i,onClick={set(i)},icon={Icon(x.second,null)},label={Text(x.first,maxLines=1)},alwaysShowLabel=true)}
+@Composable private fun Nav(sel:Int,set:(Int)->Unit){
+ val labels=listOf(L("معلومات","About"),"OBD",L("الرئيسية","Home"),L("السيارة","Car"),L("الخريطة","Map"))
+ val icons=listOf(Icons.Default.Info,Icons.Default.Build,Icons.Default.Home,Icons.Default.DirectionsCar,Icons.Default.Map)
+ val scheme=MaterialTheme.colorScheme
+ Box(Modifier.fillMaxWidth().background(scheme.background).navigationBarsPadding().padding(horizontal=12.dp,vertical=8.dp)){
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr){
+   Row(Modifier.fillMaxWidth().border(1.dp,scheme.outline.copy(alpha=.6f),RoundedCornerShape(34.dp)).background(scheme.surface,RoundedCornerShape(34.dp)).padding(5.dp),verticalAlignment=Alignment.CenterVertically){
+    for(i in labels.indices){
+     Column(Modifier.weight(1f).clip(RoundedCornerShape(28.dp)).clickable{set(i)}.testTag("nav_$i").padding(vertical=5.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(3.dp)){
+      if(i==2)Box(Modifier.size(46.dp).background(if(sel==i)scheme.primary else scheme.primaryContainer,CircleShape),contentAlignment=Alignment.Center){Icon(icons[i],labels[i],Modifier.size(27.dp),tint=if(sel==i)scheme.onPrimary else scheme.primary)}
+      else Icon(icons[i],labels[i],Modifier.size(24.dp),tint=if(sel==i)scheme.primary else scheme.onSurfaceVariant)
+      Text(labels[i],color=if(sel==i)scheme.primary else scheme.onSurfaceVariant,style=MaterialTheme.typography.labelSmall,maxLines=1)
+     }
+    }
+   }
+  }
+ }
 }
-@Composable private fun Page(content:@Composable ColumnScope.()->Unit)=Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(14.dp),content=content)
-@Composable private fun CardX(title:String,content:@Composable ColumnScope.()->Unit)=Card(shape=RoundedCornerShape(22.dp)){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){Text(title,color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold);content()}}
-@Composable private fun Home(vm:JourneyViewModel,s:VehicleState)=Page{
+@Composable private fun Page(content:@Composable ColumnScope.()->Unit)=Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal=16.dp,vertical=10.dp),verticalArrangement=Arrangement.spacedBy(16.dp),content=content)
+@Composable private fun CardX(title:String,content:@Composable ColumnScope.()->Unit)=Card(
+ modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp),border=BorderStroke(1.dp,MaterialTheme.colorScheme.outline.copy(alpha=.6f)),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface)
+){Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text(title,color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);content()}}
+@Composable private fun VehicleHero(vm:JourneyViewModel,s:VehicleState){
  val angled by vm.angled.collectAsState()
- JourneyCarVisual(s,angled)
- Row(Modifier.fillMaxWidth(),Arrangement.SpaceEvenly){Text(if(s.online&&s.doorsValid){if(s.locked)L("مقفلة","Locked")else L("مفتوحة","Unlocked")}else L("القفل غير متاح","Lock unavailable"));Text(engineText(s))}
- Controls(vm,s);Telemetry(s)
+ val scheme=MaterialTheme.colorScheme
+ Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.verticalGradient(listOf(scheme.surfaceVariant,scheme.background))),verticalArrangement=Arrangement.spacedBy(8.dp)){
+  JourneyCarVisual(s,angled)
+  Row(Modifier.fillMaxWidth().padding(horizontal=10.dp,vertical=10.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+   StatusPill(if(s.online&&s.doorsValid){if(s.locked)L("مقفلة","Locked")else L("مفتوحة","Unlocked")}else L("القفل —","Lock —"),Icons.Default.Lock,Modifier.weight(1f))
+   StatusPill(engineText(s),Icons.Default.DirectionsCar,Modifier.weight(1f))
+  }
+ }
 }
+@Composable private fun StatusPill(text:String,icon:ImageVector,m:Modifier)=Row(m.background(MaterialTheme.colorScheme.surfaceVariant,RoundedCornerShape(20.dp)).padding(horizontal=10.dp,vertical=9.dp),horizontalArrangement=Arrangement.spacedBy(5.dp),verticalAlignment=Alignment.CenterVertically){Icon(icon,null,Modifier.size(17.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant);Text(text,style=MaterialTheme.typography.labelMedium,maxLines=2,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+@Composable private fun Home(vm:JourneyViewModel,s:VehicleState)=Page{VehicleHero(vm,s);Controls(vm,s);Telemetry(s)}
 @Composable private fun engineText(s:VehicleState)=if(!s.online||!s.rpmValid)L("المحرك غير متاح","Engine unavailable")else if(s.engineRunning)L("المحرك يعمل","Engine running")else L("المحرك متوقف","Engine stopped")
-@Composable private fun Controls(vm:JourneyViewModel,s:VehicleState)=CardX(L("التحكم","Controls")){
- Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){Action(L("قفل","Lock"),Icons.Default.Lock,s.online,s.feedbackLock,Modifier.weight(1f)){vm.send("lock")};Action(L("فتح","Unlock"),Icons.Default.LockOpen,s.online,s.feedbackUnlock,Modifier.weight(1f)){vm.send("unlock")}}
- Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){Action(L("تشغيل","Remote start"),Icons.Default.PowerSettingsNew,s.online,s.feedbackStart,Modifier.weight(1f)){vm.send("remote_start")};Action(L("إنذار","Alarm"),Icons.Default.Notifications,s.online,s.feedbackAlarm,Modifier.weight(1f)){vm.send("horn")}}
- Action(L("طاقة الريموت","Remote power")+": "+if(s.online&&s.remotePowered)L("شغالة","On")else L("طافية","Off"),Icons.Default.VpnKey,s.online,s.online&&s.remotePowered,Modifier.fillMaxWidth()){vm.send(if(s.remotePowered)"remote_power_off" else "remote_power_on")}
- Text(L("الأخضر يؤكد خرج ESP؛ لا يؤكد حركة قفل السيارة.","Green confirms the ESP output; vehicle lock status comes from OBD."),style=MaterialTheme.typography.bodySmall)
+@Composable private fun Controls(vm:JourneyViewModel,s:VehicleState){
+ Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action(L("قفل","Lock"),Icons.Default.Lock,s.online,s.feedbackLock,Modifier.weight(1f)){vm.send("lock")};Action(L("فتح","Unlock"),Icons.Default.LockOpen,s.online,s.feedbackUnlock,Modifier.weight(1f)){vm.send("unlock")}}
+  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action(L("تشغيل","Remote start"),Icons.Default.PowerSettingsNew,s.online,s.feedbackStart,Modifier.weight(1f)){vm.send("remote_start")};Action(L("إنذار","Alarm"),Icons.Default.Notifications,s.online,s.feedbackAlarm,Modifier.weight(1f)){vm.send("horn")}}
+  val remoteText=if(!s.online)L("غير متصل","Disconnected")else if(s.remotePowered)L("شغالة","On")else L("طافية","Off")
+  Action(L("طاقة الريموت","Remote power")+" · "+remoteText,Icons.Default.VpnKey,s.online,s.online&&s.remotePowered,Modifier.fillMaxWidth(),compact=true){vm.send(if(s.remotePowered)"remote_power_off" else "remote_power_on")}
+  if(!s.online)Text(L("اربط ESP لتفعيل التحكم والقراءات.","Connect ESP to enable controls and live readings."),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodySmall)
+ }
 }
-@Composable private fun Action(t:String,i:ImageVector,enabled:Boolean,active:Boolean,m:Modifier=Modifier,on:()->Unit)=Button(on,m.heightIn(min=58.dp),enabled=enabled,colors=ButtonDefaults.buttonColors(containerColor=if(active)Color(0xFF158044)else MaterialTheme.colorScheme.primaryContainer,contentColor=if(active)Color.White else MaterialTheme.colorScheme.onPrimaryContainer)){Icon(i,null);Spacer(Modifier.width(6.dp));Text(t)}
+@Composable private fun Action(t:String,i:ImageVector,enabled:Boolean,active:Boolean,m:Modifier=Modifier,compact:Boolean=false,on:()->Unit){
+ val scheme=MaterialTheme.colorScheme
+ OutlinedButton(onClick=on,modifier=m.heightIn(min=if(compact)64.dp else 88.dp),enabled=enabled,shape=RoundedCornerShape(20.dp),border=BorderStroke(1.dp,if(active)Color(0xFF43D79D)else scheme.primary.copy(alpha=if(enabled).6f else .22f)),contentPadding=PaddingValues(horizontal=12.dp,vertical=12.dp),colors=ButtonDefaults.outlinedButtonColors(containerColor=if(active)Color(0xFF0B4737)else scheme.primaryContainer.copy(alpha=.45f),contentColor=scheme.primary,disabledContainerColor=scheme.surface,disabledContentColor=scheme.onSurfaceVariant.copy(alpha=.65f))){
+  if(compact){Icon(i,null,Modifier.size(25.dp));Spacer(Modifier.width(12.dp));Text(t,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.titleSmall)}
+  else Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(6.dp)){Icon(i,null,Modifier.size(27.dp));Text(t,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)}
+ }
+}
+@Composable private fun Metric(label:String,value:String,unit:String,m:Modifier=Modifier){
+ Column(m.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.55f),RoundedCornerShape(16.dp)).padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr){Row(verticalAlignment=Alignment.Bottom,horizontalArrangement=Arrangement.spacedBy(4.dp)){Text(value,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge);if(unit.isNotEmpty())Text(unit,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+  Text(label,color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelMedium)
+ }
+}
 @Composable private fun Telemetry(s:VehicleState)=CardX(L("بيانات السيارة","Vehicle data")){
- val na=L("غير متاح","Unavailable")
- Text("RPM: ${if(s.online&&s.rpmValid)s.rpm.toString()else na}   •   ${if(s.online&&s.speedValid)"${s.speed} km/h" else na}")
- Text(L("حرارة","Coolant")+": "+if(s.online&&s.coolantValid)"${s.coolant}°C"else na)
- Text(L("البطارية","Battery")+": "+if(s.online&&s.battery>0)"%.2f V".format(s.battery)else na)
- Text(L("بنزين","Fuel")+": "+if(s.online&&s.fuelValid)"${s.fuel}%"else na)
- Text("OBD: ${if(s.online)s.obdStatus else na}")
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+  Metric("RPM",if(s.online&&s.rpmValid)s.rpm.toString()else "—","",Modifier.weight(1f))
+  Metric(L("السرعة","Speed"),if(s.online&&s.speedValid)s.speed.toString()else "—","km/h",Modifier.weight(1f))
+  Metric(L("الحرارة","Coolant"),if(s.online&&s.coolantValid)s.coolant.toString()else "—","°C",Modifier.weight(1f))
+ }
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+  Metric(L("البطارية","Battery"),if(s.online&&s.battery>0)"%.2f".format(java.util.Locale.US,s.battery)else "—","V",Modifier.weight(1f))
+  Metric(L("البنزين","Fuel"),if(s.online&&s.fuelValid)s.fuel.toString()else "—","%",Modifier.weight(1f))
+ }
+ Text(if(s.online)"OBD · ${s.obdStatus}"else L("بانتظار اتصال ESP · — قراءة غير متاحة","Waiting for ESP · — reading unavailable"),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelMedium)
 }
-@Composable private fun Car(vm:JourneyViewModel,s:VehicleState)=Page{
- val angled by vm.angled.collectAsState();JourneyCarVisual(s,angled);Controls(vm,s);Telemetry(s)
- CardX(L("آخر حدث","Last event")){Text(s.lastEvent)}
-}
+@Composable private fun Car(vm:JourneyViewModel,s:VehicleState)=Page{VehicleHero(vm,s);Controls(vm,s);Telemetry(s);CardX(L("آخر حدث","Last event")){Text(if(s.online)s.lastEvent else L("غير متصل","Disconnected"))}}
 @Composable private fun MapPage(s:VehicleState)=Page{
  val context=LocalContext.current
- CardX(L("الخريطة والتتبع","Map and tracking")){Text(if(s.online&&s.gpsValid)"${s.latitude}, ${s.longitude}"else L("بانتظار قراءة GPS حقيقية","Waiting for a real GPS fix"));Button({runCatching{context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("geo:${s.latitude},${s.longitude}?q=${s.latitude},${s.longitude}"))) }},enabled=s.online&&s.gpsValid){Text(L("فتح الخريطة","Open map"))}}
+ CardX(L("الخريطة والتتبع","Map and tracking")){
+  Column(Modifier.fillMaxWidth().padding(vertical=28.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(14.dp)){
+   Icon(Icons.Default.LocationOn,null,Modifier.size(52.dp),tint=MaterialTheme.colorScheme.primary)
+   Text(if(s.online&&s.gpsValid)"${s.latitude}, ${s.longitude}"else L("بانتظار موقع السيارة","Waiting for vehicle location"),fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+   if(!s.online||!s.gpsValid)Text(L("يظهر الموقع بعد وصول قراءة GPS من الجهاز.","Location appears when the device sends a GPS fix."),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodySmall)
+   Button({runCatching{context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("geo:${s.latitude},${s.longitude}?q=${s.latitude},${s.longitude}"))) }},enabled=s.online&&s.gpsValid){Text(L("فتح الخريطة","Open map"))}
+  }
+ }
 }
 @Composable private fun Obd(vm:JourneyViewModel,s:VehicleState)=Page{
  var name by remember{mutableStateOf("KONNWEI")};var wifi by remember{mutableStateOf(false)};var password by remember{mutableStateOf("")};var clear by remember{mutableStateOf(false)}
@@ -108,7 +172,7 @@ private val English=staticCompositionLocalOf{false}
  WifiSettings(vm,s)
  CellularSettings(vm,s)
  OtaSettings(vm,s)
- AboutContent()
+ AboutContent(s)
 }
 @Composable private fun Priority(vm:JourneyViewModel,s:VehicleState)=CardX(L("أولوية الاتصال داخل ESP","ESP route priority")){
  var order by remember(s.connectionPriority){mutableStateOf(s.connectionPriority.split(',').filter{it in listOf("BLE","WIFI","CELLULAR")}.ifEmpty{listOf("CELLULAR","WIFI","BLE")})}
@@ -136,9 +200,24 @@ private val English=staticCompositionLocalOf{false}
  Text(L("الـESP يحتاج إنترنت عبر Wi-Fi أو شريحة حتى ينزل الملف.","ESP needs internet through Wi-Fi or SIM to download the file."),style=MaterialTheme.typography.bodySmall)
  if(confirm)AlertDialog({confirm=false},title={Text(L("تثبيت الفيرموير","Install firmware"))},text={Text(url)},confirmButton={TextButton({confirm=false;vm.send("ota_url",JSONObject().put("firmwareURL",url))}){Text(L("تحديث","Update"))}},dismissButton={TextButton({confirm=false}){Text(L("إلغاء","Cancel"))}})
 }
-@Composable private fun About()=Page{AboutContent()}
-@Composable private fun AboutContent()=CardX(L("النظام والمعلومات","System and about")){
- Text("JOURNEY ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})");Text("ESP v12.76")
- Text(L("تصميم: مهند الربيعي","Design: Mohaned Al-Rubaie"))
- Text(L("قراءات الأبواب والأضواء من OBD. الخلفي جهة السائق غير مثبت بالفحص.","Doors and lights come from OBD. Driver rear door was not verified in the vehicle tests."),style=MaterialTheme.typography.bodySmall)
+@Composable private fun About(s:VehicleState)=Page{
+ Column(Modifier.fillMaxWidth().padding(vertical=20.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)){
+  Icon(Icons.Default.DirectionsCar,null,Modifier.size(50.dp),tint=MaterialTheme.colorScheme.primary)
+  Text("JOURNEY",fontWeight=FontWeight.Black,style=MaterialTheme.typography.headlineMedium)
+  Text(L("تحكم وبيانات سيارتك","Your vehicle, connected"),color=MaterialTheme.colorScheme.onSurfaceVariant)
+ }
+ AboutContent(s)
+ CardX(L("حول التطبيق","About JOURNEY")){
+  Text(L("تصميم وتطوير: مهند الربيعي","Design and development: Mohaned Al-Rubaie"))
+  Text(L("التحكم في هذه النسخة عبر BLE محلياً. حالة الأبواب والأضواء تعتمد على القراءات الفعلية المتاحة.","This version connects locally over BLE. Doors and lights use available live readings."),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodyMedium)
+ }
+}
+@Composable private fun InfoRow(label:String,value:String){
+ Row(Modifier.fillMaxWidth().padding(vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(label,style=MaterialTheme.typography.bodyMedium);Text(value,fontWeight=FontWeight.SemiBold,color=MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.bodyMedium)}
+}
+@Composable private fun AboutContent(s:VehicleState)=CardX(L("النظام والإصدار","System and version")){
+ InfoRow(L("إصدار التطبيق","App version"),"${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+ HorizontalDivider(color=MaterialTheme.colorScheme.outline.copy(alpha=.5f))
+ InfoRow(L("فيرموير ESP","ESP firmware"),if(!s.online)L("غير متصل","Disconnected")else s.firmwareVersion.ifBlank{L("لم يرسل الجهاز الإصدار","Not reported by device")})
+ if(s.online&&s.firmwareVersion.isBlank())Text(L("الرقم يظهر إذا الفيرموير يرسله، بدون افتراض إصدار ثابت.","The version appears when firmware reports it."),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
 }
