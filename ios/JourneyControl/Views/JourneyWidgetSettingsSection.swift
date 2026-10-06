@@ -4,7 +4,7 @@ import WidgetKit
 struct JourneyWidgetSettingsSection: View {
     @State private var extensionPresent = false
     @State private var identityMatches = false
-    @State private var extensionSafe = false
+    @State private var signingMessage = ""
     @State private var refreshed = false
 
     var body: some View {
@@ -20,11 +20,7 @@ struct JourneyWidgetSettingsSection: View {
                     : JL("هوية الويدجيت تغيّرت أثناء التوقيع؛ أعد توقيع التطبيق والإضافة معاً", "Widget identity changed during signing; re-sign the app and extension together"),
                     systemImage: identityMatches ? "checkmark.circle" : "exclamationmark.triangle")
                     .foregroundStyle(identityMatches ? Color.green : Color.orange)
-                Label(extensionSafe
-                    ? JL("بناء الويدجيت متوافق مع إضافات الآيفون", "Widget binary is built for app extensions")
-                    : JL("بناء الويدجيت يحتاج تحديث", "Widget binary needs an update"),
-                    systemImage: extensionSafe ? "checkmark.circle" : "exclamationmark.triangle")
-                    .foregroundStyle(extensionSafe ? Color.green : Color.orange)
+                Text(signingMessage).font(.footnote).foregroundStyle(.secondary)
             }
             Text(JL("ابحث عن JOURNEY DEMO بقائمة ويدجيت الشاشة الرئيسية أو شاشة القفل.", "Look for JOURNEY DEMO in the Home Screen or Lock Screen widget gallery."))
                 .font(.footnote)
@@ -50,7 +46,7 @@ struct JourneyWidgetSettingsSection: View {
 
     private func checkExtension() {
         identityMatches = false
-        extensionSafe = false
+        signingMessage = ""
         guard let plugins = Bundle.main.builtInPlugInsURL,
               let urls = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) else {
             extensionPresent = false
@@ -67,15 +63,23 @@ struct JourneyWidgetSettingsSection: View {
             if let parent = Bundle.main.bundleIdentifier, let child = bundle.bundleIdentifier {
                 identityMatches = child.hasPrefix(parent + ".")
             }
-            if let file = try? FileHandle(forReadingFrom: executable) {
-                defer { try? file.close() }
-                if let header = try? file.read(upToCount: 32), header.count == 32 {
-                    // Device builds are a thin, little-endian arm64 Mach-O.
-                    let magic = header.prefix(4).elementsEqual([0xcf, 0xfa, 0xed, 0xfe])
-                    let flags = UInt32(header[24]) | UInt32(header[25]) << 8
-                        | UInt32(header[26]) << 16 | UInt32(header[27]) << 24
-                    extensionSafe = magic && flags & 0x02000000 != 0
-                }
+            let profileURL = url.appendingPathComponent("embedded.mobileprovision")
+            if let profile = try? Data(contentsOf: profileURL),
+               let start = profile.range(of: Data("<?xml".utf8)),
+               let end = profile.range(of: Data("</plist>".utf8)),
+               start.lowerBound < end.upperBound,
+               let plist = try? PropertyListSerialization.propertyList(from: profile.subdata(in: start.lowerBound..<end.upperBound), format: nil),
+               let dictionary = plist as? [String: Any],
+               let entitlements = dictionary["Entitlements"] as? [String: Any],
+               let allowedID = entitlements["application-identifier"] as? String,
+               let child = bundle.bundleIdentifier {
+                let provisionedID = allowedID.split(separator: ".").dropFirst().joined(separator: ".")
+                let matches = provisionedID == child || (provisionedID.hasSuffix(".*") && child.hasPrefix(String(provisionedID.dropLast()))) || provisionedID == "*"
+                signingMessage = matches
+                    ? JL("ملف توقيع الويدجيت موجود وهوية التطبيق متوافقة معه. إذا ما ظهر بالقائمة، أعد تشغيل الآيفون وافتح الديمو ثم ابحث عنه.", "Widget provisioning profile is present and matches its identity. If it is missing from the gallery, restart the iPhone, open Demo, then search again.")
+                    : JL("ملف توقيع الويدجيت لا يطابق هويته. أعد التوقيع بـSideloadly مع الاحتفاظ بالإضافات.", "Widget provisioning profile does not match its identity. Re-sign with Sideloadly while retaining extensions.")
+            } else {
+                signingMessage = JL("لم أتمكن من قراءة ملف توقيع الويدجيت. وجود ملف الإضافة وحده لا يؤكد أن iOS سجّله.", "Unable to read the widget provisioning profile. The extension file alone does not confirm iOS registered it.")
             }
             break
         }

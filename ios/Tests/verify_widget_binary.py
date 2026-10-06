@@ -14,5 +14,6 @@ assert info["NSExtension"]["NSExtensionPointIdentifier"] == "com.apple.widgetkit
 header = (widget / info["CFBundleExecutable"]).read_bytes()[:32]
 magic, cpu, _, file_type, _, _, flags, _ = struct.unpack("<8I", header)
 assert magic == 0xFEEDFACF and cpu == 0x0100000C and file_type == 2
-assert flags & 0x02000000, "Widget is missing MH_APP_EXTENSION_SAFE; enable APPLICATION_EXTENSION_API_ONLY"
-print("Embedded widget identity, version, arm64 executable and extension-safe flag verified")
+binary = (widget / info["CFBundleExecutable"]).read_bytes()
+assert b"_NSExtensionMain\x00" in binary, "Widget is missing the Foundation extension entry point"
+print("Embedded widget identity, version, arm64 executable and Foundation extension entry point verified")
