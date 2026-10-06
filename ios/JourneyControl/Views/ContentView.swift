@@ -1660,7 +1660,11 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
 
     func start() {
         adapters.removeAll()
-        guard central.state == .poweredOn else {
+        guard !AppConfig.isDemo else {
+            status = JL("بحث الأجهزة يحتاج ESP حقيقي؛ الديمو محلي", "Device discovery requires a real ESP; Demo is local")
+            return
+        }
+        guard let central, central.state == .poweredOn else {
             pendingStart = true
             status = JL("فعّل Bluetooth ثم أعد البحث", "Enable Bluetooth and search again")
             return
@@ -1679,7 +1683,7 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        guard let central, central.state == .poweredOn else { return }
+        guard central.state == .poweredOn else { return }
         if pendingStart { start() }
     }
 
