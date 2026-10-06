@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.7.1 IPA
+name: Build Punisher Drive Standalone v0.8.0 IPA
 
 on:
   workflow_dispatch:
@@ -10,6 +10,7 @@ on:
       - "standalone/v06/**"
       - "standalone/v07/**"
       - "standalone/v08/**"
+      - "standalone/v09/**"
       - ".github/workflows/build-ios-ipa.yml"
 
 jobs:
@@ -25,20 +26,23 @@ jobs:
           base64 -D -i "$RUNNER_TEMP/pd_v04.b64" -o "$RUNNER_TEMP/pd_v04.zip"
           rm -rf PunisherDrive PunisherDrive.xcodeproj project.yml
           unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
-          cp standalone/v08/project.yml project.yml
-          cp standalone/v07/PunisherDriveApp.swift PunisherDrive/PunisherDriveApp.swift
+          cp standalone/v09/project.yml project.yml
+          cp standalone/v09/PunisherDriveApp.swift PunisherDrive/PunisherDriveApp.swift
           cp standalone/v07/LaunchSplashView.swift PunisherDrive/Views/LaunchSplashView.swift
           cp standalone/v07/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
-          cp standalone/v07/RootView.swift PunisherDrive/Views/RootView.swift
-          cp standalone/v07/GarageView.swift PunisherDrive/Views/GarageView.swift
+          cp standalone/v09/RootView.swift PunisherDrive/Views/RootView.swift
+          cp standalone/v09/GarageView.swift PunisherDrive/Views/GarageView.swift
           cp standalone/v08/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
-          cp standalone/v08/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
-          cp standalone/v08/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
+          cp standalone/v09/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
+          cp standalone/v09/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
           cp standalone/v08/IraqPlateData.swift PunisherDrive/Views/IraqPlateData.swift
-          cp standalone/v06/FleetMapView.swift PunisherDrive/Views/FleetMapView.swift
-          cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
-          cp standalone/v05/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
-          cp standalone/v07/AboutView.swift PunisherDrive/Views/AboutView.swift
+          cp standalone/v09/FleetMapView.swift PunisherDrive/Views/FleetMapView.swift
+          cp standalone/v09/SettingsView.swift PunisherDrive/Views/SettingsView.swift
+          cp standalone/v09/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
+          cp standalone/v09/AboutView.swift PunisherDrive/Views/AboutView.swift
+          cp standalone/v09/PDLocalization.swift PunisherDrive/Views/PDLocalization.swift
+          cp standalone/v09/VehicleVisualAI.swift PunisherDrive/Views/VehicleVisualAI.swift
+          cp standalone/v09/SmartAIView.swift PunisherDrive/Views/SmartAIView.swift
 
       - name: Install image tools
         run: |
@@ -46,7 +50,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/pdvenv"
           source "$RUNNER_TEMP/pdvenv/bin/activate"
           python -m pip install --upgrade pip
-          python -m pip install pillow rembg onnxruntime
+          python -m pip install pillow rembg onnxruntime opencv-python-headless numpy
 
       - name: Build approved Punisher assets
         run: |
@@ -93,7 +97,7 @@ jobs:
               profiles=json.load(f)
           assert len(profiles)==56, len(profiles)
 
-          headers={"User-Agent":"PunisherDriveAssets/0.7.1"}
+          headers={"User-Agent":"PunisherDriveAssets/0.8.0"}
           session=new_session("u2netp")
 
           def bing_url(q):
@@ -179,6 +183,150 @@ jobs:
           PY
           test "$(find PunisherDrive/Assets.xcassets -maxdepth 1 -name '*.imageset' | grep -v PunisherMark | wc -l | tr -d ' ')" -eq 56
 
+      - name: Visual AI body masks and plate fitting
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/pdvenv/bin/activate"
+          python <<'PY'
+          import json, os
+          import cv2
+          import numpy as np
+          from PIL import Image
+
+          profiles_path="PunisherDrive/Resources/vehicle_profiles.json"
+          assets_root="PunisherDrive/Assets.xcassets"
+          with open(profiles_path,encoding="utf-8") as f:
+              profiles=json.load(f)
+
+          metadata=[]
+
+          def body_mask(img):
+              rgba=np.array(img.convert("RGBA"))
+              rgb=rgba[:,:,:3]
+              alpha=rgba[:,:,3]
+              hsv=cv2.cvtColor(rgb,cv2.COLOR_RGB2HSV)
+              gray=cv2.cvtColor(rgb,cv2.COLOR_RGB2GRAY)
+              h,s,v=cv2.split(hsv)
+
+              # Body panels in the source images are primarily white/silver.
+              bright=cv2.inRange(v,95,255)
+              low_sat=cv2.inRange(s,0,125)
+              body=cv2.bitwise_and(bright,low_sat)
+              body=cv2.bitwise_and(body,alpha)
+              body=cv2.morphologyEx(body,cv2.MORPH_CLOSE,np.ones((13,13),np.uint8),iterations=2)
+              body=cv2.GaussianBlur(body,(0,0),3.2)
+
+              # Preserve panel shading while keeping glass/tires/grille mostly excluded.
+              shade=np.clip((gray.astype(np.float32)-45.0)/170.0,0,1)
+              mask=(body.astype(np.float32)*shade).clip(0,255).astype(np.uint8)
+              return mask
+
+          def plate_fit(img):
+              rgba=np.array(img.convert("RGBA"))
+              rgb=rgba[:,:,:3]
+              alpha=rgba[:,:,3]
+              h,w=alpha.shape
+              ys,xs=np.where(alpha>20)
+              if len(xs)<100:
+                  return (0.70,0.705,0.235,0.105,-1.5,0.25)
+
+              x0,x1=int(xs.min()),int(xs.max())
+              y0,y1=int(ys.min()),int(ys.max())
+              gray=cv2.cvtColor(rgb,cv2.COLOR_RGB2GRAY)
+              hsv=cv2.cvtColor(rgb,cv2.COLOR_RGB2HSV)
+              sat=hsv[:,:,1]
+
+              # Search front lower region. Current standardized 3/4 assets point front toward right.
+              rx0=int(x0+(x1-x0)*0.48); rx1=int(x0+(x1-x0)*0.94)
+              ry0=int(y0+(y1-y0)*0.48); ry1=int(y0+(y1-y0)*0.86)
+              crop_gray=gray[ry0:ry1,rx0:rx1]
+              crop_sat=sat[ry0:ry1,rx0:rx1]
+
+              bright=cv2.inRange(crop_gray,145,255)
+              desat=cv2.inRange(crop_sat,0,100)
+              bw=cv2.bitwise_and(bright,desat)
+              bw=cv2.morphologyEx(bw,cv2.MORPH_CLOSE,np.ones((5,9),np.uint8),iterations=2)
+
+              contours,_=cv2.findContours(bw,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+              best=None
+              best_score=-1e9
+              area_total=max(1,(x1-x0)*(y1-y0))
+              for cnt in contours:
+                  rect=cv2.minAreaRect(cnt)
+                  (cx,cy),(rw,rh),angle=rect
+                  if rw<1 or rh<1: continue
+                  long=max(rw,rh); short=min(rw,rh)
+                  aspect=long/max(short,1)
+                  area=rw*rh
+                  if not (1.7<=aspect<=7.5): continue
+                  if not (0.0012*area_total<=area<=0.055*area_total): continue
+
+                  gx=rx0+cx; gy=ry0+cy
+                  nx=(gx-x0)/max(1,(x1-x0))
+                  ny=(gy-y0)/max(1,(y1-y0))
+                  pos=-abs(nx-0.70)*3.0-abs(ny-0.70)*2.5
+                  aspect_score=-abs(aspect-3.8)*0.16
+                  area_score=min(area/(0.012*area_total),1.0)
+                  score=pos+aspect_score+area_score
+                  if score>best_score:
+                      best_score=score
+                      best=(gx,gy,long,short,angle,nx,ny)
+
+              if best is None:
+                  return (0.70,0.705,0.235,0.105,-1.5,0.34)
+
+              gx,gy,long,short,angle,nx,ny=best
+              pw=np.clip(long/max(1,(x1-x0))*1.25,0.16,0.30)
+              ph=np.clip(short/max(1,(y1-y0))*1.35,0.065,0.15)
+              # Normalize OpenCV angle to a small visual correction.
+              pa=float(np.clip(angle if abs(angle)<=18 else 0,-8,8))
+              conf=float(np.clip(0.55+best_score*0.08,0.35,0.94))
+              return (float(np.clip(nx,0.50,0.88)),float(np.clip(ny,0.52,0.82)),float(pw),float(ph),pa,conf)
+
+          for p in profiles:
+              asset=p["assetKey"]
+              src=os.path.join(assets_root,asset+".imageset",asset+".png")
+              img=Image.open(src).convert("RGBA")
+
+              mask=body_mask(img)
+              maskset=os.path.join(assets_root,asset+"_bodymask.imageset")
+              os.makedirs(maskset,exist_ok=True)
+              maskname=asset+"_bodymask.png"
+              Image.fromarray(mask,"L").save(os.path.join(maskset,maskname),optimize=True)
+              with open(os.path.join(maskset,"Contents.json"),"w") as f:
+                  json.dump({
+                      "images":[
+                          {"filename":maskname,"idiom":"universal","scale":"1x"},
+                          {"idiom":"universal","scale":"2x"},
+                          {"idiom":"universal","scale":"3x"}
+                      ],
+                      "info":{"author":"xcode","version":1}
+                  },f)
+
+              px,py,pw,ph,angle,confidence=plate_fit(img)
+              # Stronger paint on light standardized source bodies.
+              rgba=np.array(img)
+              alpha=rgba[:,:,3]
+              visible=rgba[alpha>20,:3] if np.any(alpha>20) else rgba[:,:,:3].reshape(-1,3)
+              mean=float(np.mean(visible))
+              strength=float(np.clip(0.60+(mean/255.0)*0.22,0.62,0.82))
+              metadata.append({
+                  "assetKey":asset,
+                  "plateX":round(px,4),"plateY":round(py,4),
+                  "plateW":round(pw,4),"plateH":round(ph,4),
+                  "plateAngle":round(angle,2),
+                  "colorStrength":round(strength,3),
+                  "confidence":round(confidence,3)
+              })
+
+          with open("PunisherDrive/Resources/vehicle_visual_ai.json","w",encoding="utf-8") as f:
+              json.dump(metadata,f,ensure_ascii=False,indent=2)
+          assert len(metadata)==56
+          print("VISUAL_AI_COUNT",len(metadata))
+          PY
+          test "$(find PunisherDrive/Assets.xcassets -maxdepth 1 -name '*_bodymask.imageset' | wc -l | tr -d ' ')" -eq 56
+          test -s PunisherDrive/Resources/vehicle_visual_ai.json
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -208,11 +356,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.1-12-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.1-12-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.0-13-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.0-13-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-IOS-0.7.1-12-TEST-IPA
-          path: PUNISHER-DRIVE-IOS-0.7.1-12-TEST.ipa
+          name: PUNISHER-DRIVE-IOS-0.8.0-13-TEST-IPA
+          path: PUNISHER-DRIVE-IOS-0.8.0-13-TEST.ipa
           if-no-files-found: error
