@@ -8,6 +8,7 @@ on:
       - "PunisherAndroid/**"
       - "standalone/v04/**"
       - "standalone/v07/**"
+      - "standalone/v09/**"
       - ".github/workflows/build-punisher-android.yml"
 
 jobs:
@@ -45,7 +46,7 @@ jobs:
           python3 -m venv /tmp/pdvenv
           source /tmp/pdvenv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install pillow rembg onnxruntime
+          python -m pip install pillow rembg onnxruntime opencv-python-headless numpy
 
       - name: Build approved Punisher logo assets
         run: |
@@ -71,7 +72,7 @@ jobs:
           masks="PunisherAndroid/app/src/main/assets/vehicle_masks"
           os.makedirs(out,exist_ok=True)
           os.makedirs(masks,exist_ok=True)
-          headers={"User-Agent":"PunisherDriveAndroid/0.2.1"}
+          headers={"User-Agent":"PunisherDriveAndroid/0.3.0"}
           session=new_session("u2netp")
 
           def url(q):
@@ -121,30 +122,96 @@ jobs:
               if car is None:raise RuntimeError("failed "+asset)
               car.save(os.path.join(out,asset+".png"),optimize=True)
 
-              rgba=car.convert("RGBA")
-              px=rgba.load()
-              mask=Image.new("L",rgba.size,0)
-              mp=mask.load()
-              for yy in range(rgba.height):
-                  for xx in range(rgba.width):
-                      r,g,b,a=px[xx,yy]
-                      if a==0:
-                          continue
-                      mx=max(r,g,b); mn=min(r,g,b)
-                      sat=0 if mx==0 else (mx-mn)/mx
-                      lum=(0.2126*r+0.7152*g+0.0722*b)/255.0
-                      body=max(0.0,min(1.0,(lum-0.34)/0.46))
-                      body*=max(0.0,1.0-0.55*sat)
-                      mp[xx,yy]=int(a*body)
-              mask.save(os.path.join(masks,asset+".png"),optimize=True)
-
               done+=1
               print(f"[{i:02d}/56] {asset}")
               time.sleep(.04)
           if done!=56:raise SystemExit("count mismatch")
           PY
           test "$(find PunisherAndroid/app/src/main/assets/vehicles -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
+
+      - name: Visual AI body masks and plate fitting
+        run: |
+          set -euo pipefail
+          source /tmp/pdvenv/bin/activate
+          python <<'PY'
+          import json,os
+          import cv2
+          import numpy as np
+          from PIL import Image
+
+          with open("PunisherAndroid/app/src/main/assets/vehicle_profiles.json",encoding="utf-8") as f:
+              profiles=json.load(f)
+          cars="PunisherAndroid/app/src/main/assets/vehicles"
+          masks="PunisherAndroid/app/src/main/assets/vehicle_masks"
+          os.makedirs(masks,exist_ok=True)
+          meta=[]
+
+          def make_mask(img):
+              rgba=np.array(img.convert("RGBA"))
+              rgb=rgba[:,:,:3]; alpha=rgba[:,:,3]
+              hsv=cv2.cvtColor(rgb,cv2.COLOR_RGB2HSV)
+              gray=cv2.cvtColor(rgb,cv2.COLOR_RGB2GRAY)
+              _,s,v=cv2.split(hsv)
+              body=cv2.bitwise_and(cv2.inRange(v,95,255),cv2.inRange(s,0,125))
+              body=cv2.bitwise_and(body,alpha)
+              body=cv2.morphologyEx(body,cv2.MORPH_CLOSE,np.ones((13,13),np.uint8),iterations=2)
+              body=cv2.GaussianBlur(body,(0,0),3.2)
+              shade=np.clip((gray.astype(np.float32)-45.0)/170.0,0,1)
+              return (body.astype(np.float32)*shade).clip(0,255).astype(np.uint8)
+
+          def plate_fit(img):
+              rgba=np.array(img.convert("RGBA")); rgb=rgba[:,:,:3]; alpha=rgba[:,:,3]
+              ys,xs=np.where(alpha>20)
+              if len(xs)<100:return (0.70,0.705,0.235,0.105,-1.5,0.25)
+              x0,x1=int(xs.min()),int(xs.max());y0,y1=int(ys.min()),int(ys.max())
+              gray=cv2.cvtColor(rgb,cv2.COLOR_RGB2GRAY);sat=cv2.cvtColor(rgb,cv2.COLOR_RGB2HSV)[:,:,1]
+              rx0=int(x0+(x1-x0)*.48);rx1=int(x0+(x1-x0)*.94)
+              ry0=int(y0+(y1-y0)*.48);ry1=int(y0+(y1-y0)*.86)
+              bw=cv2.bitwise_and(cv2.inRange(gray[ry0:ry1,rx0:rx1],145,255),cv2.inRange(sat[ry0:ry1,rx0:rx1],0,100))
+              bw=cv2.morphologyEx(bw,cv2.MORPH_CLOSE,np.ones((5,9),np.uint8),iterations=2)
+              contours,_=cv2.findContours(bw,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+              area_total=max(1,(x1-x0)*(y1-y0));best=None;best_score=-1e9
+              for cnt in contours:
+                  rect=cv2.minAreaRect(cnt);(cx,cy),(rw,rh),angle=rect
+                  if rw<1 or rh<1:continue
+                  long=max(rw,rh);short=min(rw,rh);aspect=long/max(short,1);area=rw*rh
+                  if not (1.7<=aspect<=7.5):continue
+                  if not (.0012*area_total<=area<=.055*area_total):continue
+                  gx=rx0+cx;gy=ry0+cy
+                  nx=(gx-x0)/max(1,(x1-x0));ny=(gy-y0)/max(1,(y1-y0))
+                  score=-abs(nx-.70)*3-abs(ny-.70)*2.5-abs(aspect-3.8)*.16+min(area/(.012*area_total),1)
+                  if score>best_score:best_score=score;best=(long,short,angle,nx,ny)
+              if best is None:return (.70,.705,.235,.105,-1.5,.34)
+              long,short,angle,nx,ny=best
+              pw=float(np.clip(long/max(1,(x1-x0))*1.25,.16,.30))
+              ph=float(np.clip(short/max(1,(y1-y0))*1.35,.065,.15))
+              pa=float(np.clip(angle if abs(angle)<=18 else 0,-8,8))
+              conf=float(np.clip(.55+best_score*.08,.35,.94))
+              return (float(np.clip(nx,.50,.88)),float(np.clip(ny,.52,.82)),pw,ph,pa,conf)
+
+          for p in profiles:
+              asset=p["assetKey"]
+              img=Image.open(os.path.join(cars,asset+".png")).convert("RGBA")
+              mask=make_mask(img)
+              Image.fromarray(mask,"L").save(os.path.join(masks,asset+".png"),optimize=True)
+              px,py,pw,ph,angle,confidence=plate_fit(img)
+              rgba=np.array(img);alpha=rgba[:,:,3]
+              visible=rgba[alpha>20,:3] if np.any(alpha>20) else rgba[:,:,:3].reshape(-1,3)
+              mean=float(np.mean(visible))
+              strength=float(np.clip(.60+(mean/255.0)*.22,.62,.82))
+              meta.append({"assetKey":asset,"plateX":round(px,4),"plateY":round(py,4),"plateW":round(pw,4),"plateH":round(ph,4),"plateAngle":round(angle,2),"colorStrength":round(strength,3),"confidence":round(confidence,3)})
+
+          with open("PunisherAndroid/app/src/main/assets/vehicle_visual_ai.json","w",encoding="utf-8") as f:
+              json.dump(meta,f,ensure_ascii=False,indent=2)
+          with open("PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js","w",encoding="utf-8") as f:
+              f.write("window.VEHICLE_VISUAL_AI=")
+              json.dump(meta,f,ensure_ascii=False,separators=(",",":"))
+              f.write(";")
+          assert len(meta)==56
+          print("VISUAL_AI_COUNT",len(meta))
+          PY
           test "$(find PunisherAndroid/app/src/main/assets/vehicle_masks -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
+          test -s PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js
 
       - uses: actions/setup-java@v4
         with:
@@ -164,11 +231,11 @@ jobs:
           set -euo pipefail
           APK="PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.2.1-3.apk"
-          ls -lh PUNISHER-DRIVE-ANDROID-0.2.1-3.apk
+          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.3.0-4.apk"
+          ls -lh PUNISHER-DRIVE-ANDROID-0.3.0-4.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-ANDROID-0.2.1-3-APK
-          path: PUNISHER-DRIVE-ANDROID-0.2.1-3.apk
+          name: PUNISHER-DRIVE-ANDROID-0.3.0-4-APK
+          path: PUNISHER-DRIVE-ANDROID-0.3.0-4.apk
           if-no-files-found: error
