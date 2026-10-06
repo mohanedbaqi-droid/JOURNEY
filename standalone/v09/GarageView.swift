@@ -13,7 +13,7 @@ struct GarageView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(pdt("garage"))
                                 .font(.system(size: 28, weight: .bold, design: .rounded))
-                            Text("\(garage.vehicles.count) \(pdt(\"vehicles\"))")
+                            Text(String(garage.vehicles.count) + " " + pdt("vehicles"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
