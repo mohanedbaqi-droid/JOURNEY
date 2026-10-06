@@ -61,6 +61,7 @@ linear-gradient(#040507,#071018);display:flex;align-items:center;justify-content
 #splash.hide{opacity:0;pointer-events:none}.splash-logo{width:265px;height:265px;object-fit:contain;filter:drop-shadow(0 0 25px rgba(215,28,35,.45))}.splash-title{font-size:34px;font-weight:1000;letter-spacing:1px;color:var(--red);font-style:italic}.splash-drive{font-size:35px;font-weight:1000;letter-spacing:2px;color:var(--cyan);font-style:italic}.splash-sub{font-size:11px;color:#dbe7ee;letter-spacing:3px;margin-top:9px}
 </style>
 <script src="vehicle_profiles.js"></script>
+<script src="vehicle_visual_ai.js"></script>
 </head>
 <body>
 <div id="splash"><div><img class="splash-logo" src="punisher_mark.png"><div class="splash-title">PUNISHER</div><div class="splash-drive">DRIVE</div><div class="splash-sub">SMART VEHICLE CONTROL</div></div></div>
@@ -68,11 +69,11 @@ linear-gradient(#040507,#071018);display:flex;align-items:center;justify-content
   <header id="header"><img class="logo" src="punisher_mark.png"><div class="brand"><b><span style="color:#ff343d">PUNISHER</span> <span style="color:#24dfff">DRIVE</span></b><small id="headerSub">Smart Vehicle Control</small></div></header>
   <main id="content"></main>
   <nav id="tabs">
-    <button class="tab" data-tab="garage"><div class="ico">▣</div><span>الكراج</span></button>
-    <button class="tab" data-tab="map"><div class="ico">⌖</div><span>الخارطة</span></button>
-    <button class="tab home active" data-tab="home"><div class="ico">⌂</div><span>الرئيسية</span></button>
-    <button class="tab" data-tab="settings"><div class="ico">⚙</div><span>الإعدادات</span></button>
-    <button class="tab" data-tab="about"><div class="ico">ⓘ</div><span>حول</span></button>
+    <button class="tab" data-tab="garage"><div class="ico">▣</div><span data-i18n="garage">الكراج</span></button>
+    <button class="tab" data-tab="map"><div class="ico">⌖</div><span data-i18n="map">الخارطة</span></button>
+    <button class="tab home active" data-tab="home"><div class="ico">⌂</div><span data-i18n="home">الرئيسية</span></button>
+    <button class="tab" data-tab="settings"><div class="ico">⚙</div><span data-i18n="settings">الإعدادات</span></button>
+    <button class="tab" data-tab="about"><div class="ico">ⓘ</div><span data-i18n="about">حول</span></button>
   </nav>
 </div>
 <div id="modal" class="modal"><div id="sheet" class="sheet"></div></div>
@@ -80,11 +81,36 @@ linear-gradient(#040507,#071018);display:flex;align-items:center;justify-content
 (function(){
 var profiles=Array.isArray(window.VEHICLE_PROFILES)?window.VEHICLE_PROFILES:[];
 var garage=[];var activeId=null;var tab='home';var selectedColor='#F2F2F2';
+var lang=localStorage.getItem('pd_lang')||'ar';
+var rtlLangs={ar:1,ku:1,fa:1};
+var I18N={
+ ar:{home:'الرئيسية',garage:'الكراج',map:'الخارطة',settings:'الإعدادات',about:'حول',addCar:'إضافة سيارة',addFirst:'إضافة أول سيارة',garageEmpty:'الكراج فارغ',quick:'التحكم السريع',lock:'قفل',unlock:'فتح',start:'تشغيل',alarm:'إنذار',colorPlate:'لون ورقم السيارة',active:'نشطة',manageGarage:'إدارة الكراج',activeVehicle:'السيارة النشطة',vehicle:'السيارة',notLinked:'غير مربوط',version:'الإصدار',language:'اللغة',languageNote:'تتغير اللغة مباشرة بدون إعادة تثبيت.',smartAI:'الذكاء',smartAISub:'ذكاء للصور والتشخيص والتنبيهات والرحلات',fleetMap:'خارطة السيارات',waitingGPS:'بانتظار بيانات GPS',speed:'السرعة',status:'الحالة',moving:'متحركة',stopped:'متوقفة',connection:'الاتصال',setActive:'اعتماد للتحكم',appearance:'شكل السيارة',governorate:'المحافظة',letter:'الحرف',number6:'الرقم • حتى 6 أرقام',save:'حفظ',make:'الشركة',model:'الموديل',generation:'الجيل',year:'السنة',addGarage:'إضافة للكراج',developer:'المطور',business:'الجهة',fullControl:'تحكم كامل بسيارتك',aiVisual:'AI Visual Fit',aiVisualSub:'يضبط تلوين البودي وموقع وحجم وزاوية اللوحة لكل صورة سيارة.',aiOBD:'AI OBD Diagnostics',aiOBDSub:'يفسر DTC وبيانات الحساسات عند وصول بيانات OBD الحقيقية.',aiAlerts:'Smart Alerts',aiAlertsSub:'يراقب الفولت والحرارة والاتصال والحركة وينبه على القيم غير الطبيعية.',aiTrips:'Trip AI',aiTripsSub:'يلخص الوقت والمسافة والتوقفات وسلوك القيادة من GPS وبيانات السيارة.'},
+ en:{home:'Home',garage:'Garage',map:'Map',settings:'Settings',about:'About',addCar:'Add vehicle',addFirst:'Add first vehicle',garageEmpty:'Garage is empty',quick:'Quick controls',lock:'Lock',unlock:'Unlock',start:'Start',alarm:'Alarm',colorPlate:'Vehicle color & plate',active:'Active',manageGarage:'Manage garage',activeVehicle:'Active vehicle',vehicle:'Vehicle',notLinked:'Not linked',version:'Version',language:'Language',languageNote:'The interface language changes instantly without reinstalling.',smartAI:'Smart AI',smartAISub:'AI for visuals, diagnostics, alerts and trips',fleetMap:'Fleet map',waitingGPS:'Waiting for GPS data',speed:'Speed',status:'Status',moving:'Moving',stopped:'Stopped',connection:'Connection',setActive:'Set active',appearance:'Vehicle appearance',governorate:'Governorate',letter:'Letter',number6:'Number • up to 6 digits',save:'Save',make:'Make',model:'Model',generation:'Generation',year:'Year',addGarage:'Add to garage',developer:'Developer',business:'Business',fullControl:'Full control of your vehicle',aiVisual:'AI Visual Fit',aiVisualSub:'Auto-fits body recoloring plus plate position, size and angle per vehicle image.',aiOBD:'AI OBD Diagnostics',aiOBDSub:'Explains DTCs and sensor data when real OBD data is available.',aiAlerts:'Smart Alerts',aiAlertsSub:'Watches voltage, temperature, connectivity and motion for abnormal values.',aiTrips:'Trip AI',aiTripsSub:'Summarizes time, distance, stops and driving behavior from GPS and vehicle data.'},
+ ku:{home:'سەرەکی',garage:'گاراژ',map:'نەخشە',settings:'ڕێکخستنەکان',about:'دەربارە',addCar:'زیادکردنی ئۆتۆمبێل',addFirst:'یەکەم ئۆتۆمبێل زیاد بکە',garageEmpty:'گاراژ بەتاڵە',quick:'کۆنترۆڵی خێرا',lock:'قفڵ',unlock:'کردنەوە',start:'پێکردن',alarm:'ئاگادارکردنەوە',colorPlate:'ڕەنگ و ژمارەی ئۆتۆمبێل',active:'چالاک',manageGarage:'بەڕێوەبردنی گاراژ',activeVehicle:'ئۆتۆمبێلی چالاک',vehicle:'ئۆتۆمبێل',notLinked:'پەیوەست نییە',version:'وەشان',language:'زمان',languageNote:'زمانی ڕووکار دەستبەجێ دەگۆڕێت بەبێ دامەزراندنەوە.',smartAI:'زیرەکی',smartAISub:'زیرەکی بۆ وێنە و پشکنین و ئاگادارکردنەوە و گەشت',fleetMap:'نەخشەی ئۆتۆمبێلەکان',waitingGPS:'چاوەڕێی داتای GPS',speed:'خێرایی',status:'دۆخ',moving:'لە جووڵەدایە',stopped:'وەستاوە',connection:'پەیوەندی',setActive:'بیکە چالاک',appearance:'دەرکەوتنی ئۆتۆمبێل',governorate:'پارێزگا',letter:'پیت',number6:'ژمارە • تا ٦ ژمارە',save:'پاشەکەوت',make:'براند',model:'مۆدێل',generation:'نەوە',year:'ساڵ',addGarage:'زیادکردن بۆ گاراژ',developer:'گەشەپێدەر',business:'ناوەند',fullControl:'کۆنترۆڵی تەواوی ئۆتۆمبێلەکەت',aiVisual:'AI Visual Fit',aiVisualSub:'ڕەنگی بۆدی و شوێن و قەبارە و گۆشەی تەختە ژمارە خۆکار ڕێکدەخات.',aiOBD:'AI OBD Diagnostics',aiOBDSub:'DTC و داتای سنسۆرەکان بە داتای ڕاستەقینەی OBD ڕوون دەکات.',aiAlerts:'Smart Alerts',aiAlertsSub:'ڤۆڵت و گەرمی و پەیوەندی و جووڵە چاودێری دەکات.',aiTrips:'Trip AI',aiTripsSub:'کات و دووری و وەستان و شێوازی لێخوڕین کورت دەکات.'},
+ tr:{home:'Ana Sayfa',garage:'Garaj',map:'Harita',settings:'Ayarlar',about:'Hakkında',addCar:'Araç ekle',addFirst:'İlk aracı ekle',garageEmpty:'Garaj boş',quick:'Hızlı kontroller',lock:'Kilitle',unlock:'Kilidi aç',start:'Çalıştır',alarm:'Alarm',colorPlate:'Araç rengi ve plaka',active:'Aktif',manageGarage:'Garajı yönet',activeVehicle:'Aktif araç',vehicle:'Araç',notLinked:'Bağlı değil',version:'Sürüm',language:'Dil',languageNote:'Arayüz dili yeniden kurulum olmadan anında değişir.',smartAI:'Akıllı AI',smartAISub:'Görsel, teşhis, uyarı ve yolculuk AI',fleetMap:'Araç haritası',waitingGPS:'GPS verisi bekleniyor',speed:'Hız',status:'Durum',moving:'Hareket ediyor',stopped:'Duruyor',connection:'Bağlantı',setActive:'Aktif yap',appearance:'Araç görünümü',governorate:'İl',letter:'Harf',number6:'Numara • en fazla 6 hane',save:'Kaydet',make:'Marka',model:'Model',generation:'Nesil',year:'Yıl',addGarage:'Garaja ekle',developer:'Geliştirici',business:'İşletme',fullControl:'Aracınızın tam kontrolü',aiVisual:'AI Visual Fit',aiVisualSub:'Her araç görselinde gövde rengini ve plaka konum, boyut ve açısını otomatik ayarlar.',aiOBD:'AI OBD Diagnostics',aiOBDSub:'Gerçek OBD verisi geldiğinde DTC ve sensör verilerini açıklar.',aiAlerts:'Smart Alerts',aiAlertsSub:'Voltaj, sıcaklık, bağlantı ve hareket anormalliklerini izler.',aiTrips:'Trip AI',aiTripsSub:'GPS ve araç verilerinden süre, mesafe, durak ve sürüş özetleri çıkarır.'},
+ fa:{home:'خانه',garage:'گاراژ',map:'نقشه',settings:'تنظیمات',about:'درباره',addCar:'افزودن خودرو',addFirst:'افزودن اولین خودرو',garageEmpty:'گاراژ خالی است',quick:'کنترل سریع',lock:'قفل',unlock:'باز کردن',start:'روشن کردن',alarm:'هشدار',colorPlate:'رنگ و پلاک خودرو',active:'فعال',manageGarage:'مدیریت گاراژ',activeVehicle:'خودروی فعال',vehicle:'خودرو',notLinked:'متصل نیست',version:'نسخه',language:'زبان',languageNote:'زبان رابط بدون نصب مجدد فوراً تغییر می‌کند.',smartAI:'هوش مصنوعی',smartAISub:'هوش برای تصویر، عیب‌یابی، هشدار و سفر',fleetMap:'نقشه خودروها',waitingGPS:'در انتظار داده GPS',speed:'سرعت',status:'وضعیت',moving:'در حرکت',stopped:'متوقف',connection:'اتصال',setActive:'فعال کردن',appearance:'ظاهر خودرو',governorate:'استان',letter:'حرف',number6:'شماره • تا ۶ رقم',save:'ذخیره',make:'برند',model:'مدل',generation:'نسل',year:'سال',addGarage:'افزودن به گاراژ',developer:'توسعه‌دهنده',business:'مجموعه',fullControl:'کنترل کامل خودروی شما',aiVisual:'AI Visual Fit',aiVisualSub:'رنگ بدنه و محل، اندازه و زاویه پلاک را برای هر تصویر خودرو خودکار تنظیم می‌کند.',aiOBD:'AI OBD Diagnostics',aiOBDSub:'با داده واقعی OBD، DTC و اطلاعات حسگرها را توضیح می‌دهد.',aiAlerts:'Smart Alerts',aiAlertsSub:'ولتاژ، دما، اتصال و حرکت را برای موارد غیرعادی پایش می‌کند.',aiTrips:'Trip AI',aiTripsSub:'زمان، مسافت، توقف‌ها و رفتار رانندگی را از GPS و داده خودرو خلاصه می‌کند.'}
+};
+function t(k){return (I18N[lang]&&I18N[lang][k])||I18N.en[k]||k}
+function applyLang(){
+  document.documentElement.lang=lang;
+  document.documentElement.dir=rtlLangs[lang]?'rtl':'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(function(el){el.textContent=t(el.dataset.i18n)});
+}
 var governorates=[
 ['11','بغداد'],['12','نينوى'],['13','ميسان'],['14','البصرة'],['15','الأنبار'],['16','القادسية'],['17','المثنى'],['18','بابل'],['19','كربلاء'],['20','ديالى'],['21','السليمانية'],['22','أربيل'],['23','حلبجة'],['24','دهوك'],['25','كركوك'],['26','صلاح الدين'],['27','ذي قار'],['28','النجف'],['29','واسط']
 ];
 var plateLetters=['A','B','J','D','R','S','T','F','K','M','N','H','W','E','Q','L','Z'];
-var colors=[['أبيض','#F2F2F2'],['أسود','#161616'],['فضي','#A8ADB3'],['رمادي','#5C6268'],['أحمر','#C91F28'],['أزرق','#1D5FA7'],['سماوي','#19AFC8'],['أخضر','#276B49'],['بيج','#C7B99A'],['ذهبي','#B08A43']];
+var colorDefs=[
+ ['white','#F2F2F2'],['black','#161616'],['silver','#A8ADB3'],['gray','#5C6268'],['red','#C91F28'],['blue','#1D5FA7'],['cyan','#19AFC8'],['green','#276B49'],['beige','#C7B99A'],['gold','#B08A43']
+];
+var colorNames={
+ ar:{white:'أبيض',black:'أسود',silver:'فضي',gray:'رمادي',red:'أحمر',blue:'أزرق',cyan:'سماوي',green:'أخضر',beige:'بيج',gold:'ذهبي'},
+ en:{white:'White',black:'Black',silver:'Silver',gray:'Gray',red:'Red',blue:'Blue',cyan:'Cyan',green:'Green',beige:'Beige',gold:'Gold'},
+ ku:{white:'سپی',black:'ڕەش',silver:'زیوی',gray:'خۆڵەمێشی',red:'سور',blue:'شین',cyan:'شینی ڕوون',green:'سەوز',beige:'بێژ',gold:'زێڕین'},
+ tr:{white:'Beyaz',black:'Siyah',silver:'Gümüş',gray:'Gri',red:'Kırmızı',blue:'Mavi',cyan:'Camgöbeği',green:'Yeşil',beige:'Bej',gold:'Altın'},
+ fa:{white:'سفید',black:'مشکی',silver:'نقره‌ای',gray:'خاکستری',red:'قرمز',blue:'آبی',cyan:'فیروزه‌ای',green:'سبز',beige:'بژ',gold:'طلایی'}
+};
+function colors(){return colorDefs.map(function(c){return [colorNames[lang][c[0]]||c[0],c[1]]})}
 try{garage=JSON.parse(localStorage.getItem('pd_garage')||'[]');activeId=localStorage.getItem('pd_active')||null}catch(e){}
 if(!garage.some(function(v){return v.id===activeId}))activeId=garage.length?garage[0].id:null;
 function save(){localStorage.setItem('pd_garage',JSON.stringify(garage));if(activeId)localStorage.setItem('pd_active',activeId);else localStorage.removeItem('pd_active')}
