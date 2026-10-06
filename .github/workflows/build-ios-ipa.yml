@@ -18,9 +18,9 @@ jobs:
       - name: Apply Punisher Drive source patch
         run: |
           set -euo pipefail
-          test -f punisher/punisher-ios.patch
-          git apply --check punisher/punisher-ios.patch
-          git apply punisher/punisher-ios.patch
+          cat punisher/patchparts/00 punisher/patchparts/01 punisher/patchparts/02 punisher/patchparts/03 punisher/patchparts/04 punisher/patchparts/05 punisher/patchparts/06 > "$RUNNER_TEMP/punisher-ios.patch"
+          git apply --check "$RUNNER_TEMP/punisher-ios.patch"
+          git apply "$RUNNER_TEMP/punisher-ios.patch"
 
       - name: Check telemetry decoder
         run: |
