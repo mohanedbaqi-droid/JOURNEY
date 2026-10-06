@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.6.0 IPA
+name: Build Punisher Drive Standalone v0.6.1 IPA
 
 on:
   workflow_dispatch:
@@ -25,8 +25,10 @@ jobs:
           unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
           cp standalone/v06/project.yml project.yml
           cp standalone/v06/RootView.swift PunisherDrive/Views/RootView.swift
-          cp standalone/v05/GarageView.swift PunisherDrive/Views/GarageView.swift
-          cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
+          cp standalone/v06/GarageView.swift PunisherDrive/Views/GarageView.swift
+          cp standalone/v06/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
+          cp standalone/v06/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
+                    cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
           cp standalone/v05/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
           cp standalone/v06/AboutView.swift PunisherDrive/Views/AboutView.swift
           cp standalone/v06/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
@@ -129,11 +131,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.0-7-TEST.ipa" Payload
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.1-8-TEST.ipa" Payload
           unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.6.0-7-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-0.6.0-7-TEST-IPA
+          name: PUNISHER-DRIVE-0.6.1-8-TEST-IPA
           path: PUNISHER-DRIVE-0.6.0-7-TEST.ipa
           if-no-files-found: error
