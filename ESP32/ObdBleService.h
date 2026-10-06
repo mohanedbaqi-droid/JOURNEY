@@ -42,6 +42,9 @@ struct ObdSnapshot {
   bool clearInProgress = false;
   // v12.66 confirmed BCM/body states from exact CAN IDs.
   bool bcmStateValid = false;
+  uint8_t doorOpenMask = 0;
+  uint8_t doorKnownMask = 0x56;
+  bool parkingLightsOn = false;
   bool doorsOpen = false;
   bool locked = true;
   bool headlightsOn = false;

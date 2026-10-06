@@ -20,7 +20,7 @@ constexpr uint8_t OBD_SCAN_SECONDS = 20; // manual discovery only
 constexpr uint32_t OBD_RESCAN_DELAY_MS = 6000;
 constexpr uint32_t OBD_RECONNECT_DELAY_MS = 4000;
 constexpr uint32_t OBD_COMMAND_GAP_MS = 80;
-// v12.75: the acknowledged Journey raw scheduler owns BCM monitoring.
+// v12.76: the acknowledged Journey raw scheduler owns BCM monitoring.
 constexpr bool ENABLE_AUTO_BCM_SLICES = false;
 // فعّلها فقط بعد تحديد المخارج وفحص كل قناة بالأفوميتر.
 constexpr bool ENABLE_OUTPUTS = true;

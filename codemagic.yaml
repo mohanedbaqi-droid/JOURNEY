@@ -1,10 +1,43 @@
 workflows:
-  journey-demo-ios:
-    name: JOURNEY DEMO 2.4.19 (51)
+  journey-main-ios:
+    name: JOURNEY Main iOS
     max_build_duration: 60
     instance_type: mac_mini_m2
     triggering:
-      events: [push]
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    environment:
+      xcode: 16.0
+    scripts:
+      - name: Resolve Swift packages
+        script: |
+          cd ios
+          xcodebuild -resolvePackageDependencies -project JourneyControl.xcodeproj -scheme JourneyControl
+      - name: Build Main IPA for Sideloadly
+        script: |
+          cd ios
+          rm -rf "$CM_BUILD_DIR/DerivedData-main" "$CM_BUILD_DIR/ipa-main"
+          xcodebuild -project JourneyControl.xcodeproj -scheme JourneyControl -configuration Release -sdk iphoneos -derivedDataPath "$CM_BUILD_DIR/DerivedData-main" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          APP="$CM_BUILD_DIR/DerivedData-main/Build/Products/Release-iphoneos/JourneyControl.app"
+          test -f "$APP/Info.plist"
+          mkdir -p "$CM_BUILD_DIR/ipa-main/Payload"
+          cp -R "$APP" "$CM_BUILD_DIR/ipa-main/Payload/"
+          cd "$CM_BUILD_DIR/ipa-main"
+          ditto -c -k --sequesterRsrc --keepParent Payload "$CM_BUILD_DIR/JOURNEY-MAIN-iOS.ipa"
+    artifacts:
+      - JOURNEY-MAIN-iOS.ipa
+
+  journey-demo-ios:
+    name: JOURNEY Demo iOS
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    triggering:
+      events:
+        - push
       branch_patterns:
         - pattern: ios-demo-car-states
           include: true
@@ -12,26 +45,57 @@ workflows:
     environment:
       xcode: 16.0
     scripts:
-      - name: Validate and generate demo project
+      - name: Verify Demo branch and artwork
         script: |
-          set -e
-          swiftc ios/JourneyControl/Models/VehicleState.swift ios/JourneyControl/Models/DemoVehicleSimulation.swift ios/Tests/DemoSimulationTests.swift -o /tmp/journey-demo-tests
-          /tmp/journey-demo-tests
-          cd ios
-          xcodegen generate
-      - name: Build demo IPA
+          echo "Building branch: $CM_BRANCH"
+          test "$CM_BRANCH" = "ios-demo-car-states"
+          test -f ios/JourneyControl/JourneyControlApp.swift
+          test -f ios/JourneyControl/Assets.xcassets/JourneyDemoSheet.imageset/Contents.json
+      - name: Resolve Swift packages
         script: |
-          set -e
           cd ios
           xcodebuild -resolvePackageDependencies -project JourneyControl.xcodeproj -scheme JourneyControl
+      - name: Build Demo IPA for Sideloadly
+        script: |
+          cd ios
+          rm -rf "$CM_BUILD_DIR/DerivedData-demo" "$CM_BUILD_DIR/ipa-demo"
           xcodebuild -project JourneyControl.xcodeproj -scheme JourneyControl -configuration Release -sdk iphoneos -derivedDataPath "$CM_BUILD_DIR/DerivedData-demo" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
           APP="$CM_BUILD_DIR/DerivedData-demo/Build/Products/Release-iphoneos/JourneyControl.app"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")" = "com.abuseif.journey.demo"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/PlugIns/JourneyWidget.appex/Info.plist")" = "com.abuseif.journey.demo.widget"
+          test -f "$APP/Info.plist"
           mkdir -p "$CM_BUILD_DIR/ipa-demo/Payload"
           cp -R "$APP" "$CM_BUILD_DIR/ipa-demo/Payload/"
           cd "$CM_BUILD_DIR/ipa-demo"
-          zip -qry "$CM_BUILD_DIR/JOURNEY-DEMO-2.4.19-51-unsigned.ipa" Payload
-          unzip -t "$CM_BUILD_DIR/JOURNEY-DEMO-2.4.19-51-unsigned.ipa"
+          ditto -c -k --sequesterRsrc --keepParent Payload "$CM_BUILD_DIR/JOURNEY-DEMO-iOS.ipa"
     artifacts:
-      - JOURNEY-DEMO-2.4.19-51-unsigned.ipa
+      - JOURNEY-DEMO-iOS.ipa
+
+  journey-final-ios:
+    name: JOURNEY Main iOS (signed IPA)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    triggering:
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+    environment:
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.abuseif.journey
+      xcode: 16.0
+    scripts:
+      - name: Resolve Swift packages
+        script: |
+          cd ios
+          xcodebuild -resolvePackageDependencies -project JourneyControl.xcodeproj -scheme JourneyControl
+      - name: Apply Apple signing profiles
+        script: |
+          xcode-project use-profiles --project "$CM_BUILD_DIR/ios/JourneyControl.xcodeproj"
+      - name: Build signed iPhone IPA
+        script: |
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/ios/JourneyControl.xcodeproj" \
+            --scheme JourneyControl
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log

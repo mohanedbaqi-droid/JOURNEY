@@ -252,7 +252,6 @@ struct ContentView: View {
             VStack(spacing: 18) {
                 AnyView(quickNavigation)
                 AnyView(JourneySelectedCarView(state: vehicle).padding(.horizontal, -14))
-                AnyView(DemoControlsView(deviceID: device.deviceID, state: vehicle).environmentObject(mqtt))
                 AnyView(statusStrip(vehicle))
                 AnyView(mainControls(device, state: vehicle))
                 AnyView(telemetryCard(vehicle))
@@ -1631,15 +1630,12 @@ private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralMana
 
     override init() {
         super.init()
-        if !AppConfig.isDemo { central = CBCentralManager(delegate: self, queue: .main) }
+        central = CBCentralManager(delegate: self, queue: .main)
     }
 
     func start() {
         adapters.removeAll()
-        guard !AppConfig.isDemo else {
-            status = JL("بحث الأجهزة يحتاج ESP حقيقي؛ الديمو محلي", "Device discovery requires a real ESP; Demo is local")
-            return
-        }
+
         guard let central, central.state == .poweredOn else {
             pendingStart = true
             status = JL("فعّل Bluetooth ثم أعد البحث", "Enable Bluetooth and search again")
@@ -2697,7 +2693,7 @@ private struct SettingsAboutView: View {
         List {
             Section("JOURNEY") {
                 LabeledContent(JL("إصدار التطبيق", "App version"), value: "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))")
-                LabeledContent(JL("Firmware المطلوب", "Required firmware"), value: "v12.66")
+                LabeledContent(JL("Firmware المطلوب", "Required firmware"), value: "v12.76")
             }
             Section(JL("التحديث", "Updates")) {
                 Label(JL("تحديث ESP عبر OTA يبقى من صفحة الفحص/الصيانة.", "ESP OTA updates are available on the diagnostics and maintenance page."), systemImage: "arrow.triangle.2.circlepath")

@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct JourneyControlApp: App {
     @UIApplicationDelegateAdaptor(JourneyControlAppDelegate.self) private var appDelegate
-    @StateObject private var mqtt = MQTTService(demoMode: true)
+    @StateObject private var mqtt = MQTTService()
     @StateObject private var proximity = ProximityMonitor()
     @StateObject private var devices = DeviceStore()
     @StateObject private var homeShortcuts = HomeScreenShortcutRouter.shared

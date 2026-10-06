@@ -13,20 +13,20 @@ struct CarVisualView: View {
             let carWidth = sourceSize.width * scale
             let carHeight = sourceSize.height * scale
             ZStack {
-                layer("Liftgate", visible: state.demoLiftgateOpen)
-                layer("DriverRearDoor", visible: state.demoDriverRearOpen)
-                layer("PassengerRearDoor", visible: state.demoPassengerRearOpen)
+                layer("Liftgate", visible: state.liftgateOpen)
+                layer("DriverRearDoor", visible: state.driverRearOpen)
+                layer("PassengerRearDoor", visible: state.passengerRearOpen)
                 layer("Body")
-                layer("DriverMirror", visible: !state.demoDriverFrontOpen)
-                layer("PassengerMirror", visible: !state.demoPassengerFrontOpen)
-                layer("DriverDoor", visible: state.demoDriverFrontOpen)
-                layer("PassengerDoor", visible: state.demoPassengerFrontOpen)
-                layer("RedDRL", visible: state.demoDRLOn && !state.headlightsOn)
-                layer("LowBeam", visible: state.headlightsOn)
-                layer("Projectors", visible: state.demoProjectorsOn)
-                layer("PassengerDRL", visible: state.demoDRLOn && !state.rightSignalOn)
-                layer("DriverDRL", visible: state.demoDRLOn && !state.leftSignalOn)
-                if state.leftSignalOn || state.rightSignalOn {
+                layer("DriverMirror", visible: !state.driverFrontOpen)
+                layer("PassengerMirror", visible: !state.passengerFrontOpen)
+                layer("DriverDoor", visible: state.driverFrontOpen)
+                layer("PassengerDoor", visible: state.passengerFrontOpen)
+                layer("RedDRL", visible: state.drlOn && !state.lowBeamOn)
+                layer("LowBeam", visible: state.lowBeamOn)
+                layer("Projectors", visible: state.projectorsOn)
+                layer("PassengerDRL", visible: state.drlOn && !state.passengerSignalOn)
+                layer("DriverDRL", visible: state.drlOn && !state.driverSignalOn)
+                if state.driverSignalOn || state.passengerSignalOn {
                     TimelineView(.animation(minimumInterval: 0.05)) { timeline in
                         ledLights(date: timeline.date)
                     }
@@ -34,7 +34,7 @@ struct CarVisualView: View {
             }
             .frame(width: carWidth, height: carHeight)
             .position(x: proxy.size.width / 2, y: carHeight / 2 - 46 * scale)
-            DemoOpenStateBadges(state: state).allowsHitTesting(false)
+            VehicleOpenStateBadges(state: state).allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(1794.0 / 1165.0, contentMode: .fit)
@@ -55,7 +55,7 @@ struct CarVisualView: View {
             let count = phase < 0.72 ? min(18, Int(phase / 0.72 * 18) + 1) : (phase < 0.9 ? 18 : 0)
             // Vehicle left/driver = picture RIGHT. Both signals share one clock.
             for side in 0..<2 {
-                let signal = side == 0 ? state.rightSignalOn : state.leftSignalOn
+                let signal = side == 0 ? state.passengerSignalOn : state.driverSignalOn
                 let points = side == 0 ? passengerLEDs : driverLEDs
                 for (index, point) in points.enumerated() {
                     guard signal && index < count else { continue }

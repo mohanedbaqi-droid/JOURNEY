@@ -22,7 +22,7 @@ struct JourneyWidgetSettingsSection: View {
                     .foregroundStyle(identityMatches ? Color.green : Color.orange)
                 Text(signingMessage).font(.footnote).foregroundStyle(.secondary)
             }
-            Text(JL("ابحث عن JOURNEY DEMO بقائمة ويدجيت الشاشة الرئيسية أو شاشة القفل.", "Look for JOURNEY DEMO in the Home Screen or Lock Screen widget gallery."))
+            Text(JL("ابحث عن JOURNEY بقائمة ويدجيت الشاشة الرئيسية أو شاشة القفل.", "Look for JOURNEY in the Home Screen or Lock Screen widget gallery."))
                 .font(.footnote)
             Button(JL("تحديث الويدجيت", "Refresh widgets")) {
                 checkExtension()

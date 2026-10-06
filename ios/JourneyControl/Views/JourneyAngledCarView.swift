@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Original angled JOURNEY artwork and light overlays, retained from the final main version.
-/// Only the driver-front demo control selects its existing open-door artwork.
+/// Only the confirmed driver-front reading selects its existing open-door artwork.
 struct JourneyAngledCarView: View {
     let state: VehicleState
     @State private var pulse = false
@@ -25,17 +25,17 @@ struct JourneyAngledCarView: View {
                     .shadow(color: .black.opacity(0.72), radius: 18, y: 12)
 
                 openDriverDoor(in: proxy.size)
-                    .opacity(state.demoDriverFrontOpen ? 1 : 0)
+                    .opacity(state.driverFrontOpen ? 1 : 0)
                     .allowsHitTesting(false)
 
                 // The U-shaped white trim stays untouched.  Headlight output
                 // is drawn only inside the four circular lamp lenses.
-                if state.headlightsOn {
+                if state.lowBeamOn || state.projectorsOn {
                     frontLightGlow(in: proxy.size)
                         .allowsHitTesting(false)
                 }
 
-                if state.leftSignalOn || state.rightSignalOn {
+                if state.driverSignalOn || state.passengerSignalOn {
                     signalGlow(in: proxy.size)
                         .allowsHitTesting(false)
                 }
@@ -49,10 +49,10 @@ struct JourneyAngledCarView: View {
         .environment(\.layoutDirection, .leftToRight)
         .frame(maxWidth: .infinity)
         .frame(height: 380)
-        .animation(.easeInOut(duration: 0.18), value: state.demoDriverFrontOpen)
-        .animation(.easeInOut(duration: 0.25), value: state.headlightsOn)
-        .animation(.easeInOut(duration: 0.18), value: state.leftSignalOn)
-        .animation(.easeInOut(duration: 0.18), value: state.rightSignalOn)
+        .animation(.easeInOut(duration: 0.18), value: state.driverFrontOpen)
+        .animation(.easeInOut(duration: 0.25), value: state.lowBeamOn)
+        .animation(.easeInOut(duration: 0.18), value: state.driverSignalOn)
+        .animation(.easeInOut(duration: 0.18), value: state.passengerSignalOn)
         .onAppear {
             withAnimation(.easeInOut(duration: 0.48).repeatForever(autoreverses: true)) {
                 pulse = true
@@ -99,7 +99,7 @@ struct JourneyAngledCarView: View {
             // Button directions follow the screen: left lights the left side
             // of the picture and right lights the right side.
             JourneyTurnSignalStrip()
-                .opacity(state.leftSignalOn ? 1 : 0)
+                .opacity(state.passengerSignalOn ? 1 : 0)
                 .frame(width: imageRect.width * strips.left.width / carSourceSize.width,
                        height: imageRect.height * strips.left.height / carSourceSize.height)
                 .rotationEffect(.degrees(strips.left.rotation))
@@ -107,7 +107,7 @@ struct JourneyAngledCarView: View {
                 .opacity(pulse ? 1 : 0.12)
                 .shadow(color: .orange.opacity(0.88), radius: 2.1)
             JourneyTurnSignalStrip()
-                .opacity(state.rightSignalOn ? 1 : 0)
+                .opacity(state.driverSignalOn ? 1 : 0)
                 .frame(width: imageRect.width * strips.right.width / carSourceSize.width,
                        height: imageRect.height * strips.right.height / carSourceSize.height)
                 .rotationEffect(.degrees(strips.right.rotation))

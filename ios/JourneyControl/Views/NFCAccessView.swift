@@ -86,7 +86,7 @@ struct NFCAccessView: View {
         } header: {
             Text(JL("الآيفون", "iPhone"))
         } footer: {
-            Text(JL("التاغ لا يحمل أمراً أو مفتاحاً سرياً. للاختبار أنشئ Automation في Shortcuts يفتح journey-demo://nfc عند تمرير الآيفون.", "The tag contains no command or secret key. For testing, create a Shortcuts automation that opens journey-demo://nfc when you tap the iPhone."))
+            Text(JL("التاغ لا يحمل أمراً أو مفتاحاً سرياً. للاختبار أنشئ Automation في Shortcuts يفتح journeycontrol://nfc عند تمرير الآيفون.", "The tag contains no command or secret key. For testing, create a Shortcuts automation that opens journeycontrol://nfc when you tap the iPhone."))
         }
     }
 

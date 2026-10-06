@@ -30,8 +30,7 @@
 		B00000000000000000000018 /* VehicleNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001A /* VehicleNotificationService.swift */; };
 		B0000000000000000000000C /* CocoaMQTT in Frameworks */ = {isa = PBXBuildFile; productRef = 900000000000000000000002 /* CocoaMQTT */; };
 		B0000000000000000000000D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000E /* Assets.xcassets */; };
-		B0000000000000000000001B /* DemoVehicleSimulation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001B /* DemoVehicleSimulation.swift */; };
-		B0000000000000000000001C /* DemoControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* DemoControlsView.swift */; };
+		B0000000000000000000001C /* VehicleOpenStateBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001C /* VehicleOpenStateBadges.swift */; };
 		B0000000000000000000001D /* JourneyLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000001D /* JourneyLocalization.swift */; };
 /* End PBXBuildFile section */
 
@@ -86,8 +85,7 @@
 		A00000000000000000000018 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000000000000000000019 /* JourneyWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = JourneyWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0000000000000000000001A /* VehicleNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleNotificationService.swift; sourceTree = "<group>"; };
-		A0000000000000000000001B /* DemoVehicleSimulation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoVehicleSimulation.swift; sourceTree = "<group>"; };
-		A0000000000000000000001C /* DemoControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoControlsView.swift; sourceTree = "<group>"; };
+		A0000000000000000000001C /* VehicleOpenStateBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehicleOpenStateBadges.swift; sourceTree = "<group>"; };
 		A0000000000000000000001D /* JourneyLocalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JourneyLocalization.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -134,7 +132,6 @@
 		C00000000000000000000003 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				A0000000000000000000001B /* DemoVehicleSimulation.swift */,
 				A00000000000000000000002 /* DeviceProfile.swift */,
 				A00000000000000000000003 /* VehicleCommand.swift */,
 				A00000000000000000000004 /* VehicleState.swift */,
@@ -165,7 +162,7 @@
 		C00000000000000000000005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				A0000000000000000000001C /* DemoControlsView.swift */,
+				A0000000000000000000001C /* VehicleOpenStateBadges.swift */,
 				A00000000000000000000009 /* CarVisualView.swift */,
 				A0000000000000000000000A /* ContentView.swift */,
 				A0000000000000000000000B /* ManageDevicesView.swift */,
@@ -288,8 +285,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B0000000000000000000001D /* JourneyLocalization.swift in Sources */,
-				B0000000000000000000001C /* DemoControlsView.swift in Sources */,
-				B0000000000000000000001B /* DemoVehicleSimulation.swift in Sources */,
+				B0000000000000000000001C /* VehicleOpenStateBadges.swift in Sources */,
 				B00000000000000000000001 /* JourneyControlApp.swift in Sources */,
 				B00000000000000000000002 /* DeviceProfile.swift in Sources */,
 				B00000000000000000000003 /* VehicleCommand.swift in Sources */,
@@ -376,7 +372,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 2.4.19;
-				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.demo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -399,7 +395,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 2.4.19;
-				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.demo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -421,7 +417,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
 				MARKETING_VERSION = 2.4.19;
-				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.demo.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.widget;
 				PRODUCT_NAME = JourneyWidget;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -443,7 +439,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
 				MARKETING_VERSION = 2.4.19;
-				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.demo.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.abuseif.journey.widget;
 				PRODUCT_NAME = JourneyWidget;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

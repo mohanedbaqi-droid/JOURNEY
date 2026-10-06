@@ -75,11 +75,13 @@ bool ObdBleService::applyConfirmedBcmFrame(uint16_t canId, const uint8_t* bytes,
   } else if(canId==0x334 && len==8) {
     rawCounts_[4]++;
     // Only verified door bits; rear driver and hood remain unknown.
-    data_.doorsOpen=(bytes[2]&0x56)!=0;
+    data_.doorOpenMask=bytes[2]&data_.doorKnownMask;
+    data_.doorsOpen=data_.doorOpenMask!=0;
     data_.locked=(bytes[0]&0x40)==0; bodyAt_=now; data_.doorsValid=true;
   } else if(canId==0x324 && len==8) {
     rawCounts_[3]++;
     if(bytes[3]!=0x04 && bytes[3]!=0x14 && bytes[3]!=0x24) return false;
+    data_.parkingLightsOn=bytes[3]==0x14 || bytes[3]==0x24;
     data_.headlightsOn=bytes[3]==0x24; lightsAt_=now; data_.lightsValid=true;
   } else if(canId==0x318 && len==8) {
     rawCounts_[2]++;

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>JOURNEY DEMO</string>
+	<string>JOURNEY</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleExecutable</key>
@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.4.29</string>
+	<string>2.4.30</string>
 	<key>CFBundleVersion</key>
-	<string>61</string>
+	<string>62</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
@@ -34,10 +34,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.abuseif.journey.demo</string>
+			<string>com.abuseif.journey</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>journey-demo</string>
+				<string>journeycontrol</string>
 			</array>
 		</dict>
 	</array>
@@ -45,7 +45,7 @@
 	<array>
 		<dict>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.abuseif.journey.demo.preview.lock</string>
+			<string>com.abuseif.journey.preview.lock</string>
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>قفل السيارة</string>
 			<key>UIApplicationShortcutItemSubtitle</key>
@@ -55,7 +55,7 @@
 		</dict>
 		<dict>
 			<key>UIApplicationShortcutItemType</key>
-			<string>com.abuseif.journey.demo.preview.unlock</string>
+			<string>com.abuseif.journey.preview.unlock</string>
 			<key>UIApplicationShortcutItemTitle</key>
 			<string>فتح السيارة</string>
 			<key>UIApplicationShortcutItemSubtitle</key>

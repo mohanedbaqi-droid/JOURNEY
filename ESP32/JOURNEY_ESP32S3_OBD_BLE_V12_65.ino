@@ -1183,6 +1183,10 @@ void publishState() {
   doc["speedValid"] = c.speedValid;
   doc["rpmValid"] = c.rpmValid;
   doc["coolantValid"] = c.coolantValid;
+  doc["doorOpenMask"] = c.doorOpenMask;
+  doc["doorKnownMask"] = c.doorKnownMask;
+  doc["parkingLightsOn"] = c.parkingLightsOn;
+  doc["parkingLightsValid"] = c.lightsValid;
   doc["doorsValid"] = c.doorsValid;
   doc["lightsValid"] = c.lightsValid;
   doc["turnsValid"] = c.turnsValid;
@@ -1343,6 +1347,8 @@ void publishState() {
     // Independent body packet: no combined BCM gate and no 512-byte core growth.
     JsonDocument bodyDoc;
     bodyDoc["bp"]=1;
+    bodyDoc["dm"]=c.doorOpenMask; bodyDoc["dk"]=c.doorKnownMask;
+    bodyDoc["pl"]=c.parkingLightsOn; bodyDoc["pv"]=c.lightsValid;
     bodyDoc["dv"]=c.doorsValid; bodyDoc["lv"]=c.lightsValid; bodyDoc["iv"]=c.turnsValid;
     bodyDoc["do"]=c.doorsOpen?1:0; bodyDoc["lk"]=c.locked?1:0;
     bodyDoc["lo"]=c.headlightsOn; bodyDoc["il"]=c.leftSignalOn; bodyDoc["ir"]=c.rightSignalOn;
@@ -2216,7 +2222,7 @@ void setup() {
   Serial0.begin(115200);
   delay(2000);
   Network.begin();
-  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.75 INDEPENDENT READ VALIDITY");
+  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.76 REAL DOORS AND LIGHTS");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   remotePulseMs = preferences.getUInt("pulseMs", OUTPUT_PULSE_MS);

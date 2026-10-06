@@ -33,11 +33,11 @@ private struct JourneyWidgetView: View {
                     .widgetAccentable()
             case .accessoryRectangular:
                 VStack(alignment: .leading, spacing: 3) {
-                    Label("JOURNEY DEMO", systemImage: "car.fill").font(.headline)
+                    Label("JOURNEY", systemImage: "car.fill").font(.headline)
                     Text("فتح الديمو • Face ID").font(.caption)
                 }
             case .accessoryInline:
-                Label("JOURNEY DEMO", systemImage: "car.fill")
+                Label("JOURNEY", systemImage: "car.fill")
             case .systemSmall:
                 smallWidget
             default:
@@ -45,7 +45,7 @@ private struct JourneyWidgetView: View {
             }
         }
         .journeyWidgetBackground { widgetBackground }
-        .widgetURL(URL(string: "journey-demo://widget/open"))
+        .widgetURL(URL(string: "journeycontrol://widget/open"))
     }
 
     private var smallWidget: some View {
@@ -123,7 +123,7 @@ private struct JourneyWidgetView: View {
     }
 
     private func actionLink(_ icon: String, path: String, tint: Color) -> some View {
-        Link(destination: URL(string: "journey-demo://widget/\(path)")!) {
+        Link(destination: URL(string: "journeycontrol://widget/\(path)")!) {
             Image(systemName: icon)
                 .font(.caption.bold())
                 .foregroundStyle(tint)
@@ -225,13 +225,13 @@ private struct JourneyWidgetBody: Shape {
 }
 
 struct JourneyHomeWidget: Widget {
-    let kind = "JourneyDemoHomeWidget"
+    let kind = "JourneyHomeWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: JourneyWidgetProvider()) { entry in
             JourneyWidgetView(entry: entry)
         }
-        .configurationDisplayName("JOURNEY DEMO")
+        .configurationDisplayName("JOURNEY")
         .description("حالة سيارة العرض واختصارات الفحص الآمن.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }

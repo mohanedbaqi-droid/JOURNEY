@@ -15,15 +15,15 @@ targets:
       - JourneyControl
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.demo
+        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
         INFOPLIST_FILE: JourneyControl/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: 5.9
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.29
-        CURRENT_PROJECT_VERSION: 61
+        MARKETING_VERSION: 2.4.30
+        CURRENT_PROJECT_VERSION: 62
     dependencies:
       - package: CocoaMQTT
       - target: JourneyWidgetExtension
@@ -34,7 +34,7 @@ targets:
       - JourneyWidget
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.demo.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
         APPLICATION_EXTENSION_API_ONLY: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
         PRODUCT_NAME: JourneyWidget
@@ -45,5 +45,5 @@ targets:
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.29
-        CURRENT_PROJECT_VERSION: 61
+        MARKETING_VERSION: 2.4.30
+        CURRENT_PROJECT_VERSION: 62

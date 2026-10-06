@@ -29,15 +29,22 @@ struct VehicleState: Codable {
     var simulatedLocked = true
     var simulatedEngineRunning = false
     var simulatedDoorsOpen = false
-    // Local demo controls; these are never decoded from live ESP packets.
-    var demoDriverFrontOpen = false
-    var demoPassengerFrontOpen = false
-    var demoDriverRearOpen = false
-    var demoPassengerRearOpen = false
-    var demoLiftgateOpen = false
-    var demoHoodOpen = false
-    var demoDRLOn = false
-    var demoProjectorsOn = false
+    var doorOpenMask = 0
+    var doorKnownMask = 0
+    var parkingLightsOn = false
+    var parkingLightsValid = false
+    func doorIsKnown(_ bit: Int) -> Bool { doorsValid && (doorKnownMask & bit) != 0 }
+    func doorIsOpen(_ bit: Int) -> Bool { doorIsKnown(bit) && (doorOpenMask & bit) != 0 }
+    var driverFrontOpen: Bool { doorIsOpen(0x02) }
+    var passengerFrontOpen: Bool { doorIsOpen(0x04) }
+    var passengerRearOpen: Bool { doorIsOpen(0x10) }
+    var driverRearOpen: Bool { false } // No verified signal in the captured frames.
+    var liftgateOpen: Bool { doorIsOpen(0x40) }
+    var drlOn: Bool { rpmValid && simulatedEngineRunning }
+    var lowBeamOn: Bool { lightsValid && headlightsOn }
+    var projectorsOn: Bool { lightsValid && (headlightsOn || (parkingLightsValid && parkingLightsOn)) }
+    var driverSignalOn: Bool { turnsValid && leftSignalOn }
+    var passengerSignalOn: Bool { turnsValid && rightSignalOn }
     var remotePowered = false
     var remotePowerStatePresent = false
     var feedbackStatePresent = false
@@ -127,6 +134,7 @@ struct VehicleState: Codable {
 
     private enum CompactCodingKeys: String, CodingKey {
         case bodyPacket = "bp"
+        case doorOpenMask = "dm", doorKnownMask = "dk", parkingLightsOn = "pl", parkingLightsValid = "pv"
         case doorsValid = "dv", lightsValid = "lv", turnsValid = "iv"
         case lampOn = "lo", leftOn = "il", rightOn = "ir", diagnostics = "dg"
         case rpmValid = "rv", coolantValid = "tv", speedValid = "sv"
@@ -164,6 +172,7 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case doorOpenMask, doorKnownMask, parkingLightsOn, parkingLightsValid
         case bodyStatePacket, rpmValid, coolantValid, speedValid, doorsValid, lightsValid, turnsValid, readDiagnostics
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
         case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn, bcmStateValid
@@ -225,6 +234,10 @@ struct VehicleState: Codable {
         doorsValid = try box.decodeIfPresent(Bool.self, forKey: .doorsValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .doorsValid) ?? false)
         lightsValid = try box.decodeIfPresent(Bool.self, forKey: .lightsValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .lightsValid) ?? false)
         turnsValid = try box.decodeIfPresent(Bool.self, forKey: .turnsValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .turnsValid) ?? false)
+        doorOpenMask = try box.decodeIfPresent(Int.self, forKey: .doorOpenMask) ?? (try compact.decodeIfPresent(Int.self, forKey: .doorOpenMask) ?? 0)
+        doorKnownMask = try box.decodeIfPresent(Int.self, forKey: .doorKnownMask) ?? (try compact.decodeIfPresent(Int.self, forKey: .doorKnownMask) ?? 0)
+        parkingLightsOn = try box.decodeIfPresent(Bool.self, forKey: .parkingLightsOn) ?? (try compact.decodeIfPresent(Bool.self, forKey: .parkingLightsOn) ?? false)
+        parkingLightsValid = try box.decodeIfPresent(Bool.self, forKey: .parkingLightsValid) ?? (try compact.decodeIfPresent(Bool.self, forKey: .parkingLightsValid) ?? false)
         readDiagnostics = try box.decodeIfPresent(String.self, forKey: .readDiagnostics) ?? (try compact.decodeIfPresent(String.self, forKey: .diagnostics) ?? "")
         if bodyStatePacket {
             headlightsOn = try compact.decodeIfPresent(Bool.self, forKey: .lampOn) ?? false
