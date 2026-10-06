@@ -7,6 +7,7 @@ on:
     paths:
       - "PunisherAndroid/**"
       - "standalone/v04/**"
+      - "standalone/v07/**"
       - ".github/workflows/build-punisher-android.yml"
 
 jobs:
@@ -29,77 +30,100 @@ jobs:
           python3 - <<'PY'
           import json
           p="PunisherAndroid/app/src/main/assets/vehicle_profiles.json"
-          with open(p,encoding="utf-8") as f: data=json.load(f)
-          assert len(data)==56, len(data)
+          with open(p,encoding="utf-8") as f:data=json.load(f)
+          assert len(data)==56,len(data)
           with open("PunisherAndroid/app/src/main/assets/vehicle_profiles.js","w",encoding="utf-8") as f:
               f.write("window.VEHICLE_PROFILES=")
               json.dump(data,f,ensure_ascii=False,separators=(",",":"))
               f.write(";")
-          print("profiles",len(data))
           PY
 
-      - name: Download 56 bundled vehicle images
+      - name: Install image tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          python3 -m venv /tmp/pdvenv
+          source /tmp/pdvenv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install pillow rembg onnxruntime
+
+      - name: Build approved Punisher logo assets
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json, os, time, urllib.parse, urllib.request
+          rsvg-convert -w 1024 -h 1024 standalone/v07/assets/PunisherMark.svg -o PunisherAndroid/app/src/main/assets/punisher_mark.png
+          rm -f PunisherAndroid/app/src/main/res/drawable/ic_launcher.xml
+          cp PunisherAndroid/app/src/main/assets/punisher_mark.png PunisherAndroid/app/src/main/res/drawable/ic_launcher.png
+          test -s PunisherAndroid/app/src/main/assets/punisher_mark.png
+
+      - name: Prepare 56 clean transparent vehicle images
+        run: |
+          set -euo pipefail
+          source /tmp/pdvenv/bin/activate
+          python <<'PY'
+          import io,json,os,time,urllib.parse,urllib.request
+          from PIL import Image
+          from rembg import remove,new_session
 
           with open("PunisherAndroid/app/src/main/assets/vehicle_profiles.json",encoding="utf-8") as f:
               profiles=json.load(f)
+          assert len(profiles)==56
           out="PunisherAndroid/app/src/main/assets/vehicles"
           os.makedirs(out,exist_ok=True)
-          headers={"User-Agent":"PunisherDriveAndroid/0.1.0"}
-          ok=0
+          headers={"User-Agent":"PunisherDriveAndroid/0.2.0"}
+          session=new_session("u2netp")
 
-          def get_json(url):
-              req=urllib.request.Request(url,headers=headers)
-              with urllib.request.urlopen(req,timeout=25) as r:
-                  return json.load(r)
-
-          def wiki(query):
-              params={
-                  "action":"query","generator":"search","gsrsearch":query,"gsrnamespace":"0","gsrlimit":"8",
-                  "prop":"pageimages","piprop":"thumbnail","pithumbsize":"1400","format":"json","origin":"*"
-              }
-              data=get_json("https://en.wikipedia.org/w/api.php?"+urllib.parse.urlencode(params))
-              pages=list((data.get("query") or {}).get("pages",{}).values())
-              pages.sort(key=lambda x:x.get("index",999))
-              for p in pages:
-                  u=(p.get("thumbnail") or {}).get("source")
-                  if u and "logo" not in u.lower() and "badge" not in u.lower():
-                      return u
-              return None
-
-          def bing(query):
-              q=urllib.parse.quote_plus(query+" white car side view")
-              return "https://tse1.mm.bing.net/th?q="+q+"&w=1200&h=700&c=7&rs=1&p=0"
-
-          def download(url,dest):
-              req=urllib.request.Request(url,headers=headers)
-              with urllib.request.urlopen(req,timeout=35) as r:
-                  data=r.read()
-              if len(data)<5000: raise RuntimeError("small image")
-              with open(dest,"wb") as f:f.write(data)
-
-          for i,p in enumerate(profiles,1):
-              asset=p["assetKey"]
-              q=(p["make"]+" "+p["model"]+" "+p.get("generation","")+" automobile").strip()
-              url=None
-              try:url=wiki(q)
-              except Exception as e:print("wiki warning",asset,e)
-              if not url:url=bing(q)
-              dest=os.path.join(out,asset+".jpg")
+          def url(q):
+              return "https://tse1.mm.bing.net/th?q="+urllib.parse.quote_plus(q)+"&w=1600&h=1050&c=7&rs=1&p=0"
+          def get(u):
+              req=urllib.request.Request(u,headers=headers)
+              with urllib.request.urlopen(req,timeout=40) as r:data=r.read()
+              if len(data)<7000:raise RuntimeError("small image")
+              return data
+          def clean(data):
               try:
-                  download(url,dest)
+                  raw=remove(data,session=session)
+                  im=Image.open(io.BytesIO(raw)).convert("RGBA")
               except Exception:
-                  download(bing(q),dest)
-              ok+=1
+                  im=Image.open(io.BytesIO(data)).convert("RGBA")
+                  pix=im.load()
+                  for y in range(im.height):
+                      for x in range(im.width):
+                          r,g,b,a=pix[x,y]
+                          if r>238 and g>238 and b>238:pix[x,y]=(r,g,b,0)
+              bb=im.getbbox()
+              if bb:im=im.crop(bb)
+              canvas=Image.new("RGBA",(1500,1000),(0,0,0,0))
+              scale=min(1380/im.width,900/im.height)
+              nw,nh=max(1,int(im.width*scale)),max(1,int(im.height*scale))
+              im=im.resize((nw,nh),Image.Resampling.LANCZOS)
+              canvas.alpha_composite(im,((1500-nw)//2,(1000-nh)//2))
+              return canvas
+
+          done=0
+          for i,p in enumerate(profiles,1):
+              asset=p["assetKey"];make=p["make"];model=p["model"];gen=p.get("generation","")
+              queries=[
+                  f"{make} {model} {gen} white front three quarter view transparent png",
+                  f"{make} {model} {gen} silver front 3/4 studio car",
+                  f"{make} {model} white front three quarter"
+              ]
+              car=None
+              for q in queries:
+                  try:
+                      d=get(url(q)); c=clean(d)
+                      bb=c.getbbox()
+                      if bb and bb[2]-bb[0]>500:
+                          car=c;break
+                  except Exception as e:
+                      print("retry",asset,e)
+              if car is None:raise RuntimeError("failed "+asset)
+              car.save(os.path.join(out,asset+".png"),optimize=True)
+              done+=1
               print(f"[{i:02d}/56] {asset}")
-              time.sleep(.05)
-          if ok!=56: raise SystemExit("vehicle image count mismatch")
-          print("VEHICLE_IMAGE_COUNT",ok)
+              time.sleep(.04)
+          if done!=56:raise SystemExit("count mismatch")
           PY
-          test "$(find PunisherAndroid/app/src/main/assets/vehicles -type f -name '*.jpg' | wc -l | tr -d ' ')" -eq 56
+          test "$(find PunisherAndroid/app/src/main/assets/vehicles -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
 
       - uses: actions/setup-java@v4
         with:
@@ -119,11 +143,11 @@ jobs:
           set -euo pipefail
           APK="PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.1.0-1.apk"
-          ls -lh PUNISHER-DRIVE-ANDROID-0.1.0-1.apk
+          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.2.0-2.apk"
+          ls -lh PUNISHER-DRIVE-ANDROID-0.2.0-2.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-ANDROID-0.1.0-1-APK
-          path: PUNISHER-DRIVE-ANDROID-0.1.0-1.apk
+          name: PUNISHER-DRIVE-ANDROID-0.2.0-2-APK
+          path: PUNISHER-DRIVE-ANDROID-0.2.0-2.apk
           if-no-files-found: error
