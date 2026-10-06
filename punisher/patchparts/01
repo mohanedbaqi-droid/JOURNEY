@@ -1,0 +1,80 @@
+ctionPriority: ESPConnectionPriority? = nil, vehicleProfileID: String? = nil) {
+         self.id = UUID().uuidString
+         self.phoneID = AppConfig.phoneID
+         self.action = action
+@@ -107,6 +109,7 @@
+         self.wifiSettings = wifiSettings
+         self.cellularSettings = cellularSettings
+         self.connectionPriority = connectionPriority
++        self.vehicleProfileID = vehicleProfileID
+     }
+ 
+     func encode(to encoder: Encoder) throws {
+@@ -128,6 +131,7 @@
+         try container.encodeIfPresent(wifiSettings, forKey: .wifiSettings)
+         try container.encodeIfPresent(cellularSettings, forKey: .cellularSettings)
+         try container.encodeIfPresent(connectionPriority, forKey: .connectionPriority)
++        try container.encodeIfPresent(vehicleProfileID, forKey: .vehicleProfileID)
+     }
+ }
+ 
+@@ -310,6 +314,9 @@
+         case .cellularForget:
+             title = JL("مسح إعدادات الشريحة", "Clear cellular settings")
+             icon = "simcard"
++        case .vehicleProfile:
++            title = JL("تحديث بروفايل السيارة", "Update vehicle profile")
++            icon = "car.badge.gearshape"
+         case .connectionPriority:
+             title = JL("تحديث أولوية الاتصال", "Update connection priority")
+             icon = "arrow.up.arrow.down"
+--- a/ios/JourneyControl/Services/DeviceStore.swift
++++ b/ios/JourneyControl/Services/DeviceStore.swift
+@@ -18,14 +18,14 @@
+     init() {
+         if let data = UserDefaults.standard.data(forKey: devicesKey),
+            let decoded = try? JSONDecoder().decode([DeviceProfile].self, from: data) {
+-            devices = decoded.isEmpty ? [DeviceProfile(name: JL("سيارة جورني", "Journey vehicle"), deviceID: Self.productionDeviceID)] : decoded
++            devices = decoded.isEmpty ? [DeviceProfile(name: JL("سيارتي", "My vehicle"), deviceID: Self.productionDeviceID)] : decoded
+         } else {
+-            devices = [DeviceProfile(name: JL("سيارة جورني", "Journey vehicle"), deviceID: Self.productionDeviceID)]
++            devices = [DeviceProfile(name: JL("سيارتي", "My vehicle"), deviceID: Self.productionDeviceID)]
+         }
+ 
+         // Migrate only the old placeholder used by earlier build packages.
+         if let index = devices.firstIndex(where: { $0.deviceID == "demo-local" || $0.deviceID == "journey-bench-01" }) {
+-            devices[index].name = JL("سيارة جورني", "Journey vehicle")
++            devices[index].name = JL("سيارتي", "My vehicle")
+             devices[index].deviceID = Self.productionDeviceID
+         }
+ 
+--- a/ios/JourneyControl/Views/ContentView.swift
++++ b/ios/JourneyControl/Views/ContentView.swift
+@@ -5,6 +5,39 @@
+ import SwiftUI
+ import UIKit
+ import UniformTypeIdentifiers
++
++
++private struct PunisherVehicleProfile: Identifiable, Hashable {
++    let id: String
++    let brand: String
++    let model: String
++    let years: ClosedRange<Int>
++    let visualAsset: String?
++    let supportsLock: Bool
++    let supportsUnlock: Bool
++    let supportsRemoteStart: Bool
++    let supportsAlarm: Bool
++
++    var displayName: String { "\(brand) \(model)" }
++}
++
++private enum PunisherVehicleCatalog {
++    static let profiles: [PunisherVehicleProfile] = [
++        .init(id: "dodge_journey_2017", brand: "Dodge", model: "Journey", years: 2017...2017, visualAsset: "JourneySEClosed", supportsLock: true, supportsUnlock: true, supportsRemoteStart: true, supportsAlarm: true),
++        .init(id: "toyota_camry_2024", brand: "Toyota", model: "Camry", years: 2024...2024, visualAsset: nil, supportsLock: false, supportsUnlock: false, supportsRemoteStart: false, supportsAlarm: false),
++        .init(id: "toyota_land_cruiser_2024", brand: "Toyota", model: "Land Cruiser", years: 2024...2024, visualAsset: nil, supportsLock: false, supportsUnlock: false, supportsRemoteStart: false, supportsAlarm: false)
++    ]
++
++    static func profile(id: String) -> PunisherVehicleProfile? { pr
