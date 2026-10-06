@@ -16,7 +16,7 @@ radial-gradient(circle at 10% 0%,rgba(215,28,35,.14),transparent 30%),
 radial-gradient(circle at 90% 5%,rgba(0,205,235,.12),transparent 32%),
 linear-gradient(160deg,#05070b,#0a0d13 55%,#061016)}
 #header{height:72px;padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(3,4,7,.94)}
-.logo{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:var(--red);font-size:28px;font-weight:900;border:1px solid rgba(0,205,235,.55);background:#090c11;box-shadow:0 0 16px rgba(215,28,35,.22)}
+.logo{width:54px;height:54px;object-fit:contain;filter:drop-shadow(0 0 12px rgba(215,28,35,.35)) drop-shadow(0 0 8px rgba(0,205,235,.18))}
 .brand{min-width:0;flex:1}.brand b{font-size:18px;letter-spacing:.6px}.brand small{display:block;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 #content{flex:1;overflow:auto;padding:14px 14px 110px}
 #tabs{height:88px;position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(5,1fr);gap:3px;padding:7px 6px calc(8px + env(safe-area-inset-bottom));background:rgba(2,3,5,.96);border-top:1px solid rgba(255,255,255,.08);z-index:20}
@@ -28,12 +28,15 @@ linear-gradient(160deg,#05070b,#0a0d13 55%,#061016)}
 .card.accent{border-color:rgba(0,205,235,.22)}
 .row{display:flex;align-items:center;gap:10px}.between{justify-content:space-between}
 .title{font-size:25px;font-weight:900;margin:0}.sub{color:var(--muted);font-size:12px}
-.vehicle-photo{width:100%;height:154px;object-fit:contain;display:block;margin:6px auto 0;filter:drop-shadow(0 8px 12px rgba(0,0,0,.45))}
+.vehicle-photo{width:100%;height:225px;object-fit:contain;display:block;margin:2px auto 0;filter:drop-shadow(0 10px 14px rgba(0,0,0,.52))}
+.vehicle-stage{height:238px;position:relative;display:flex;align-items:center;justify-content:center;overflow:visible;margin-top:2px}
+.vehicle-stage .vehicle-photo{height:228px;margin:0}
+.plate-on-car{position:absolute;left:68%;top:70%;transform:translate(-50%,-50%);background:#f7f7f7;color:#050505;border:1px solid #555;border-radius:4px;padding:3px 8px;font:900 11px ui-monospace,monospace;max-width:95px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 .plate{display:inline-block;background:#fff;color:#080808;border:1px solid #555;border-radius:5px;padding:4px 13px;font:900 12px ui-monospace,monospace;max-width:90%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pills{display:flex;gap:7px;overflow:auto;margin:10px 0}.pill{flex:none;border-radius:999px;padding:7px 10px;background:#10151c;border:1px solid #242c35;color:#c7ccd3;font-size:11px;font-weight:800}.pill.on{color:var(--cyan);border-color:rgba(0,205,235,.3)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ctrl{height:88px;border-radius:17px;border:1px solid rgba(255,255,255,.09);background:#10151c;color:#fff;font-weight:900}.ctrl.red{border-color:rgba(215,28,35,.3)}.ctrl.cyan{border-color:rgba(0,205,235,.3)}
 .btn{border:1px solid rgba(0,205,235,.35);background:#0f151c;color:var(--cyan);padding:11px 13px;border-radius:14px;font-weight:850}.btn.red{border-color:rgba(215,28,35,.38);color:var(--red)}.btn.fill{background:linear-gradient(90deg,var(--red),var(--cyan));border:0;color:#fff}
-.garage-car{display:grid;grid-template-columns:112px 1fr;gap:12px;align-items:center}.garage-car img{width:108px;height:78px;object-fit:contain}
+.garage-car{display:grid;grid-template-columns:148px 1fr;gap:10px;align-items:center}.garage-car img{width:144px;height:104px;object-fit:contain}
 .badge{font-size:10px;border-radius:999px;padding:4px 8px;background:rgba(0,205,235,.1);color:var(--cyan);font-weight:850}
 .actions{display:flex;gap:7px;margin-top:10px}.actions .btn{flex:1;padding:9px 6px;font-size:11px}
 .section{font-size:17px;font-weight:900;margin:13px 2px 8px}
@@ -47,14 +50,14 @@ linear-gradient(160deg,#05070b,#0a0d13 55%,#061016)}
 #splash{position:fixed;inset:0;z-index:99;background:
 radial-gradient(circle at center,rgba(215,28,35,.16),transparent 35%),
 linear-gradient(#040507,#071018);display:flex;align-items:center;justify-content:center;text-align:center;transition:opacity .35s}
-#splash.hide{opacity:0;pointer-events:none}.splash-skull{font-size:102px;color:var(--red);line-height:1}.splash-title{font-size:29px;font-weight:1000;letter-spacing:1px}.splash-sub{font-size:11px;color:var(--cyan);letter-spacing:3px;margin-top:7px}
+#splash.hide{opacity:0;pointer-events:none}.splash-logo{width:265px;height:265px;object-fit:contain;filter:drop-shadow(0 0 25px rgba(215,28,35,.45))}.splash-title{font-size:34px;font-weight:1000;letter-spacing:1px;color:var(--red);font-style:italic}.splash-drive{font-size:35px;font-weight:1000;letter-spacing:2px;color:var(--cyan);font-style:italic}.splash-sub{font-size:11px;color:#dbe7ee;letter-spacing:3px;margin-top:9px}
 </style>
 <script src="vehicle_profiles.js"></script>
 </head>
 <body>
-<div id="splash"><div><div class="splash-skull">☠</div><div class="splash-title">PUNISHER DRIVE</div><div class="splash-sub">SMART VEHICLE CONTROL</div></div></div>
+<div id="splash"><div><img class="splash-logo" src="punisher_mark.png"><div class="splash-title">PUNISHER</div><div class="splash-drive">DRIVE</div><div class="splash-sub">SMART VEHICLE CONTROL</div></div></div>
 <div id="app">
-  <header id="header"><div class="logo">☠</div><div class="brand"><b>PUNISHER DRIVE</b><small id="headerSub">Smart Vehicle Control</small></div></header>
+  <header id="header"><img class="logo" src="punisher_mark.png"><div class="brand"><b><span style="color:#ff343d">PUNISHER</span> <span style="color:#24dfff">DRIVE</span></b><small id="headerSub">Smart Vehicle Control</small></div></header>
   <main id="content"></main>
   <nav id="tabs">
     <button class="tab" data-tab="garage"><div class="ico">▣</div><span>الكراج</span></button>
@@ -76,16 +79,17 @@ function save(){localStorage.setItem('pd_garage',JSON.stringify(garage));if(acti
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function profile(v){return profiles.find(function(p){return p.id===v.profileID})}
 function active(){return garage.find(function(v){return v.id===activeId})||null}
-function image(v){var p=profile(v);return p?'vehicles/'+encodeURIComponent(p.assetKey)+'.jpg':''}
+function image(v){var p=profile(v);return p?'vehicles/'+encodeURIComponent(p.assetKey)+'.png':''}
 function name(v){var p=profile(v);return v.nickname||((p?p.make:'')+' '+(p?p.model:''))}
 function sub(v){var p=profile(v);return (p?p.make:'')+' '+(p?p.model:'')+' • '+v.year}
 function vehiclePic(v,cls){return '<img class="'+(cls||'vehicle-photo')+'" src="'+image(v)+'" alt="'+esc(name(v))+'">'}
+function vehicleStage(v){return '<div class="vehicle-stage">'+vehiclePic(v)+(v.plateText?'<span class="plate-on-car">'+esc(v.plateText)+'</span>':'')+'</div>'}
 function updateHeader(){var v=active();document.getElementById('headerSub').textContent=v?sub(v):'Smart Vehicle Control'}
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t)});render()}
 document.querySelectorAll('.tab').forEach(function(b){b.addEventListener('click',function(){setTab(b.dataset.tab)})})
 function render(){updateHeader();var c=document.getElementById('content');if(tab==='garage')c.innerHTML=garageHtml();else if(tab==='map'){c.innerHTML=mapHtml();setTimeout(loadMap,20)}else if(tab==='settings')c.innerHTML=settingsHtml();else if(tab==='about')c.innerHTML=aboutHtml();else c.innerHTML=homeHtml();bind()}
 function homeHtml(){var v=active();if(!v)return '<div class="card empty"><div class="big">☠</div><h3>الكراج فارغ</h3><p>أضف أول سيارة وحدد الماركة والموديل والسنة.</p><button class="btn fill" data-act="add">إضافة أول سيارة</button></div>';
-return '<div class="card accent"><div class="row between"><div><h2 class="title">'+esc(name(v))+'</h2><div class="sub">'+esc(sub(v))+'</div></div><span class="badge">ACTIVE</span></div>'+vehiclePic(v)+'<div style="text-align:center"><span class="plate">'+esc(v.plateText||'رقم السيارة')+'</span></div></div>'+
+return '<div class="card accent"><div class="row between"><div><h2 class="title">'+esc(name(v))+'</h2><div class="sub">'+esc(sub(v))+'</div></div><span class="badge">ACTIVE</span></div>'+vehicleStage(v)+'</div>'+
 '<div class="pills"><div class="pill '+(v.espDeviceID?'on':'')+'">'+(v.espDeviceID?'ESP متصل':'ESP غير مربوط')+'</div><div class="pill '+(v.latitude!=null&&v.longitude!=null?'on':'')+'">GPS</div><div class="pill">OBD</div></div>'+
 '<button class="btn" style="width:100%;margin-bottom:12px" data-act="appearance" data-id="'+v.id+'">لون ورقم السيارة</button>'+
 '<div class="card"><div class="section">التحكم السريع</div><div class="grid2"><button class="ctrl red">🔒<br>قفل</button><button class="ctrl cyan">🔓<br>فتح</button><button class="ctrl red">⏻<br>تشغيل</button><button class="ctrl cyan">🔔<br>إنذار</button></div></div>';
@@ -94,8 +98,8 @@ function garageHtml(){var h='<div class="row between"><div><h1 class="title">ا�
 if(!garage.length)return h+'<div class="card empty"><div class="big">▣</div><h3>الكراج فارغ</h3></div>';
 garage.forEach(function(v){h+='<div class="card"><div class="garage-car">'+vehiclePic(v,'')+'<div><div class="row"><b>'+esc(name(v))+'</b>'+(v.id===activeId?'<span class="badge">نشطة</span>':'')+'</div><div class="sub">'+esc(sub(v))+'</div><div class="sub" style="margin-top:5px">'+esc(v.plateText||'بدون رقم')+'</div><div class="sub">'+esc(v.espDeviceID||'ESP غير مربوط')+'</div></div></div><div class="actions">'+(v.id!==activeId?'<button class="btn" data-act="activate" data-id="'+v.id+'">اعتماد</button>':'')+'<button class="btn" data-act="appearance" data-id="'+v.id+'">اللون والرقم</button><button class="btn red" data-act="esp" data-id="'+v.id+'">ESP</button></div></div>'});return h}
 function mapHtml(){var located=garage.filter(function(v){return v.latitude!=null&&v.longitude!=null});var h='<div class="row between"><div><h1 class="title">خارطة السيارات</h1><div class="sub">'+located.length+' من '+garage.length+' سيارة عندها موقع</div></div></div>';if(!located.length)return h+'<div class="card empty"><div class="big">⌖</div><h3>بانتظار بيانات GPS</h3><p>أول ما يوصل موقع السيارة الحقيقي من جهاز ESP راح تظهر هنا، بدون مواقع وهمية.</p></div>';return h+'<div id="map"></div><div id="mapInfo"></div>'}
-function settingsHtml(){var v=active();return '<h1 class="title">الإعدادات</h1><div class="card"><div class="section">السيارة النشطة</div><div class="info"><span>السيارة</span><b>'+esc(v?sub(v):'ماكو')+'</b></div><div class="info"><span>ESP</span><b>'+esc(v&&v.espDeviceID?v.espDeviceID:'غير مربوط')+'</b></div></div><div class="card"><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="garage">إدارة الكراج</button><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="map">الخارطة</button><button class="btn red" style="width:100%" data-tabgo="about">حول التطبيق</button></div><div class="card"><div class="info"><span>الإصدار</span><b>Android 0.1.0 (1)</b></div><div class="info"><span>البروفايلات</span><b>'+profiles.length+'</b></div><div class="info"><span>السيارات بالكراج</span><b>'+garage.length+'</b></div></div>'}
-function aboutHtml(){return '<div class="about-logo"><div class="skull">☠</div><h2>PUNISHER DRIVE</h2><h3>بونيشير كار</h3><p>تحكم كامل بسيارتك</p></div><div class="card"><div class="info"><span>المطور</span><b>مهند الربيعي</b></div><div class="info"><span>الجهة</span><b>مركز بونيشير للسيارات</b></div><div class="info"><span>الهاتف / واتساب</span><b>07811119127</b></div><div class="info"><span>إنستغرام</span><b>h0k38</b></div><div class="info"><span>تيليغرام</span><b>ma_o_92</b></div><div class="info"><span>إصدار التطبيق</span><b>Android 0.1.0 (1)</b></div><div class="info"><span>تحديث ESP</span><b>v1.0.4</b></div></div>'}
+function settingsHtml(){var v=active();return '<h1 class="title">الإعدادات</h1><div class="card"><div class="section">السيارة النشطة</div><div class="info"><span>السيارة</span><b>'+esc(v?sub(v):'ماكو')+'</b></div><div class="info"><span>ESP</span><b>'+esc(v&&v.espDeviceID?v.espDeviceID:'غير مربوط')+'</b></div></div><div class="card"><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="garage">إدارة الكراج</button><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="map">الخارطة</button><button class="btn red" style="width:100%" data-tabgo="about">حول التطبيق</button></div><div class="card"><div class="info"><span>الإصدار</span><b>Android 0.2.0 (2)</b></div><div class="info"><span>البروفايلات</span><b>'+profiles.length+'</b></div><div class="info"><span>السيارات بالكراج</span><b>'+garage.length+'</b></div></div>'}
+function aboutHtml(){return '<div class="about-logo"><img src="punisher_mark.png" style="width:160px;height:160px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(215,28,35,.35))"><h2><span style="color:#ff343d">PUNISHER</span> <span style="color:#24dfff">DRIVE</span></h2><h3>بونيشير كار</h3><p>تحكم كامل بسيارتك</p></div><div class="card"><div class="info"><span>المطور</span><b>مهند الربيعي</b></div><div class="info"><span>الجهة</span><b>مركز بونيشير للسيارات</b></div><div class="info"><span>الهاتف / واتساب</span><b>07811119127</b></div><div class="info"><span>إنستغرام</span><b>h0k38</b></div><div class="info"><span>تيليغرام</span><b>ma_o_92</b></div><div class="info"><span>إصدار التطبيق</span><b>Android 0.2.0 (2)</b></div><div class="info"><span>تحديث ESP</span><b>v1.0.4</b></div></div>'}
 function openModal(html){document.getElementById('sheet').innerHTML=html;document.getElementById('modal').classList.add('open');bindModal()}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
 document.getElementById('modal').addEventListener('click',function(e){if(e.target.id==='modal')closeModal()})
