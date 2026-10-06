@@ -15,13 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply Punisher Drive source overlay
+      - name: Apply Punisher Drive source patch
         run: |
           set -euo pipefail
-          test -f punisher/chunks/00.txt
-          /usr/bin/base64 -D < punisher/chunks/00.txt > "$RUNNER_TEMP/punisher-ios-overlay.zip"
-          unzip -t "$RUNNER_TEMP/punisher-ios-overlay.zip"
-          unzip -oq "$RUNNER_TEMP/punisher-ios-overlay.zip" -d .
+          test -f punisher/punisher-ios.patch
+          git apply --check punisher/punisher-ios.patch
+          git apply punisher/punisher-ios.patch
 
       - name: Check telemetry decoder
         run: |
