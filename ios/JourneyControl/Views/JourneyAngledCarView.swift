@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Original angled JOURNEY artwork and light overlays, retained from the final main version.\n/// Only the driver-front demo control selects its existing open-door artwork.
+/// Original angled JOURNEY artwork and light overlays, retained from the final main version.
+/// Only the driver-front demo control selects its existing open-door artwork.
 struct JourneyAngledCarView: View {
     let state: VehicleState
     @State private var pulse = false
@@ -15,12 +16,17 @@ struct JourneyAngledCarView: View {
             ZStack {
                 groundGlow
 
-                Image(vehicleAssetName)
+                // The chassis never switches artwork. Only the door region
+                // uses the open image, registered to the closed A-pillar.
+                Image("JourneyLEDClosed")
                     .resizable()
                     .scaledToFit()
-                    .transition(.opacity.combined(with: .scale(scale: state.demoDriverFrontOpen ? 0.985 : 1.015)))
                     .frame(width: min(proxy.size.width + 18, 430))
                     .shadow(color: .black.opacity(0.72), radius: 18, y: 12)
+
+                openDriverDoor(in: proxy.size)
+                    .opacity(state.demoDriverFrontOpen ? 1 : 0)
+                    .allowsHitTesting(false)
 
                 // The U-shaped white trim stays untouched.  Headlight output
                 // is drawn only inside the four circular lamp lenses.
@@ -41,7 +47,7 @@ struct JourneyAngledCarView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 380)
-        .animation(.spring(response: 0.52, dampingFraction: 0.72), value: state.demoDriverFrontOpen)
+        .animation(.easeInOut(duration: 0.18), value: state.demoDriverFrontOpen)
         .animation(.easeInOut(duration: 0.25), value: state.headlightsOn)
         .animation(.easeInOut(duration: 0.18), value: state.leftSignalOn)
         .animation(.easeInOut(duration: 0.18), value: state.rightSignalOn)
@@ -55,12 +61,15 @@ struct JourneyAngledCarView: View {
         .accessibilityValue(state.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"))
     }
 
-    private var vehicleAssetName: String {
-        if state.demoDriverFrontOpen {
-            return "JourneyLEDOpen"
-        } else {
-            return "JourneyLEDClosed"
-        }
+    private func openDriverDoor(in canvasSize: CGSize) -> some View {
+        let rect = fittedCarImageRect(in: canvasSize)
+        let scale = rect.width / carSourceSize.width
+        return Image("JourneyLEDOpen")
+            .resizable()
+            .frame(width: rect.width, height: rect.height)
+            .clipShape(RegisteredDriverDoorRegion())
+            .offset(x: 20 * scale, y: 18 * scale)
+            .frame(width: canvasSize.width, height: canvasSize.height)
     }
 
     private func frontLightGlow(in canvasSize: CGSize) -> some View {
@@ -110,15 +119,6 @@ struct JourneyAngledCarView: View {
     /// Centre, size and angle of the amber strip inside each physical lamp.
     /// Directions follow what the driver sees on screen.
     private var signalStrips: (left: SignalStripLayout, right: SignalStripLayout) {
-        if state.demoDriverFrontOpen {
-            return (
-                // Screen-left lamp follows the same lower-edge direction as
-                // the closed-door artwork: inner end slightly lower.
-                // Keep the outer end fixed, but stop short of the grille.
-                SignalStripLayout(x: 184, y: 565, width: 144, height: 20, rotation: 9.0),
-                SignalStripLayout(x: 917, y: 580, width: 262, height: 21, rotation: -3.5)
-            )
-        }
         return (
             // Screen-left lamp (the side opposite the open passenger door):
             // its amber bar sits *below* the round lenses and slopes only
@@ -133,14 +133,6 @@ struct JourneyAngledCarView: View {
     /// Reference lamp geometry: only the round white centres inside the U
     /// trim illuminate.  The U itself is purely cosmetic in this UI.
     private var lensLayouts: [LensLayout] {
-        if state.demoDriverFrontOpen {
-            return [
-                LensLayout(x: 198, y: 500, diameter: 48),
-                LensLayout(x: 260, y: 507, diameter: 42),
-                LensLayout(x: 838, y: 526, diameter: 68),
-                LensLayout(x: 946, y: 530, diameter: 62)
-            ]
-        }
         return [
             LensLayout(x: 213, y: 510, diameter: 50),
             LensLayout(x: 280, y: 518, diameter: 42),
@@ -193,211 +185,6 @@ struct JourneyAngledCarView: View {
             .fill(.cyan.opacity(state.simulatedEngineRunning ? 0.18 : 0.07))
             .frame(width: 228, height: 318)
             .blur(radius: 30)
-    }
-
-    private var journeyBody: some View {
-        ZStack {
-            JourneyBodyShape()
-                .fill(
-                    LinearGradient(
-                        colors: [.white, Color(white: 0.82), Color(white: 0.98), Color(white: 0.64)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: 168, height: 306)
-                .overlay(JourneyBodyShape().stroke(.white.opacity(0.82), lineWidth: 1.4))
-                .shadow(color: .black.opacity(0.75), radius: 15, y: 12)
-                .shadow(color: .cyan.opacity(state.simulatedEngineRunning ? 0.28 : 0.08), radius: 25)
-
-            VStack(spacing: 9) {
-                frontDetails
-                frontGlass
-                roof
-                rearGlass
-                rearDetails
-            }
-            .frame(height: 285)
-
-            roofRails
-
-            RoundedRectangle(cornerRadius: 3)
-                .fill(state.simulatedEngineRunning ? .green : .black.opacity(0.22))
-                .frame(width: 36, height: 4)
-                .offset(y: 22)
-                .shadow(color: state.simulatedEngineRunning ? .green : .clear, radius: 8)
-        }
-    }
-
-    private var frontDetails: some View {
-        VStack(spacing: 3) {
-            Text("DODGE")
-                .font(.system(size: 5, weight: .black, design: .rounded))
-                .tracking(1)
-                .foregroundStyle(.black.opacity(0.62))
-            HStack(spacing: 4) {
-                ForEach(0..<4, id: \.self) { _ in
-                    Capsule().fill(.black.opacity(0.60)).frame(width: 18, height: 2)
-                }
-            }
-        }
-        .frame(height: 23)
-    }
-
-    private var frontGlass: some View {
-        RoundedRectangle(cornerRadius: 18)
-        .fill(glassGradient)
-        .frame(width: 116, height: 55)
-        .overlay(
-            LinearGradient(colors: [.white.opacity(0.32), .clear], startPoint: .topLeading, endPoint: .center)
-                .clipShape(RoundedRectangle(cornerRadius: 15))
-        )
-    }
-
-    private var roof: some View {
-        RoundedRectangle(cornerRadius: 21)
-            .fill(
-                LinearGradient(
-                    colors: [Color(white: 0.94), Color(white: 0.76), .white],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .frame(width: 119, height: 94)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.black.opacity(0.77))
-                    .frame(width: 84, height: 62)
-                    .overlay(
-                        LinearGradient(colors: [.cyan.opacity(0.20), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                    )
-            )
-            .overlay(RoundedRectangle(cornerRadius: 21).stroke(.black.opacity(0.10)))
-    }
-
-    private var rearGlass: some View {
-        RoundedRectangle(cornerRadius: 15)
-        .fill(glassGradient)
-        .frame(width: 111, height: 43)
-    }
-
-    private var rearDetails: some View {
-        VStack(spacing: 2) {
-            Text("JOURNEY")
-                .font(.system(size: 5, weight: .bold, design: .rounded))
-                .tracking(0.9)
-                .foregroundStyle(.black.opacity(0.58))
-            RoundedRectangle(cornerRadius: 2)
-                .fill(.black.opacity(0.72))
-                .frame(width: 42, height: 10)
-                .overlay(Text("27A 77884").font(.system(size: 4, weight: .bold)).foregroundStyle(.white.opacity(0.75)))
-        }
-        .frame(height: 24)
-    }
-
-    private var glassGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color(red: 0.27, green: 0.40, blue: 0.46), .black.opacity(0.94)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    private var roofRails: some View {
-        HStack(spacing: 119) {
-            Capsule().fill(.black.opacity(0.58)).frame(width: 5, height: 151)
-            Capsule().fill(.black.opacity(0.58)).frame(width: 5, height: 151)
-        }
-        .offset(y: 4)
-    }
-
-    private var wheels: some View {
-        VStack(spacing: 170) {
-            wheelPair
-            wheelPair
-        }
-    }
-
-    private var wheelPair: some View {
-        HStack(spacing: 146) {
-            wheel
-            wheel
-        }
-    }
-
-    private var wheel: some View {
-        RoundedRectangle(cornerRadius: 5)
-            .fill(.black)
-            .frame(width: 18, height: 54)
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(.white.opacity(0.12)))
-    }
-
-    private var doors: some View {
-        ZStack {
-            journeyDoor(front: true, left: true)
-                .rotationEffect(.degrees(state.demoDriverFrontOpen ? -33 : 0), anchor: .trailing)
-                .offset(x: state.demoDriverFrontOpen ? -92 : -68, y: -42)
-            journeyDoor(front: true, left: false)
-                .rotationEffect(.degrees(state.demoDriverFrontOpen ? 33 : 0), anchor: .leading)
-                .offset(x: state.demoDriverFrontOpen ? 92 : 68, y: -42)
-            journeyDoor(front: false, left: true)
-                .rotationEffect(.degrees(state.demoDriverFrontOpen ? -31 : 0), anchor: .trailing)
-                .offset(x: state.demoDriverFrontOpen ? -91 : -68, y: 51)
-            journeyDoor(front: false, left: false)
-                .rotationEffect(.degrees(state.demoDriverFrontOpen ? 31 : 0), anchor: .leading)
-                .offset(x: state.demoDriverFrontOpen ? 91 : 68, y: 51)
-        }
-    }
-
-    private func journeyDoor(front: Bool, left: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 9)
-            .fill(LinearGradient(colors: [.white, Color(white: 0.69)], startPoint: .top, endPoint: .bottom))
-            .frame(width: 48, height: front ? 78 : 73)
-            .overlay(
-                Capsule()
-                    .fill(.black.opacity(0.50))
-                    .frame(width: 13, height: 2)
-                    .offset(x: left ? 10 : -10, y: -24)
-            )
-            .overlay(RoundedRectangle(cornerRadius: 9).stroke(.white.opacity(0.65)))
-            .shadow(color: state.demoDriverFrontOpen ? .cyan.opacity(0.24) : .clear, radius: 12)
-    }
-
-    private var lamps: some View {
-        VStack(spacing: 254) {
-            HStack(spacing: 76) {
-                lamp(color: state.leftSignalOn ? .orange : (state.headlightsOn ? .white : .gray), flashing: state.leftSignalOn)
-                lamp(color: state.rightSignalOn ? .orange : (state.headlightsOn ? .white : .gray), flashing: state.rightSignalOn)
-            }
-            HStack(spacing: 79) {
-                lamp(color: state.leftSignalOn ? .orange : .red.opacity(0.78), flashing: state.leftSignalOn)
-                lamp(color: state.rightSignalOn ? .orange : .red.opacity(0.78), flashing: state.rightSignalOn)
-            }
-        }
-    }
-
-    private func lamp(color: Color, flashing: Bool) -> some View {
-        Capsule()
-            .fill(color)
-            .frame(width: 31, height: 8)
-            .opacity(flashing ? (pulse ? 1 : 0.18) : (state.headlightsOn ? 1 : 0.52))
-            .shadow(color: color, radius: flashing || state.headlightsOn ? 13 : 0)
-    }
-
-    private var headlightBeams: some View {
-        HStack(spacing: 46) {
-            beam
-            beam
-        }
-            .offset(y: -202)
-            .blur(radius: 5)
-    }
-
-    private var beam: some View {
-        LinearGradient(colors: [.white.opacity(0.02), .yellow.opacity(0.40)], startPoint: .bottom, endPoint: .top)
-            .frame(width: 66, height: 105)
-            .clipShape(Triangle())
     }
 
     private var hornWaves: some View {
@@ -469,85 +256,24 @@ private struct JourneyTurnSignalStrip: View {
     }
 }
 
-/// Trapezoid matching the swept-back front lamp housing of the Journey.
-private struct JourneyHeadlampShape: Shape {
-    let mirrored: Bool
-
+/// Native source coordinates covering only the open door and cabin opening.
+/// The bumper, grille, lamps, bonnet, roof and wheels remain the closed base.
+private struct RegisteredDriverDoorRegion: Shape {
     func path(in rect: CGRect) -> Path {
-        let points: [CGPoint] = mirrored
-            ? [
-                CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.20),
-                CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY),
-                CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.82),
-                CGPoint(x: rect.maxX - rect.width * 0.14, y: rect.maxY)
-            ]
-            : [
-                CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.20),
-                CGPoint(x: rect.maxX - rect.width * 0.12, y: rect.minY),
-                CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.82),
-                CGPoint(x: rect.minX + rect.width * 0.14, y: rect.maxY)
-            ]
-
+        let points: [CGPoint] = [
+            CGPoint(x: 1155, y: 127), CGPoint(x: 1217, y: 128),
+            CGPoint(x: 1266, y: 160), CGPoint(x: 1300, y: 117),
+            CGPoint(x: 1418, y: 104), CGPoint(x: 1455, y: 205),
+            CGPoint(x: 1475, y: 340), CGPoint(x: 1484, y: 650),
+            CGPoint(x: 1200, y: 729), CGPoint(x: 1172, y: 393)
+        ]
         return Path { path in
-            path.move(to: points[0])
-            for point in points.dropFirst() {
-                path.addLine(to: point)
+            for (index, point) in points.enumerated() {
+                let p = CGPoint(x: rect.minX + point.x / 1536 * rect.width,
+                                y: rect.minY + point.y / 1024 * rect.height)
+                if index == 0 { path.move(to: p) } else { path.addLine(to: p) }
             }
             path.closeSubpath()
         }
     }
 }
-
-/// Narrow amber segment at the outside edge of each Journey headlamp.
-private struct JourneySignalShape: Shape {
-    let mirrored: Bool
-
-    func path(in rect: CGRect) -> Path {
-        let inset = rect.width * 0.18
-        return Path { path in
-            if mirrored {
-                path.move(to: CGPoint(x: rect.minX + inset, y: rect.minY))
-                path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.13))
-                path.addLine(to: CGPoint(x: rect.maxX - inset, y: rect.maxY))
-                path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - rect.height * 0.12))
-            } else {
-                path.move(to: CGPoint(x: rect.maxX - inset, y: rect.minY))
-                path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.13))
-                path.addLine(to: CGPoint(x: rect.minX + inset, y: rect.maxY))
-                path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - rect.height * 0.12))
-            }
-            path.closeSubpath()
-        }
-    }
-}
-
-private struct JourneyBodyShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { path in
-            path.move(to: CGPoint(x: rect.midX - 42, y: rect.minY + 4))
-            path.addQuadCurve(to: CGPoint(x: rect.minX + 10, y: rect.minY + 50), control: CGPoint(x: rect.minX + 17, y: rect.minY + 13))
-            path.addQuadCurve(to: CGPoint(x: rect.minX + 2, y: rect.midY), control: CGPoint(x: rect.minX, y: rect.minY + 92))
-            path.addLine(to: CGPoint(x: rect.minX + 5, y: rect.maxY - 48))
-            path.addQuadCurve(to: CGPoint(x: rect.midX - 37, y: rect.maxY - 3), control: CGPoint(x: rect.minX + 17, y: rect.maxY - 12))
-            path.addQuadCurve(to: CGPoint(x: rect.midX + 37, y: rect.maxY - 3), control: CGPoint(x: rect.midX, y: rect.maxY + 5))
-            path.addQuadCurve(to: CGPoint(x: rect.maxX - 5, y: rect.maxY - 48), control: CGPoint(x: rect.maxX - 17, y: rect.maxY - 12))
-            path.addLine(to: CGPoint(x: rect.maxX - 2, y: rect.midY))
-            path.addQuadCurve(to: CGPoint(x: rect.maxX - 10, y: rect.minY + 50), control: CGPoint(x: rect.maxX, y: rect.minY + 92))
-            path.addQuadCurve(to: CGPoint(x: rect.midX + 42, y: rect.minY + 4), control: CGPoint(x: rect.maxX - 17, y: rect.minY + 13))
-            path.addQuadCurve(to: CGPoint(x: rect.midX - 42, y: rect.minY + 4), control: CGPoint(x: rect.midX, y: rect.minY - 4))
-            path.closeSubpath()
-        }
-    }
-}
-
-private struct Triangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { path in
-            path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
-            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            path.closeSubpath()
-        }
-    }
-}
-
