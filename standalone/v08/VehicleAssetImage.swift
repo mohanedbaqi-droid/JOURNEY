@@ -26,43 +26,9 @@ struct VehicleAssetImage: View {
         GeometryReader { geo in
             ZStack {
                 if let image = UIImage(named: profile.assetKey) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .saturation(colorHex.uppercased() == "#F2F2F2" ? 1.0 : 0.72)
-                        .overlay {
-                            if colorHex.uppercased() != "#F2F2F2" {
-                                Color(hex: colorHex)
-                                    .opacity(colorHex.uppercased() == "#161616" ? 0.78 : 0.72)
-                                    .blendMode(colorHex.uppercased() == "#161616" ? .multiply : .color)
-                                    .mask(
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .grayscale(1)
-                                            .contrast(1.55)
-                                            .luminanceToAlpha()
-                                    )
-                            }
-                        }
-                        .shadow(color: .black.opacity(0.45), radius: 12, y: 8)
-
-                    if let plate = parsedPlate {
-                        IraqiPlateView(
-                            governorateCode: plate.code,
-                            letter: plate.letter,
-                            number: plate.number,
-                            compact: true
-                        )
-                        .frame(width: max(62, geo.size.width * 0.235), height: max(18, geo.size.height * 0.105))
-                        .rotationEffect(.degrees(-1.5))
-                        .position(
-                            x: geo.size.width * plateAnchor.x,
-                            y: geo.size.height * plateAnchor.y
-                        )
-                        .shadow(color: .black.opacity(0.28), radius: 1, y: 1)
-                    }
+                    baseVehicle(image)
+                    bodyColorOverlay(image)
+                    plateOverlay(in: geo.size)
                 } else {
                     Image(systemName: "car.side.fill")
                         .font(.system(size: maxHeight * 0.50, weight: .light))
@@ -73,5 +39,50 @@ struct VehicleAssetImage: View {
         }
         .frame(height: maxHeight)
         .accessibilityLabel("\(profile.make) \(profile.model)")
+    }
+
+    private func baseVehicle(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .saturation(colorHex.uppercased() == "#F2F2F2" ? 1.0 : 0.72)
+            .shadow(color: .black.opacity(0.45), radius: 12, y: 8)
+    }
+
+    @ViewBuilder
+    private func bodyColorOverlay(_ image: UIImage) -> some View {
+        if colorHex.uppercased() != "#F2F2F2" {
+            Color(hex: colorHex)
+                .opacity(colorHex.uppercased() == "#161616" ? 0.78 : 0.72)
+                .blendMode(colorHex.uppercased() == "#161616" ? .multiply : .color)
+                .mask {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .grayscale(1)
+                        .contrast(1.55)
+                        .luminanceToAlpha()
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func plateOverlay(in size: CGSize) -> some View {
+        if let plate = parsedPlate {
+            IraqiPlateView(
+                governorateCode: plate.code,
+                letter: plate.letter,
+                number: plate.number,
+                compact: true
+            )
+            .frame(width: max(62, size.width * 0.235), height: max(18, size.height * 0.105))
+            .rotationEffect(.degrees(-1.5))
+            .position(
+                x: size.width * plateAnchor.x,
+                y: size.height * plateAnchor.y
+            )
+            .shadow(color: .black.opacity(0.28), radius: 1, y: 1)
+        }
     }
 }
