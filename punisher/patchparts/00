@@ -1,0 +1,84 @@
+--- a/ios/JourneyControl/Info.plist
++++ b/ios/JourneyControl/Info.plist
+@@ -3,7 +3,7 @@
+ <plist version="1.0">
+ <dict>
+     <key>CFBundleDisplayName</key>
+-    <string>JOURNEY</string>
++    <string>Punisher Drive</string>
+     <key>CFBundleIdentifier</key>
+     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+     <key>CFBundleExecutable</key>
+@@ -15,9 +15,9 @@
+     <key>CFBundlePackageType</key>
+     <string>APPL</string>
+     <key>CFBundleShortVersionString</key>
+-    <string>2.4.18</string>
++    <string>0.1.0</string>
+     <key>CFBundleVersion</key>
+-    <string>50</string>
++    <string>1</string>
+     <key>LSRequiresIPhoneOS</key>
+     <true/>
+     <key>NSBluetoothAlwaysUsageDescription</key>
+@@ -34,10 +34,10 @@
+     <array>
+         <dict>
+             <key>CFBundleURLName</key>
+-            <string>com.abuseif.journey.nfc</string>
++            <string>com.abuseif.punisherdrive.nfc</string>
+             <key>CFBundleURLSchemes</key>
+             <array>
+-                <string>journey</string>
++                <string>punisherdrive</string>
+             </array>
+         </dict>
+     </array>
+@@ -45,7 +45,7 @@
+     <array>
+         <dict>
+             <key>UIApplicationShortcutItemType</key>
+-            <string>com.abuseif.journey.preview.lock</string>
++            <string>com.abuseif.punisherdrive.preview.lock</string>
+             <key>UIApplicationShortcutItemTitle</key>
+             <string>قفل السيارة</string>
+             <key>UIApplicationShortcutItemSubtitle</key>
+@@ -55,7 +55,7 @@
+         </dict>
+         <dict>
+             <key>UIApplicationShortcutItemType</key>
+-            <string>com.abuseif.journey.preview.unlock</string>
++            <string>com.abuseif.punisherdrive.preview.unlock</string>
+             <key>UIApplicationShortcutItemTitle</key>
+             <string>فتح السيارة</string>
+             <key>UIApplicationShortcutItemSubtitle</key>
+--- a/ios/JourneyControl/Models/VehicleCommand.swift
++++ b/ios/JourneyControl/Models/VehicleCommand.swift
+@@ -45,6 +45,7 @@
+     case cellularTest = "cellular_test"
+     case cellularForget = "cellular_forget"
+     case connectionPriority = "connection_priority"
++    case vehicleProfile = "vehicle_profile"
+ }
+ 
+ struct KeylessEntryConfig: Codable, Equatable {
+@@ -78,6 +79,7 @@
+     let wifiSettings: ESPWiFiSettings?
+     let cellularSettings: ESPCellularSettings?
+     let connectionPriority: ESPConnectionPriority?
++    let vehicleProfileID: String?
+ 
+     /// BLE commands must stay compact.  Encoding Swift optionals with the
+     /// compiler-generated encoder writes every unused field as `null`, which
+@@ -86,10 +88,10 @@
+     private enum CodingKeys: String, CodingKey {
+         case id, phoneID, action, schema, timestamp
+         case keyless, presence, espSettings, firmwareURL, maintenanceMode
+-        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings, cellularSettings, connectionPriority
+-    }
+-
+-    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil, connectionPriority: ESPConnectionPriority? = nil) {
++        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings, cellularSettings, connectionPriority, vehicleProfileID
++    }
++
++    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil, conne
