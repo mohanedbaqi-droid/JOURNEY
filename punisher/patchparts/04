@@ -1,0 +1,64 @@
+ll.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID), feedbackKey: "alarm") { mqtt.send(.horn, to: device.deviceID) }
++                }
++            }
++            if let profile = selectedVehicleProfile,
++               !profile.supportsLock && !profile.supportsUnlock && !profile.supportsRemoteStart && !profile.supportsAlarm {
++                Label(JL("هذا البروفايل مضاف للمكتبة، وتفعيل أوامر التحكم الخاصة به سيكون بعد اعتماد بروتوكوله.", "This vehicle is in the catalog. Its control commands will be enabled after its protocol is verified."), systemImage: "wrench.and.screwdriver.fill")
++                    .font(.footnote)
++                    .foregroundStyle(.orange)
++                    .padding(12)
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .background(.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+             }
+             // زر الطاقة تحت الأزرار وبعرض صف كامل، مثل حجم زرين متجاورين.
+             largeControl(
+@@ -2150,6 +2237,11 @@
+     @AppStorage("journey.settings.notifyLocks") private var notifyLocks = true
+     @AppStorage("journey.settings.notifyOBD") private var notifyOBD = false
+     @AppStorage("journey.settings.developerMode") private var developerMode = false
++    @AppStorage("punisher.vehicle.profileID") private var selectedVehicleProfileID = ""
++    @State private var vehicleBrand = ""
++    @State private var vehicleModel = ""
++    @State private var vehicleYear = 0
++    @State private var vehicleProfileMessage: String?
+ 
+     private func tr(_ ar: String, _ en: String) -> String { language == "en" ? en : ar }
+ 
+@@ -2168,6 +2260,59 @@
+     var body: some View {
+         NavigationStack {
+             Form {
++                Section {
++                    Picker(JL("ماركة الصنع", "Make"), selection: $vehicleBrand) {
++                        Text(JL("اختيار الماركة", "Choose make")).tag("")
++                        ForEach(PunisherVehicleCatalog.brands, id: \.self) { Text($0).tag($0) }
++                    }
++                    .onChange(of: vehicleBrand) { _, _ in
++                        let models = PunisherVehicleCatalog.models(for: vehicleBrand)
++                        if !models.contains(vehicleModel) { vehicleModel = models.first ?? "" }
++                        let years = PunisherVehicleCatalog.years(for: vehicleBrand, model: vehicleModel)
++                        if !years.contains(vehicleYear) { vehicleYear = years.first ?? 0 }
++                    }
++
++                    Picker(JL("الموديل", "Model"), selection: $vehicleModel) {
++                        Text(JL("اختيار الموديل", "Choose model")).tag("")
++                        ForEach(PunisherVehicleCatalog.models(for: vehicleBrand), id: \.self) { Text($0).tag($0) }
++                    }
++                    .disabled(vehicleBrand.isEmpty)
++                    .onChange(of: vehicleModel) { _, _ in
++                        let years = PunisherVehicleCatalog.years(for: vehicleBrand, model: vehicleModel)
++                        if !years.contains(vehicleYear) { vehicleYear = years.first ?? 0 }
++                    }
++
++                    Picker(JL("سنة الصنع", "Model year"), selection: $vehicleYear) {
++                        Text("—").tag(0)
++                        ForEach(PunisherVehicleCatalog.years(for: vehicleBrand, model: vehicleModel), id: \.self) { Text(String($0)).tag($0) }
++                    }
++                    .disabled(vehicleModel.isEmpty)
++
++                    Button {
++                        saveVehicleProfile()
++                    } label: {
++                        Label(JL("اعتماد نوع السيارة", "Apply vehicle"), systemImage: "car.badge.gearshape")
++                    }
++                    .buttonStyle(.bor
