@@ -102,6 +102,30 @@ struct RootView: View {
                 if let vehicle = garage.activeVehicle, let profile = vehicle.profile {
                     activeVehicleHero(vehicle: vehicle, profile: profile)
                     statusStrip(vehicle: vehicle)
+                    NavigationLink {
+                        VehicleAppearanceView(vehicle: vehicle)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Circle()
+                                .fill(Color(hex: vehicle.vehicleColorHex))
+                                .frame(width: 28, height: 28)
+                                .overlay(Circle().stroke(.white.opacity(0.25)))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("لون ورقم السيارة").font(.subheadline.bold())
+                                Text(vehicle.vehiclePlateText.isEmpty ? "اختار اللون واكتب رقم السيارة" : vehicle.vehiclePlateText)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.left")
+                                .font(.caption.bold())
+                                .foregroundStyle(.white.opacity(0.36))
+                        }
+                        .padding(12)
+                        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.08)))
+                    }
+                    .buttonStyle(.plain)
                     quickControls(profile: profile)
                     systemCards(vehicle: vehicle, profile: profile)
                 } else {
@@ -150,14 +174,21 @@ struct RootView: View {
                             )
                     }
 
-                VStack(spacing: 10) {
+                VStack(spacing: 7) {
                     Image(systemName: "car.side.fill")
                         .font(.system(size: 72, weight: .light))
                         .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.white)
-                    Text(profile.assetKey)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(.white.opacity(0.32))
+                        .foregroundStyle(Color(hex: vehicle.vehicleColorHex))
+
+                    Text(vehicle.vehiclePlateText.isEmpty ? "رقم السيارة" : vehicle.vehiclePlateText)
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                        .foregroundStyle(.black)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 3)
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 4))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(.black.opacity(0.55), lineWidth: 0.8))
                 }
             }
             .frame(height: 152)
