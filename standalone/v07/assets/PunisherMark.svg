@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+ <radialGradient id="bg" cx="50%" cy="45%" r="65%"><stop offset="0" stop-color="#131923"/><stop offset="1" stop-color="#030407"/></radialGradient>
+ <linearGradient id="red" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff4545"/><stop offset=".45" stop-color="#d90016"/><stop offset="1" stop-color="#7c0010"/></linearGradient>
+ <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#65efff"/><stop offset="1" stop-color="#00aee8"/></linearGradient>
+ <filter id="glowR"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <filter id="glowC"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect x="12" y="12" width="1000" height="1000" rx="190" fill="url(#bg)" stroke="#111827" stroke-width="10"/>
+<path d="M65 185 Q185 45 360 38" fill="none" stroke="#ff2434" stroke-width="18" filter="url(#glowR)"/>
+<path d="M664 38 Q842 45 959 185" fill="none" stroke="#26d8ff" stroke-width="18" filter="url(#glowC)"/>
+<path d="M65 839 Q185 979 360 986" fill="none" stroke="#26d8ff" stroke-width="18" filter="url(#glowC)"/>
+<path d="M664 986 Q842 979 959 839" fill="none" stroke="#ff2434" stroke-width="18" filter="url(#glowR)"/>
+
+<!-- tech ring -->
+<circle cx="512" cy="492" r="372" fill="#05080d" stroke="#232b36" stroke-width="28"/>
+<circle cx="512" cy="492" r="342" fill="none" stroke="#e5162b" stroke-width="18" stroke-dasharray="125 62" filter="url(#glowR)"/>
+<circle cx="512" cy="492" r="312" fill="none" stroke="#10cfff" stroke-width="12" stroke-dasharray="82 52" filter="url(#glowC)"/>
+
+<!-- wifi -->
+<g fill="none" stroke="url(#cyan)" stroke-width="22" stroke-linecap="round" filter="url(#glowC)">
+ <path d="M430 180 Q512 118 594 180"/>
+ <path d="M462 218 Q512 181 562 218"/>
+ <path d="M493 256 Q512 241 531 256"/>
+</g><circle cx="512" cy="282" r="13" fill="#31dcff"/>
+
+<!-- GPS -->
+<g transform="translate(122 350)" filter="url(#glowC)">
+ <path d="M105 20 C50 20 20 58 20 105 c0 70 85 155 85 155s85-85 85-155c0-47-30-85-85-85z" fill="#0dd3ff"/>
+ <circle cx="105" cy="105" r="33" fill="#071019"/>
+</g>
+
+<!-- lock -->
+<g transform="translate(722 360)" fill="none" stroke="#21d9ff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" filter="url(#glowC)">
+ <rect x="25" y="85" width="150" height="130" rx="22"/>
+ <path d="M62 85 V58 c0-45 76-55 91-10"/>
+ <circle cx="100" cy="145" r="10" fill="#21d9ff" stroke="none"/>
+ <path d="M100 155v28"/>
+</g>
+
+<!-- car -->
+<g transform="translate(102 665)" fill="none" stroke="#18d7ff" stroke-width="18" stroke-linejoin="round" stroke-linecap="round" filter="url(#glowC)">
+ <path d="M28 120 L58 70 Q75 40 115 40 h76 q40 0 57 30 l30 50 24 10v58H14v-58z"/>
+ <path d="M75 72h98l28 45H48z"/>
+ <circle cx="67" cy="187" r="17"/><circle cx="248" cy="187" r="17"/>
+</g>
+
+<!-- fingerprint -->
+<g transform="translate(730 665)" fill="none" stroke="#1bd8ff" stroke-width="13" stroke-linecap="round" filter="url(#glowC)">
+ <path d="M100 34c-54 0-82 40-82 83 0 34 15 54 19 84"/>
+ <path d="M100 60c-35 0-57 25-57 59 0 35 18 48 18 88"/>
+ <path d="M100 86c-20 0-31 14-31 34 0 31 18 45 14 91"/>
+ <path d="M100 86c20 0 31 14 31 34 0 48-11 77-27 101"/>
+ <path d="M100 60c35 0 57 25 57 59 0 56-18 91-42 119"/>
+ <path d="M100 34c54 0 82 40 82 83 0 77-29 119-58 150"/>
+ </g>
+
+<!-- skull -->
+<g filter="url(#glowR)">
+ <path d="M512 225 C366 225 300 318 309 455 C314 533 347 582 400 612
+ L420 820 L468 721 L512 839 L556 721 L604 820 L624 612
+ C677 582 710 533 715 455 C724 318 658 225 512 225 Z"
+ fill="url(#red)" stroke="#ff4c52" stroke-width="8"/>
+ <path d="M341 424 L474 455 L448 519 L354 486 Z" fill="#fff" stroke="#12090b" stroke-width="18"/>
+ <path d="M683 424 L550 455 L576 519 L670 486 Z" fill="#fff" stroke="#12090b" stroke-width="18"/>
+ <path d="M512 500 L548 571 L512 612 L476 571 Z" fill="#08070a"/>
+ <path d="M430 603 Q389 618 377 674 Q423 650 454 662" fill="#07080b"/>
+ <path d="M594 603 Q635 618 647 674 Q601 650 570 662" fill="#07080b"/>
+ <rect x="465" y="646" width="24" height="154" rx="10" fill="#07080b"/>
+ <rect x="500" y="632" width="24" height="179" rx="10" fill="#07080b"/>
+ <rect x="535" y="646" width="24" height="154" rx="10" fill="#07080b"/>
+</g>
+</svg>
