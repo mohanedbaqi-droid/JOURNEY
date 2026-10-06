@@ -12,18 +12,20 @@ struct JourneyControlApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(mqtt)
-                .environmentObject(proximity)
-                .environmentObject(devices)
-                .environmentObject(homeShortcuts)
-                .environmentObject(nfcStore)
-                .environmentObject(nfcRouter)
-                .onOpenURL { url in
-                    if !nfcRouter.route(url) {
-                        _ = homeShortcuts.route(url)
+            PunisherVehicleGate {
+                ContentView()
+                    .environmentObject(mqtt)
+                    .environmentObject(proximity)
+                    .environmentObject(devices)
+                    .environmentObject(homeShortcuts)
+                    .environmentObject(nfcStore)
+                    .environmentObject(nfcRouter)
+                    .onOpenURL { url in
+                        if !nfcRouter.route(url) {
+                            _ = homeShortcuts.route(url)
+                        }
                     }
-                }
+            }
         }
     }
 }
