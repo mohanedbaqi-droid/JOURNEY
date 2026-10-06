@@ -9,24 +9,28 @@ struct CarVisualView: View {
     var body: some View {
         GeometryReader { proxy in
             let scale = min(proxy.size.width / sourceSize.width, proxy.size.height / sourceSize.height)
-            TimelineView(.animation(minimumInterval: 0.05, paused: !(state.leftSignalOn || state.rightSignalOn))) { timeline in
-                ZStack {
-                    layer("Liftgate", visible: state.demoLiftgateOpen)
-                    layer("DriverRearDoor", visible: state.demoDriverRearOpen)
-                    layer("PassengerRearDoor", visible: state.demoPassengerRearOpen)
-                    layer("Body")
-                    layer("DriverMirror", visible: !state.demoDriverFrontOpen)
-                    layer("PassengerMirror", visible: !state.demoPassengerFrontOpen)
-                    layer("DriverDoor", visible: state.demoDriverFrontOpen)
-                    layer("PassengerDoor", visible: state.demoPassengerFrontOpen)
-                    layer("RedDRL", visible: state.demoDRLOn && !state.headlightsOn)
-                    layer("LowBeam", visible: state.headlightsOn)
-                    layer("Projectors", visible: state.demoProjectorsOn)
-                    ledLights(date: timeline.date)
+            ZStack {
+                layer("Liftgate", visible: state.demoLiftgateOpen)
+                layer("DriverRearDoor", visible: state.demoDriverRearOpen)
+                layer("PassengerRearDoor", visible: state.demoPassengerRearOpen)
+                layer("Body")
+                layer("DriverMirror", visible: !state.demoDriverFrontOpen)
+                layer("PassengerMirror", visible: !state.demoPassengerFrontOpen)
+                layer("DriverDoor", visible: state.demoDriverFrontOpen)
+                layer("PassengerDoor", visible: state.demoPassengerFrontOpen)
+                layer("RedDRL", visible: state.demoDRLOn && !state.headlightsOn)
+                layer("LowBeam", visible: state.headlightsOn)
+                layer("Projectors", visible: state.demoProjectorsOn)
+                layer("PassengerDRL", visible: state.demoDRLOn && !state.rightSignalOn)
+                layer("DriverDRL", visible: state.demoDRLOn && !state.leftSignalOn)
+                if state.leftSignalOn || state.rightSignalOn {
+                    TimelineView(.animation(minimumInterval: 0.05)) { timeline in
+                        ledLights(date: timeline.date)
+                    }
                 }
-                .frame(width: sourceSize.width * scale, height: sourceSize.height * scale)
-                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
             }
+            .frame(width: sourceSize.width * scale, height: sourceSize.height * scale)
+            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
             DemoOpenStateBadges(state: state).allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity)
@@ -51,7 +55,7 @@ struct CarVisualView: View {
                 let signal = side == 0 ? state.rightSignalOn : state.leftSignalOn
                 let points = side == 0 ? passengerLEDs : driverLEDs
                 for (index, point) in points.enumerated() {
-                    guard signal ? index < count : state.demoDRLOn else { continue }
+                    guard signal && index < count else { continue }
                     let x = (point.x * 1335 / 800 * 0.932 + 347) * size.width / sourceSize.width
                     let y = (point.y * 1178 / 706 * 0.894 + 114) * size.height / sourceSize.height
                     let radius = 8.7 * size.width / sourceSize.width

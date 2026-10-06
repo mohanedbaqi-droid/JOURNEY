@@ -57,18 +57,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.02, green: 0.05, blue: 0.10), Color(red: 0.04, green: 0.11, blue: 0.17), .black],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-
-                Circle()
-                    .fill(.cyan.opacity(0.09))
-                    .frame(width: 360)
-                    .blur(radius: 70)
-                    .offset(x: 130, y: -290)
+                JourneyWallpaperView()
 
                 if let device = devices.selectedDevice {
                     let vehicle = mqtt.state(for: device.deviceID)
@@ -888,12 +877,7 @@ struct ContentView: View {
 private struct JourneyAppInfoView: View {
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.02, green: 0.05, blue: 0.10), Color(red: 0.04, green: 0.11, blue: 0.17), .black],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            JourneyWallpaperView()
 
             ScrollView {
                 VStack(spacing: 18) {
@@ -1424,12 +1408,7 @@ private struct OBDStatusView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.02, green: 0.05, blue: 0.10), .black],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            JourneyWallpaperView()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -2192,6 +2171,9 @@ private struct MQTTSettingsView: View {
                 } header: {
                     Label(tr(JL("المظهر واللغة", "Appearance and language"), "Appearance & Language"), systemImage: "paintbrush.pointed.fill")
                 }
+
+                JourneyWallpaperSettingsSection()
+                JourneyWidgetSettingsSection()
 
                 Section {
                     Picker(tr(JL("وحدة السرعة", "Speed unit"), "Speed unit"), selection: $speedUnit) {

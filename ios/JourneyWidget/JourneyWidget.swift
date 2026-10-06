@@ -26,9 +26,21 @@ private struct JourneyWidgetView: View {
 
     var body: some View {
         Group {
-            if family == .systemSmall {
+            switch family {
+            case .accessoryCircular:
+                Image(systemName: "car.fill")
+                    .font(.title2)
+                    .widgetAccentable()
+            case .accessoryRectangular:
+                VStack(alignment: .leading, spacing: 3) {
+                    Label("JOURNEY DEMO", systemImage: "car.fill").font(.headline)
+                    Text("فتح الديمو • Face ID").font(.caption)
+                }
+            case .accessoryInline:
+                Label("JOURNEY DEMO", systemImage: "car.fill")
+            case .systemSmall:
                 smallWidget
-            } else {
+            default:
                 mediumWidget
             }
         }
@@ -213,15 +225,15 @@ private struct JourneyWidgetBody: Shape {
 }
 
 struct JourneyHomeWidget: Widget {
-    let kind = "JourneyHomeWidget"
+    let kind = "JourneyDemoHomeWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: JourneyWidgetProvider()) { entry in
             JourneyWidgetView(entry: entry)
         }
-        .configurationDisplayName("JOURNEY")
+        .configurationDisplayName("JOURNEY DEMO")
         .description("حالة سيارة العرض واختصارات الفحص الآمن.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
 
