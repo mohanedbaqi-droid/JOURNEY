@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.7.0 IPA
+name: Build Punisher Drive Standalone v0.7.1 IPA
 
 on:
   workflow_dispatch:
@@ -9,6 +9,7 @@ on:
       - "standalone/v05/**"
       - "standalone/v06/**"
       - "standalone/v07/**"
+      - "standalone/v08/**"
       - ".github/workflows/build-ios-ipa.yml"
 
 jobs:
@@ -24,15 +25,16 @@ jobs:
           base64 -D -i "$RUNNER_TEMP/pd_v04.b64" -o "$RUNNER_TEMP/pd_v04.zip"
           rm -rf PunisherDrive PunisherDrive.xcodeproj project.yml
           unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
-          cp standalone/v07/project.yml project.yml
+          cp standalone/v08/project.yml project.yml
           cp standalone/v07/PunisherDriveApp.swift PunisherDrive/PunisherDriveApp.swift
           cp standalone/v07/LaunchSplashView.swift PunisherDrive/Views/LaunchSplashView.swift
           cp standalone/v07/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
           cp standalone/v07/RootView.swift PunisherDrive/Views/RootView.swift
           cp standalone/v07/GarageView.swift PunisherDrive/Views/GarageView.swift
-          cp standalone/v06/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
-          cp standalone/v06/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
-          cp standalone/v07/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
+          cp standalone/v08/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
+          cp standalone/v08/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
+          cp standalone/v08/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
+          cp standalone/v08/IraqPlateData.swift PunisherDrive/Views/IraqPlateData.swift
           cp standalone/v06/FleetMapView.swift PunisherDrive/Views/FleetMapView.swift
           cp standalone/v06/SettingsView.swift PunisherDrive/Views/SettingsView.swift
           cp standalone/v05/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
@@ -91,7 +93,7 @@ jobs:
               profiles=json.load(f)
           assert len(profiles)==56, len(profiles)
 
-          headers={"User-Agent":"PunisherDriveAssets/0.7.0"}
+          headers={"User-Agent":"PunisherDriveAssets/0.7.1"}
           session=new_session("u2netp")
 
           def bing_url(q):
@@ -206,11 +208,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.0-11-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.0-11-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.1-12-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.7.1-12-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-IOS-0.7.0-11-TEST-IPA
-          path: PUNISHER-DRIVE-IOS-0.7.0-11-TEST.ipa
+          name: PUNISHER-DRIVE-IOS-0.7.1-12-TEST-IPA
+          path: PUNISHER-DRIVE-IOS-0.7.1-12-TEST.ipa
           if-no-files-found: error
