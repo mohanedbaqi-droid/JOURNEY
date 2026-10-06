@@ -1,0 +1,15 @@
+{
+  "JourneyControl/Assets.xcassets/JourneyLayerLowBeam.imageset/JourneyLayerLowBeam.png": "63bf718c0c459ede528fb7a895560ccaa9b60f9bc5231c6d4da8ef08f107c6a1",
+  "JourneyControl/Assets.xcassets/JourneyLayerDriverDRL.imageset/JourneyLayerDriverDRL.png": "aae2cc0dbf016d963f4dcc7a8a9c82b9051b82e8448a38e1accb6934e53a45f5",
+  "JourneyControl/Assets.xcassets/JourneyLayerPassengerDRL.imageset/JourneyLayerPassengerDRL.png": "877a37791aa7102027a40d1df0fbe75727e7250dfdf23adcc611787b21ed9c68",
+  "JourneyControl/Assets.xcassets/JourneyLayerPassengerDoor.imageset/JourneyLayerPassengerDoor.png": "a4fc7deb9f2d5f431495c8438161cd6cf2771bf7c6861a84973e29ca9f7fe10c",
+  "JourneyControl/Assets.xcassets/JourneyLayerDriverDoor.imageset/JourneyLayerDriverDoor.png": "54bd0a32531936bc94cf2e733b0bb876c5e9ea765357fc8e48847ff29922ef3c",
+  "JourneyControl/Assets.xcassets/JourneyLayerDriverRearDoor.imageset/JourneyLayerDriverRearDoor.png": "9e7403f2cf4c2103a52720aadf51a0bf777f54b30f12553f08d797752b5aadc9",
+  "JourneyControl/Assets.xcassets/JourneyLayerBody.imageset/JourneyLayerBody.png": "173c1d3995b895af54e740ea266f65d2ff104ab688568ce1e79b1c2ef051aa05",
+  "JourneyControl/Assets.xcassets/JourneyLayerRedDRL.imageset/JourneyLayerRedDRL.png": "dd65ef66fd2cf5ffae3c84c93be8f9081898cfb4f7126610adefd9ed4cf21dcd",
+  "JourneyControl/Assets.xcassets/JourneyLayerPassengerMirror.imageset/JourneyLayerPassengerMirror.png": "4b3b0a0416989fd2b36cb82f1b724450d4ea66cce6ff23bea9dc9a636ed96de4",
+  "JourneyControl/Assets.xcassets/JourneyLayerLiftgate.imageset/JourneyLayerLiftgate.png": "a305495676f8fd842828cc5fe4179befeef003e6b122a9ee632665803a8cf8ea",
+  "JourneyControl/Assets.xcassets/JourneyLayerDriverMirror.imageset/JourneyLayerDriverMirror.png": "b2c422533666eada5b7a299ca7d31147f28d12615832d306045b2dc625ff246e",
+  "JourneyControl/Assets.xcassets/JourneyLayerProjectors.imageset/JourneyLayerProjectors.png": "07ff55ae88f956a59d23dad4c290d255af00ec4b5084582f1690d6ab0c5d5464",
+  "JourneyControl/Assets.xcassets/JourneyLayerPassengerRearDoor.imageset/JourneyLayerPassengerRearDoor.png": "0ca15ae274eba36e0c70fb549155df703bc100025b6ba9be226dd66ad6f42fe7"
+}

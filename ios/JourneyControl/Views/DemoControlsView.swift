@@ -10,7 +10,7 @@ struct DemoControlsView: View {
         if mqtt.demoMode {
             VStack(alignment: .leading, spacing: 12) {
                 Label("JOURNEY DEMO", systemImage: "car.side.fill")
-                    .font(.headline).foregroundStyle(.cyan)
+                    .font(.headline).foregroundStyle(JourneyTheme.accent)
                 Text(JL("محاكاة محلية • البيبان والأضواء مستقلة، والسيارة ثابتة بالسنتر.", "Local simulation • Independent doors and lights, fixed vehicle center."))
                     .font(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns: columns, spacing: 8) {
@@ -32,7 +32,7 @@ struct DemoControlsView: View {
                     .buttonStyle(.bordered)
             }
             .padding(14)
-            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
+            .background(JourneyTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
         }
     }
 
@@ -43,8 +43,8 @@ struct DemoControlsView: View {
                 Text(title).font(.caption.weight(.semibold))
             }
             .frame(maxWidth: .infinity, minHeight: 44)
-            .foregroundStyle(active ? Color.green : Color.cyan)
-            .background((active ? Color.green : Color.cyan).opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+            .foregroundStyle(active ? Color.green : JourneyTheme.accent)
+            .background((active ? Color.green : JourneyTheme.accent).opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
         .accessibilityValue(active ? JL("مفعّل", "On") : JL("مطفي", "Off"))
@@ -68,7 +68,7 @@ struct DemoOpenStateBadges: View {
             Spacer()
             if !labels.isEmpty {
                 Text(labels.joined(separator: " • "))
-                    .font(.caption.weight(.semibold)).foregroundStyle(.cyan)
+                    .font(.caption.weight(.semibold)).foregroundStyle(JourneyTheme.accent)
                     .multilineTextAlignment(.center)
                     .padding(8)
                     .background(.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 12))

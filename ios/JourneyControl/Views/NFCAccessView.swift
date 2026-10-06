@@ -17,18 +17,7 @@ struct NFCAccessView: View {
                 recentEventsSection
             }
             .scrollContentBackground(.hidden)
-            .background(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.02, green: 0.05, blue: 0.10),
-                        Color(red: 0.03, green: 0.10, blue: 0.15),
-                        .black
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-            )
+            .background { JourneyWallpaperView() }
             .navigationTitle(JL("مفاتيح NFC", "NFC keys"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -44,16 +33,13 @@ struct NFCAccessView: View {
             .sheet(isPresented: $showingAddCredential) {
                 AddNFCCredentialView()
                     .environmentObject(store)
-                    .preferredColorScheme(.dark)
             }
             .sheet(item: $editingCredential) { credential in
                 EditNFCCredentialView(credential: credential)
                     .environmentObject(store)
-                    .preferredColorScheme(.dark)
             }
         }
-        .preferredColorScheme(.dark)
-        .tint(.cyan)
+        .tint(JourneyTheme.accent)
     }
 
     private var iphoneSection: some View {
@@ -62,7 +48,7 @@ struct NFCAccessView: View {
                 HStack(spacing: 13) {
                     Image(systemName: "iphone.radiowaves.left.and.right")
                         .font(.title2.bold())
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(JourneyTheme.accent)
                         .frame(width: 48, height: 48)
                         .background(.cyan.opacity(0.14), in: Circle())
 
@@ -110,7 +96,7 @@ struct NFCAccessView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "key.radiowaves.forward.fill")
                         .font(.system(size: 34))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(JourneyTheme.accent)
                     Text(JL("ماكو بطاقات مضافة", "No cards added")).font(.headline)
                     Text(JL("حالياً الإضافة تجريبية. التسجيل الحقيقي يتفعل بعد ربط PN532 بالـESP.", "Adding cards is currently a test. Real enrollment requires PN532 connected to ESP."))
                         .font(.caption)

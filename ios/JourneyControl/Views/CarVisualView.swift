@@ -8,7 +8,10 @@ struct CarVisualView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let scale = min(proxy.size.width / sourceSize.width, proxy.size.height / sourceSize.height)
+            // Reserve the same complete door/hatch envelope in every state.
+            let scale = (proxy.size.width - 8) / 1794
+            let carWidth = sourceSize.width * scale
+            let carHeight = sourceSize.height * scale
             ZStack {
                 layer("Liftgate", visible: state.demoLiftgateOpen)
                 layer("DriverRearDoor", visible: state.demoDriverRearOpen)
@@ -29,12 +32,12 @@ struct CarVisualView: View {
                     }
                 }
             }
-            .frame(width: sourceSize.width * scale, height: sourceSize.height * scale)
-            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            .frame(width: carWidth, height: carHeight)
+            .position(x: proxy.size.width / 2, y: carHeight / 2 - 46 * scale)
             DemoOpenStateBadges(state: state).allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 380)
+        .aspectRatio(1794.0 / 1165.0, contentMode: .fit)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(JL("جورني، طبقات الأبواب والأضواء", "Journey, door and light layers"))
     }

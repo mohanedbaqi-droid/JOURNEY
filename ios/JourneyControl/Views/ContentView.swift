@@ -3,6 +3,7 @@ import Foundation
 import CoreLocation
 import MapKit
 import SwiftUI
+import WidgetKit
 import UIKit
 import UniformTypeIdentifiers
 
@@ -82,21 +83,21 @@ struct ContentView: View {
                             .padding(.horizontal)
                             .padding(.vertical, 8)
                             .background {
-                                Color.black
+                                JourneyTheme.surface
                                     .ignoresSafeArea(edges: .top)
                             }
                             .overlay(alignment: .bottom) {
-                                Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5)
+                                Rectangle().fill(JourneyTheme.ink.opacity(0.08)).frame(height: 0.5)
                             }
                     }
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         liquidTabBar
                             .background {
-                                Color.black
+                                JourneyTheme.surface
                                     .ignoresSafeArea(edges: .bottom)
                             }
                     }
-                    .tint(.cyan)
+                    .tint(JourneyTheme.accent)
                     .onAppear { mqtt.prepareBluetooth(for: device.deviceID) }
                 } else {
                     emptyState
@@ -107,7 +108,7 @@ struct ContentView: View {
                 ManageDevicesView()
                     .environmentObject(devices)
                     .environmentObject(proximity)
-                    .preferredColorScheme(.dark)
+                    .preferredColorScheme(preferredScheme)
             }
             .sheet(isPresented: $showingLocalDiagnostics) {
                 NavigationStack {
@@ -163,7 +164,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(preferredScheme)
             }
             .sheet(isPresented: $showingMap) {
                 NavigationStack {
@@ -174,21 +175,22 @@ struct ContentView: View {
                     )
                     .environmentObject(mqtt)
                 }
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(preferredScheme)
             }
             .sheet(isPresented: $showingMQTTSettings) {
                 MQTTSettingsView()
                     .environmentObject(mqtt)
-                    .preferredColorScheme(.dark)
+                    .preferredColorScheme(preferredScheme)
             }
             .sheet(isPresented: $showingKeylessEntry) {
                 if let device = devices.selectedDevice {
                     KeylessEntrySettingsView(deviceID: device.deviceID)
                         .environmentObject(mqtt)
-                        .preferredColorScheme(.dark)
+                        .preferredColorScheme(preferredScheme)
                 }
             }
             .onAppear {
+                WidgetCenter.shared.reloadAllTimelines()
                 if devices.devices.isEmpty { showingDevices = true }
                 if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
                 if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
@@ -241,7 +243,7 @@ struct ContentView: View {
         .dynamicTypeSize(preferredDynamicType)
         .environment(\.layoutDirection, appLanguage == "en" ? .leftToRight : .rightToLeft)
         .environment(\.locale, Locale(identifier: appLanguage == "en" ? "en" : "ar"))
-        .tint(.cyan)
+        .tint(JourneyTheme.accent)
     }
 
     // الصفحة الأولى تبقى واجهة JOURNEY الأساسية: السيارة وحالتها المختصرة.
@@ -268,7 +270,7 @@ struct ContentView: View {
                 Text("JOURNEY CONNECTED CONTROL")
                     .font(.caption2.weight(.bold))
                     .tracking(2)
-                    .foregroundStyle(.white.opacity(0.34))
+                    .foregroundStyle(JourneyTheme.ink.opacity(0.34))
                     .padding(.vertical, 8)
             }
             .padding()
@@ -306,10 +308,10 @@ struct ContentView: View {
             .frame(height: 60)
             .background {
                 Capsule()
-                    .fill(Color.black.opacity(0.90))
+                    .fill(JourneyTheme.surface.opacity(0.90))
                     .overlay(Capsule().fill(.ultraThinMaterial).opacity(0.16))
             }
-            .overlay(Capsule().stroke(.white.opacity(0.24), lineWidth: 1))
+            .overlay(Capsule().stroke(JourneyTheme.ink.opacity(0.24), lineWidth: 1))
 
             liquidHomeTab
                 .offset(y: -10)
@@ -326,7 +328,7 @@ struct ContentView: View {
                 Image(systemName: icon).font(.system(size: 17, weight: .semibold))
                 Text(title).font(.system(size: 10, weight: .bold))
             }
-            .foregroundStyle(selectedTab == tag ? .cyan : .white.opacity(0.58))
+            .foregroundStyle(selectedTab == tag ? .cyan : JourneyTheme.ink.opacity(0.58))
             .frame(maxWidth: .infinity, minHeight: 44)
             .background(selectedTab == tag ? .cyan.opacity(0.13) : .clear, in: Capsule())
         }
@@ -341,8 +343,8 @@ struct ContentView: View {
             }
             .foregroundStyle(.white)
             .frame(width: 74, height: 74)
-            .background(selectedTab == 0 ? Color.cyan.opacity(0.92) : Color.black.opacity(0.96), in: Circle())
-            .overlay(Circle().stroke(selectedTab == 0 ? .white.opacity(0.62) : .cyan.opacity(0.55), lineWidth: 1.2))
+            .background(selectedTab == 0 ? Color.cyan.opacity(0.92) : JourneyTheme.surface.opacity(0.96), in: Circle())
+            .overlay(Circle().stroke(selectedTab == 0 ? JourneyTheme.ink.opacity(0.62) : .cyan.opacity(0.55), lineWidth: 1.2))
             .shadow(color: .cyan.opacity(selectedTab == 0 ? 0.46 : 0.20), radius: 15, y: 3)
         }
         .buttonStyle(.plain)
@@ -364,7 +366,7 @@ struct ContentView: View {
                 Image(systemName: icon).font(.title3.bold())
                 Text(title).font(.caption.bold())
             }
-            .foregroundStyle(.cyan)
+            .foregroundStyle(JourneyTheme.accent)
             .frame(maxWidth: .infinity, minHeight: 72)
         }
         .buttonStyle(.plain)
@@ -383,7 +385,7 @@ struct ContentView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 25))
         .overlay(
             RoundedRectangle(cornerRadius: 25)
-                .stroke(LinearGradient(colors: [.white.opacity(0.35), .cyan.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+                .stroke(LinearGradient(colors: [JourneyTheme.ink.opacity(0.35), .cyan.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
     }
@@ -429,7 +431,7 @@ struct ContentView: View {
                 Button { showingDevices = true } label: {
                     Image(systemName: "line.3.horizontal")
                         .font(.title3)
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(JourneyTheme.accent)
                         .frame(width: 44, height: 44)
                 }
                 Spacer()
@@ -443,7 +445,7 @@ struct ContentView: View {
                         systemImage: vehicle.cloudConnected ? "cloud.fill" : "location.fill"
                     )
                         .font(.caption)
-                        .foregroundStyle(vehicle.cloudConnected ? .green.opacity(0.82) : .white.opacity(0.52))
+                        .foregroundStyle(vehicle.cloudConnected ? .green.opacity(0.82) : JourneyTheme.ink.opacity(0.52))
                 }
                 .fixedSize(horizontal: true, vertical: false)
                 Spacer()
@@ -466,8 +468,8 @@ struct ContentView: View {
                 bluetoothDotIndicator(rssi: state.bluetoothRSSI)
             }
             .frame(width: 58, height: 58)
-            .background(.black.opacity(0.66), in: Circle())
-            .overlay(Circle().stroke(.white.opacity(0.16), lineWidth: 1))
+            .background(JourneyTheme.surface.opacity(0.66), in: Circle())
+            .overlay(Circle().stroke(JourneyTheme.ink.opacity(0.16), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(JL("إعدادات اتصال ESP", "ESP connection settings"))
@@ -480,7 +482,7 @@ struct ContentView: View {
         return HStack(spacing: 3) {
             ForEach(0..<4, id: \.self) { index in
                 Circle()
-                    .fill(index < count ? Color.cyan : Color.white.opacity(0.20))
+                    .fill(index < count ? Color.cyan : JourneyTheme.ink.opacity(0.20))
                     .frame(width: index == 0 ? 5 : 4, height: index == 0 ? 5 : 4)
             }
         }
@@ -504,7 +506,7 @@ struct ContentView: View {
             .font(.caption2.bold())
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(.white.opacity(0.07), in: Capsule())
+            .background(JourneyTheme.ink.opacity(0.07), in: Capsule())
     }
 
     private func networkColor(for rssi: Int) -> Color {
@@ -528,7 +530,7 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 Image(systemName: "key.radiowaves.forward")
                     .font(.title3.bold())
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(JourneyTheme.accent)
                     .frame(width: 42, height: 42)
                     .background(.cyan.opacity(0.14), in: Circle())
                 VStack(alignment: .leading, spacing: 3) {
@@ -536,7 +538,7 @@ struct ContentView: View {
                         .font(.subheadline.bold())
                     Text(JL("فتح عند الاقتراب وقفل عند الابتعاد — BLE", "Unlock nearby and lock on departure — BLE"))
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.50))
+                        .foregroundStyle(JourneyTheme.ink.opacity(0.50))
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.forward")
@@ -574,12 +576,12 @@ struct ContentView: View {
                 Label(last.title, systemImage: last.icon)
                     .font(.caption2)
                     .lineLimit(1)
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(JourneyTheme.ink.opacity(0.62))
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 Label(JL("لا توجد أوامر بعد", "No commands yet"), systemImage: "list.bullet.rectangle")
                     .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.50))
+                    .foregroundStyle(JourneyTheme.ink.opacity(0.50))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -594,7 +596,7 @@ struct ContentView: View {
                     .font(.headline)
                 Spacer()
                 Text("\(state.authorizedPhoneCount) / 10")
-                    .font(.caption.bold()).foregroundStyle(.cyan)
+                    .font(.caption.bold()).foregroundStyle(JourneyTheme.accent)
             }
             if !state.ownerStateKnown {
                 Text(JL("جاري التحقق من المدير المحفوظ في ESP…", "Checking the administrator saved on ESP…")).font(.caption).foregroundStyle(.secondary)
@@ -647,14 +649,14 @@ struct ContentView: View {
         HStack(spacing: 9) {
             Image(systemName: icon).foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption2).foregroundStyle(.white.opacity(0.48))
+                Text(title).font(.caption2).foregroundStyle(JourneyTheme.ink.opacity(0.48))
                 Text(value).font(.subheadline.bold())
             }
             Spacer(minLength: 0)
         }
         .padding(11)
         .frame(maxWidth: .infinity)
-        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+        .background(JourneyTheme.ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func statusPill(_ title: String, icon: String, active: Bool) -> some View {
@@ -663,9 +665,9 @@ struct ContentView: View {
             .lineLimit(1)
             .padding(.vertical, 9)
             .frame(maxWidth: .infinity)
-            .foregroundStyle(active ? .cyan : .white.opacity(0.65))
-            .background(active ? .cyan.opacity(0.13) : .white.opacity(0.055), in: Capsule())
-            .overlay(Capsule().stroke(active ? .cyan.opacity(0.30) : .white.opacity(0.07)))
+            .foregroundStyle(active ? .cyan : JourneyTheme.ink.opacity(0.65))
+            .background(active ? .cyan.opacity(0.13) : JourneyTheme.ink.opacity(0.055), in: Capsule())
+            .overlay(Capsule().stroke(active ? .cyan.opacity(0.30) : JourneyTheme.ink.opacity(0.07)))
     }
 
     private func mainControls(_ device: DeviceProfile, state: VehicleState) -> some View {
@@ -730,7 +732,7 @@ struct ContentView: View {
                     Text(subtitle)
                         .font(.caption2)
                         .lineLimit(1)
-                        .foregroundStyle(statusActive ? .green : .white.opacity(0.50))
+                        .foregroundStyle(statusActive ? .green : JourneyTheme.ink.opacity(0.50))
                 }
                 Spacer(minLength: 0)
                 if let status {
@@ -739,8 +741,8 @@ struct ContentView: View {
                         .lineLimit(1)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
-                        .foregroundStyle(statusActive ? .green : .white.opacity(0.55))
-                        .background(statusActive ? .green.opacity(0.14) : .white.opacity(0.07), in: Capsule())
+                        .foregroundStyle(statusActive ? .green : JourneyTheme.ink.opacity(0.55))
+                        .background(statusActive ? .green.opacity(0.14) : JourneyTheme.ink.opacity(0.07), in: Capsule())
                 }
             }
             .foregroundStyle(statusActive ? .green : .cyan)
@@ -769,7 +771,7 @@ struct ContentView: View {
                 Spacer()
                 Text(vehicleStatusText(state)).font(.caption).foregroundStyle(.cyan.opacity(0.75))
             }
-            Divider().overlay(.white.opacity(0.08))
+            Divider().overlay(JourneyTheme.ink.opacity(0.08))
             HStack {
                 metric("RPM", value: state.rpmValid ? "\(state.rpm)" : "—")
                 metric(appText(JL("السرعة", "Speed"), "Speed"), value: !state.speedValid ? "—" : appSpeedUnit == "mph" ? "\(Int((Double(state.speedKph) * 0.621371).rounded())) mph" : "\(state.speedKph) km/h")
@@ -786,10 +788,10 @@ struct ContentView: View {
                 Label(state.obdConnected ? JL("OBD متصل", "OBD connected") : JL("OBD غير متصل", "OBD disconnected"), systemImage: "point.3.connected.trianglepath.dotted")
             }
             .font(.caption)
-            .foregroundStyle(.white.opacity(0.47))
+            .foregroundStyle(JourneyTheme.ink.opacity(0.47))
                 Label(JL("RPM والحرارة وحالة الأبواب واللايت والإشارات من إطارات CAN المؤكدة عبر OBD؛ السرعة والبنزين من PIDs القياسية", "RPM, coolant, doors, lights and turn signals use confirmed CAN frames through OBD; speed and fuel use standard PIDs."), systemImage: "info.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.cyan)
+                .foregroundStyle(JourneyTheme.accent)
         }
         .glassCard(padding: 16)
     }
@@ -800,12 +802,12 @@ struct ContentView: View {
         return VStack(alignment: .leading, spacing: 13) {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles")
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(JourneyTheme.accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(appText(JL("المساعد الذكي", "Smart assistant"), "AI Assistant")).font(.headline)
                     Text(JL("تحليل وشرح فقط — لا يتحكم بالمخارج ولا يمسح الأعطال", "Analysis and explanation only — no output control or code clearing"))
                         .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.48))
+                        .foregroundStyle(JourneyTheme.ink.opacity(0.48))
                 }
                 Spacer()
                 Text("READ ONLY")
@@ -829,10 +831,10 @@ struct ContentView: View {
                     }
                     Text(JLStored(insight.explanation))
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.70))
+                        .foregroundStyle(JourneyTheme.ink.opacity(0.70))
                     Label(insight.nextStep, systemImage: "wrench.and.screwdriver.fill")
                         .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.48))
+                        .foregroundStyle(JourneyTheme.ink.opacity(0.48))
                 }
                 .padding(12)
                 .background(aiColor(insight.severity).opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
@@ -852,7 +854,7 @@ struct ContentView: View {
     private func metric(_ title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value).font(.headline.monospacedDigit())
-            Text(title).font(.caption2).foregroundStyle(.white.opacity(0.42))
+            Text(title).font(.caption2).foregroundStyle(JourneyTheme.ink.opacity(0.42))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -861,7 +863,7 @@ struct ContentView: View {
         VStack(spacing: 18) {
             Image(systemName: "car.side.lock")
                 .font(.system(size: 58))
-                .foregroundStyle(.cyan)
+                .foregroundStyle(JourneyTheme.accent)
             Text(appText(JL("أضف أول جهاز", "Add your first device"), "Add your first device")).font(.title2.bold())
             Text(JL("ابحث عن البورد القريب بالبلوتوث حتى يظهر هنا.", "Search for the nearby board over Bluetooth to show it here."))
                 .multilineTextAlignment(.center)
@@ -883,7 +885,7 @@ private struct JourneyAppInfoView: View {
                 VStack(spacing: 18) {
                     Image(systemName: "car.side.and.exclamationmark")
                         .font(.system(size: 54, weight: .semibold))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(JourneyTheme.accent)
                         .padding(18)
                         .background(.cyan.opacity(0.10), in: Circle())
 
@@ -893,18 +895,18 @@ private struct JourneyAppInfoView: View {
                             .tracking(5)
                         Text(JL("نظام التحكم والتشخيص الذكي للسيارة", "Smart vehicle control and diagnostics"))
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.62))
+                            .foregroundStyle(JourneyTheme.ink.opacity(0.62))
                     }
 
                     VStack(alignment: .leading, spacing: 13) {
                         Label(JL("تصميم وتطوير", "Design and development"), systemImage: "paintbrush.pointed.fill")
                             .font(.caption.bold())
-                            .foregroundStyle(.cyan)
+                            .foregroundStyle(JourneyTheme.accent)
                         Text(JL("مهند الربيعي", "Mohaned Al-Rubaie"))
                             .font(.title3.bold())
                         Text(JL("الريموت، NFC، OBD، التعقّب والتحليل الذكي ضمن نظام واحد.", "Remote, NFC, OBD, tracking and intelligent analysis in one system."))
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.62))
+                            .foregroundStyle(JourneyTheme.ink.opacity(0.62))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .glassCard(padding: 18)
@@ -919,7 +921,7 @@ private struct JourneyAppInfoView: View {
 
                     Text("© 2026 JOURNEY • Designed by Mohaned Al‑Rubaie")
                         .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(JourneyTheme.ink.opacity(0.38))
                 }
                 .padding()
                 .padding(.top, 88)
@@ -932,14 +934,14 @@ private struct JourneyAppInfoView: View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.headline)
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(JourneyTheme.accent)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.caption).foregroundStyle(.white.opacity(0.52))
-                    Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                    Text(title).font(.caption).foregroundStyle(JourneyTheme.ink.opacity(0.52))
+                    Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(JourneyTheme.ink)
                 }
                 Spacer()
-                Image(systemName: "arrow.up.left.square").foregroundStyle(.white.opacity(0.42))
+                Image(systemName: "arrow.up.left.square").foregroundStyle(JourneyTheme.ink.opacity(0.42))
             }
             .padding(10)
             .contentShape(Rectangle())
@@ -1039,12 +1041,7 @@ private struct HUDControlView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.02, green: 0.04, blue: 0.08), .black],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            JourneyWallpaperView()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -1092,7 +1089,7 @@ private struct HUDControlView: View {
 
             Text(displayCaption)
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(JourneyTheme.ink.opacity(0.55))
         }
         .glassCard(padding: 15)
     }
@@ -1135,7 +1132,7 @@ private struct HUDControlView: View {
             ruleRow(JL("السيارة تتحرك", "Vehicle moving"), value: JL("سرعة", "Speed"))
             ruleRow(JL("الحرارة عالية", "High temperature"), value: JL("حرارة فوراً", "Show temperature immediately"))
             ruleRow(JL("RPM عالي", "High RPM"), value: JL("RPM فوراً", "Show RPM immediately"))
-            Divider().overlay(.white.opacity(0.08))
+            Divider().overlay(JourneyTheme.ink.opacity(0.08))
             Stepper(JL("تنبيه الحرارة: \(temperatureAlert)°C", "Temperature alert: \(temperatureAlert)°C"), value: $temperatureAlert, in: 90...125)
             Stepper(JL("حد RPM: \(rpmAlert)", "RPM threshold: \(rpmAlert)"), value: $rpmAlert, in: 2500...7000, step: 250)
         }
@@ -1145,7 +1142,7 @@ private struct HUDControlView: View {
 
     private func ruleRow(_ title: String, value: String) -> some View {
         HStack {
-            Text(title).foregroundStyle(.white.opacity(0.65))
+            Text(title).foregroundStyle(JourneyTheme.ink.opacity(0.65))
             Spacer()
             Text(value).bold().foregroundStyle(.red)
         }
@@ -1159,7 +1156,7 @@ private struct HUDControlView: View {
             if useLiveData {
                 Text(vehicle.obdConnected ? JL("يعرض قراءات OBD عبر Bluetooth الحالية.", "Shows current OBD readings over Bluetooth.") : JL("قطعة OBD غير متصلة حالياً.", "OBD adapter is currently disconnected."))
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.50))
+                    .foregroundStyle(JourneyTheme.ink.opacity(0.50))
             } else {
                 Stepper(JL("سرعة التجربة: \(testSpeed) km/h", "Test speed: \(testSpeed) km/h"), value: $testSpeed, in: 0...240)
                 Stepper(JL("حرارة التجربة: \(testTemperature)°C", "Test temperature: \(testTemperature)°C"), value: $testTemperature, in: 20...130)
@@ -1182,7 +1179,7 @@ private struct HUDControlView: View {
             systemImage: "antenna.radiowaves.left.and.right"
         )
         .font(.caption)
-        .foregroundStyle(.white.opacity(0.52))
+        .foregroundStyle(JourneyTheme.ink.opacity(0.52))
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(padding: 14)
     }
@@ -1197,7 +1194,7 @@ private extension View {
                 RoundedRectangle(cornerRadius: 24)
                     .stroke(
                         LinearGradient(
-                            colors: [.white.opacity(0.42), .cyan.opacity(0.12), .white.opacity(0.05)],
+                            colors: [JourneyTheme.ink.opacity(0.42), .cyan.opacity(0.12), JourneyTheme.ink.opacity(0.05)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -1206,7 +1203,7 @@ private extension View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 24)
-                    .fill(LinearGradient(colors: [.white.opacity(0.08), .clear], startPoint: .top, endPoint: .center))
+                    .fill(LinearGradient(colors: [JourneyTheme.ink.opacity(0.08), .clear], startPoint: .top, endPoint: .center))
                     .allowsHitTesting(false)
             )
             .shadow(color: .black.opacity(0.20), radius: 12, y: 6)
@@ -1442,7 +1439,7 @@ private struct OBDStatusView: View {
                         obdRow(JL("آخر رد", "Last response"), vehicle.obdLastReply.isEmpty ? "—" : vehicle.obdLastReply)
                     }
                     .padding(14)
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+                    .background(JourneyTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(JL("اتصال OBD", "OBD connection")).font(.headline)
@@ -1472,7 +1469,7 @@ private struct OBDStatusView: View {
                         let discovered = transport == "BLE" ? vehicle.obdDiscoveredAdapters : vehicle.obdDiscoveredWifiNetworks
                         if !discovered.isEmpty {
                             Text(transport == "BLE" ? JL("قطع ظهرت للـESP: \(discovered)", "Adapters found by ESP: \(discovered)") : JL("شبكات ظهرت للـESP: \(discovered)", "Networks found by ESP: \(discovered)"))
-                                .font(.caption).foregroundStyle(.cyan)
+                                .font(.caption).foregroundStyle(JourneyTheme.accent)
                             ForEach(discovered.components(separatedBy: " | ").filter { !$0.isEmpty }, id: \.self) { name in
                                 Button { adapterName = name } label: {
                                     HStack { Image(systemName: adapterName == name ? "checkmark.circle.fill" : "circle"); Text(name); Spacer() }
@@ -1486,7 +1483,7 @@ private struct OBDStatusView: View {
                             .disabled(deviceID == nil)
                     }
                     .padding(14)
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+                    .background(JourneyTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(JL("الأخطاء والتحليل", "Faults and analysis")).font(.headline)
@@ -1508,24 +1505,24 @@ private struct OBDStatusView: View {
                             Text(JL("أطفئ المحرك أولاً؛ المسح مقفول أثناء التشغيل.", "Stop the engine first. Clearing is blocked while running."))
                                 .font(.caption).foregroundStyle(.orange)
                         }
-                        if !statusMessage.isEmpty { Text(JLStored(statusMessage)).font(.caption).foregroundStyle(.cyan) }
+                        if !statusMessage.isEmpty { Text(JLStored(statusMessage)).font(.caption).foregroundStyle(JourneyTheme.accent) }
                     }
                     .padding(14)
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+                    .background(JourneyTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
 
                     Label(
                         JL("OBD القياسي يعطي سرعة وRPM وحرارة؛ الأبواب واللايتات والإشارات ليست ضمن PIDs القياسية.", "Standard OBD provides speed, RPM and temperature. Doors, lights and turn signals are not standard PIDs."),
                         systemImage: "info.circle.fill"
                     )
                     .font(.footnote)
-                    .foregroundStyle(.cyan)
+                    .foregroundStyle(JourneyTheme.accent)
                 }
                 .padding()
                 .padding(.top, 12)
                 .padding(.bottom, 120)
             }
         }
-        .tint(.cyan)
+        .tint(JourneyTheme.accent)
         .onAppear { adapterName = vehicle.obdAdapterName }
     }
 
@@ -1704,7 +1701,7 @@ private struct BluetoothSignalIndicator: View {
             HStack(alignment: .bottom, spacing: 2) {
                 ForEach(0..<4, id: \.self) { index in
                     RoundedRectangle(cornerRadius: 1.5)
-                        .fill(index < bars ? color : .white.opacity(0.18))
+                        .fill(index < bars ? color : JourneyTheme.ink.opacity(0.18))
                         .frame(width: 3, height: CGFloat(5 + index * 3))
                 }
             }
@@ -1815,12 +1812,12 @@ private struct VehicleMapView: View {
                     }
                 }
                 .padding(15)
-                .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
+                .background(JourneyTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
             }
             .padding()
             .padding(.top, 88)
         }
-        .background(Color(red: 0.02, green: 0.05, blue: 0.10).ignoresSafeArea())
+        .background { JourneyWallpaperView() }
         .navigationTitle(JL("الخريطة والتعقّب", "Map and tracking"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1873,8 +1870,8 @@ private struct VehicleMapView: View {
             .lineLimit(1)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .foregroundStyle(active ? .cyan : .white.opacity(0.64))
-            .background(active ? .cyan.opacity(0.13) : .white.opacity(0.055), in: Capsule())
+            .foregroundStyle(active ? .cyan : JourneyTheme.ink.opacity(0.64))
+            .background(active ? .cyan.opacity(0.13) : JourneyTheme.ink.opacity(0.055), in: Capsule())
     }
 }
 
@@ -1932,7 +1929,7 @@ private struct VehicleMapEntryCard: View {
                 HStack(spacing: 11) {
                     Image(systemName: vehicle.gpsValid ? "location.fill" : "map.fill")
                         .font(.title3.bold())
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(JourneyTheme.accent)
                         .frame(width: 42, height: 42)
                         .background(.black.opacity(0.48), in: Circle())
                     VStack(alignment: .leading, spacing: 3) {
@@ -1941,13 +1938,13 @@ private struct VehicleMapEntryCard: View {
                             .foregroundStyle(.white)
                         Text(vehicle.gpsValid ? locationName : JL("بانتظار موقع السيارة من GPS", "Waiting for vehicle GPS location"))
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.76))
+                            .foregroundStyle(JourneyTheme.ink.opacity(0.76))
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.left")
                         .font(.caption.bold())
-                        .foregroundStyle(.white.opacity(0.72))
+                        .foregroundStyle(JourneyTheme.ink.opacity(0.72))
                 }
                 .padding(14)
             }
@@ -2005,7 +2002,7 @@ private struct KeylessEntrySettingsView: View {
             Form {
                 Section {
                     Toggle(JL("تفعيل الدخول الذكي", "Enable smart entry"), isOn: $enabled)
-                        .tint(.cyan)
+                        .tint(JourneyTheme.accent)
                     Text(JL("عند الاتصال الآمن بالـESP: يفتح عند الاقتراب ويقفل بعد الابتعاد.", "With a secure ESP connection, unlock on approach and lock after departure."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -2028,13 +2025,13 @@ private struct KeylessEntrySettingsView: View {
 
                 Section(JL("ريموت السيارة الاحتياطي", "Spare vehicle remote")) {
                     Toggle(JL("يبقى الريموت مفعّل أثناء وجود الآيفون", "Keep remote powered while iPhone is nearby"), isOn: $keepRemotePowered)
-                        .tint(.cyan)
+                        .tint(JourneyTheme.accent)
                     Text(JL("عند الاقتراب: ESP يشغّل 3.3V للريموت، ينتظر ثانية، ثم ينفذ الفتح. عند الابتعاد: يقفل أولاً، ينتظر ثانيتين، ثم يفصل تغذية الريموت.", "On approach, ESP supplies 3.3V to the remote, waits one second, then unlocks. On departure, it locks first, waits two seconds, then cuts remote power."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Label(JL("يبقى مفتاح السيارة موجوداً أثناء وقوفك داخلها، فلا ينفصل الريموت مباشرة بعد الفتح.", "The vehicle key remains available while you are inside. Remote power is not cut immediately after unlocking."), systemImage: "key.fill")
                         .font(.footnote)
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(JourneyTheme.accent)
                 }
 
                 Section {
@@ -2255,7 +2252,7 @@ private struct MQTTSettingsView: View {
 
                 Section {
                     Toggle(JL("تشغيل Wi-Fi بالـESP", "Enable ESP Wi-Fi"), isOn: $wifiEnabled)
-                        .tint(.cyan)
+                        .tint(JourneyTheme.accent)
                         .onChange(of: wifiEnabled) { _, enabled in
                             if !enabled { setWifiEnabled(false) }
                         }

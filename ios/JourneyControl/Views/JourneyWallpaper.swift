@@ -43,6 +43,7 @@ final class JourneyWallpaperStore: ObservableObject {
 }
 
 struct JourneyWallpaperView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var store = JourneyWallpaperStore.shared
     @AppStorage("journey.settings.wallpaper") private var wallpaper = "original"
     @AppStorage("journey.settings.wallpaperDim") private var dim = 0.45
@@ -56,12 +57,18 @@ struct JourneyWallpaperView: View {
                         .scaledToFill()
                         .frame(width: proxy.size.width, height: proxy.size.height)
                         .clipped()
-                    Color.black.opacity(min(0.85, max(0, dim)))
+                    if colorScheme == .light {
+                        Color.white.opacity(min(0.85, max(0, dim)))
+                    } else {
+                        Color.black.opacity(min(0.85, max(0, dim)))
+                    }
                 } else if wallpaper == "black" {
-                    Color.black
+                    JourneyTheme.surface
                 } else {
                     LinearGradient(
-                        colors: wallpaper == "blue"
+                        colors: colorScheme == .light
+                            ? [Color(red: 0.92, green: 0.97, blue: 1), .white, Color(red: 0.86, green: 0.93, blue: 0.97)]
+                            : wallpaper == "blue"
                             ? [Color(red: 0.01, green: 0.15, blue: 0.26), Color(red: 0.01, green: 0.04, blue: 0.09), .black]
                             : [Color(red: 0.02, green: 0.05, blue: 0.10), Color(red: 0.04, green: 0.11, blue: 0.17), .black],
                         startPoint: .topLeading,
@@ -92,7 +99,7 @@ struct JourneyWallpaperSettingsSection: View {
         Section {
             Picker(JL("خلفية الشاشة", "Screen background"), selection: $wallpaper) {
                 Text(JL("الأصلية", "Original")).tag("original")
-                Text(JL("أسود", "Black")).tag("black")
+                Text(JL("لون سادة", "Solid color")).tag("black")
                 Text(JL("أزرق", "Blue")).tag("blue")
                 if store.image != nil {
                     Text(JL("صورتي", "My photo")).tag("photo")
