@@ -1,0 +1,56 @@
+rive can load the correct vehicle profile and available features."))
++                        .font(.footnote)
++                        .multilineTextAlignment(.center)
++                        .foregroundStyle(.white.opacity(0.62))
++                }
++                .frame(maxWidth: .infinity, minHeight: 250)
++                .padding(20)
++                .background(.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 24))
++                .overlay(RoundedRectangle(cornerRadius: 24).stroke(.cyan.opacity(0.32), lineWidth: 1))
++            }
++            .buttonStyle(.plain)
++        } else {
++            CarVisualView(state: state)
++        }
++    }
++
+     // كل ما يخص الفتح والقفل وحالة المحرك والريموت في صفحة مستقلة.
+     private func controlsPage(device: DeviceProfile, vehicle: VehicleState) -> some View {
+         ScrollView {
+             VStack(spacing: 18) {
+-                AnyView(mainControls(device, state: vehicle))
+-                AnyView(statusStrip(vehicle))
+-                AnyView(keylessEntryCard)
+-                AnyView(telemetryCard(vehicle))
+-                AnyView(aiAssistantCard(vehicle))
++                if selectedVehicleProfile == nil {
++                    AnyView(vehicleVisualOrSelection(state: vehicle))
++                } else {
++                    AnyView(mainControls(device, state: vehicle))
++                    AnyView(statusStrip(vehicle))
++                    AnyView(keylessEntryCard)
++                    AnyView(telemetryCard(vehicle))
++                    AnyView(aiAssistantCard(vehicle))
++                }
+             }
+             .padding()
+             .padding(.top, 12)
+@@ -681,10 +751,27 @@
+     private func mainControls(_ device: DeviceProfile, state: VehicleState) -> some View {
+         VStack(spacing: 12) {
+             LazyVGrid(columns: columns, spacing: 12) {
+-                largeControl(JL("قفل", "Lock"), subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID), feedbackKey: "lock") { mqtt.send(.lock, to: device.deviceID) }
+-                largeControl(JL("فتح", "Unlock"), subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID), feedbackKey: "unlock") { mqtt.send(.unlock, to: device.deviceID) }
+-                largeControl(JL("تشغيل", "Start"), subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID), feedbackKey: "start") { confirmStart = true }
+-                largeControl(JL("إنذار", "Alarm"), subtitle: "Alarm", icon: "bell.and.waves.left.and.right.fill", tint: .red, statusActive: mqtt.isButtonActive("alarm", for: device.deviceID), feedbackKey: "alarm") { mqtt.send(.horn, to: device.deviceID) }
++                if selectedVehicleProfile?.supportsLock == true {
++                    largeControl(JL("قفل", "Lock"), subtitle: "Lock", icon: "lock.fill", tint: .blue, statusActive: mqtt.isButtonActive("lock", for: device.deviceID), feedbackKey: "lock") { mqtt.send(.lock, to: device.deviceID) }
++                }
++                if selectedVehicleProfile?.supportsUnlock == true {
++                    largeControl(JL("فتح", "Unlock"), subtitle: "Unlock", icon: "lock.open.fill", tint: .green, statusActive: mqtt.isButtonActive("unlock", for: device.deviceID), feedbackKey: "unlock") { mqtt.send(.unlock, to: device.deviceID) }
++                }
++                if selectedVehicleProfile?.supportsRemoteStart == true {
++                    largeControl(JL("تشغيل", "Start"), subtitle: "Remote start", icon: "power", tint: .orange, statusActive: mqtt.isButtonActive("start", for: device.deviceID), feedbackKey: "start") { confirmStart = true }
++                }
++                if selectedVehicleProfile?.supportsAlarm == true {
++                    largeControl(JL("إنذار", "Alarm"), subtitle: "Alarm", icon: "be
