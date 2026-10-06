@@ -15,15 +15,15 @@ targets:
       - JourneyControl
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
+        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.punisherdrive
         INFOPLIST_FILE: JourneyControl/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: 5.9
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.18
-        CURRENT_PROJECT_VERSION: 50
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
     dependencies:
       - package: CocoaMQTT
       - target: JourneyWidgetExtension
@@ -34,7 +34,7 @@ targets:
       - JourneyWidget
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.punisherdrive.widget
         PRODUCT_NAME: JourneyWidget
         INFOPLIST_FILE: JourneyWidget/Info.plist
         GENERATE_INFOPLIST_FILE: NO
@@ -43,5 +43,5 @@ targets:
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.18
-        CURRENT_PROJECT_VERSION: 50
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
