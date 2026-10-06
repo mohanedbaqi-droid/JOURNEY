@@ -28,6 +28,7 @@ enum DemoVehicleSimulation {
         case "liftgate": state.demoLiftgateOpen.toggle()
         case "hood": state.demoHoodOpen.toggle()
         case "drl": state.demoDRLOn.toggle()
+        case "projectors": state.demoProjectorsOn.toggle()
         case "headlights": state.headlightsOn.toggle()
         case "leftSignal": state.leftSignalOn.toggle()
         case "rightSignal": state.rightSignalOn.toggle()

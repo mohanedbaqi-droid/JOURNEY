@@ -37,6 +37,7 @@ struct VehicleState: Codable {
     var demoLiftgateOpen = false
     var demoHoodOpen = false
     var demoDRLOn = false
+    var demoProjectorsOn = false
     var remotePowered = false
     var remotePowerStatePresent = false
     var feedbackStatePresent = false

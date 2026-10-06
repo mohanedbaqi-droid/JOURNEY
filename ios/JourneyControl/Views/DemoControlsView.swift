@@ -11,7 +11,7 @@ struct DemoControlsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Label("JOURNEY DEMO", systemImage: "car.side.fill")
                     .font(.headline).foregroundStyle(.cyan)
-                Text(JL("محاكاة محلية • الصور مؤقتة. حالات الأبواب والصندوق تظهر تحت السيارة.", "Local simulation • Temporary artwork. Door and liftgate states appear below the car."))
+                Text(JL("محاكاة محلية • البيبان والأضواء مستقلة، والسيارة ثابتة بالسنتر.", "Local simulation • Independent doors and lights, fixed vehicle center."))
                     .font(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns: columns, spacing: 8) {
                     control(JL("باب السائق", "Driver door"), item: "driverFront", active: state.demoDriverFrontOpen)
@@ -22,7 +22,8 @@ struct DemoControlsView: View {
                     control(JL("البنيد", "Hood"), item: "hood", active: state.demoHoodOpen)
                     control(JL("كل البيبان", "All doors"), item: "allDoors", active: state.demoDriverFrontOpen && state.demoPassengerFrontOpen && state.demoDriverRearOpen && state.demoPassengerRearOpen)
                     control(JL("النهاري", "DRL"), item: "drl", active: state.demoDRLOn)
-                    control(JL("الايت والبروجكتر", "Headlights and projector"), item: "headlights", active: state.headlightsOn)
+                    control(JL("السكن / البروجكتر", "Parking / projectors"), item: "projectors", active: state.demoProjectorsOn)
+                    control(JL("الايت الناصي", "Low beam"), item: "headlights", active: state.headlightsOn)
                     control(JL("إشارة السائق", "Driver turn signal"), item: "leftSignal", active: state.leftSignalOn)
                     control(JL("إشارة الراكب", "Passenger turn signal"), item: "rightSignal", active: state.rightSignalOn)
                     control(JL("فلشر", "Hazard"), item: "hazard", active: state.leftSignalOn && state.rightSignalOn)
