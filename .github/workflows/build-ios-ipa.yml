@@ -43,20 +43,29 @@ jobs:
           rm -rf "$RUNNER_TEMP/PunisherDerived"
           xcodebuild             -project PunisherDrive.xcodeproj             -scheme PunisherDrive             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -derivedDataPath "$RUNNER_TEMP/PunisherDerived"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             clean build
 
-      - name: Package unsigned IPA
+      - name: Ad-hoc sign app bundle
         run: |
           set -euo pipefail
           APP="$RUNNER_TEMP/PunisherDerived/Build/Products/Release-iphoneos/PunisherDrive.app"
           test -d "$APP"
+          /usr/bin/codesign --force --deep --sign - --timestamp=none "$APP"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: Package test IPA
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/PunisherDerived/Build/Products/Release-iphoneos/PunisherDrive.app"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP/Info.plist"
+          rm -rf "$RUNNER_TEMP/punisher-ipa"
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
-          cp -R "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
+          /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.4.0-4-unsigned.ipa" Payload
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.4.1-5-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-0.4.1-5-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-0.4.0-4-unsigned-IPA
-          path: PUNISHER-DRIVE-0.4.0-4-unsigned.ipa
+          name: PUNISHER-DRIVE-0.4.1-5-TEST-IPA
+          path: PUNISHER-DRIVE-0.4.1-5-TEST.ipa
           if-no-files-found: error
