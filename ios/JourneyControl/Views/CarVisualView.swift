@@ -34,7 +34,6 @@ struct CarVisualView: View {
             }
             .frame(width: carWidth, height: carHeight)
             .position(x: proxy.size.width / 2, y: carHeight / 2 - 46 * scale)
-            VehicleOpenStateBadges(state: state).allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(1794.0 / 1165.0, contentMode: .fit)

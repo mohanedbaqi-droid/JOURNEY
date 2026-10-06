@@ -9,7 +9,8 @@
  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
  <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
- <application android:theme="@style/Theme.Journey" android:label="JOURNEY" android:usesCleartextTraffic="true">
+ <uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>
+ <application android:icon="@drawable/journey_layer_body" android:supportsRtl="true" android:theme="@style/Theme.Journey" android:label="JOURNEY" android:usesCleartextTraffic="true">
   <activity android:name=".MainActivity" android:screenOrientation="portrait" android:exported="true">
    <intent-filter>
     <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>
