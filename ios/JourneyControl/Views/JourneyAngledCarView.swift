@@ -45,6 +45,8 @@ struct JourneyAngledCarView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // Artwork coordinates describe the physical car, independent of UI language.
+        .environment(\.layoutDirection, .leftToRight)
         .frame(maxWidth: .infinity)
         .frame(height: 380)
         .animation(.easeInOut(duration: 0.18), value: state.demoDriverFrontOpen)
