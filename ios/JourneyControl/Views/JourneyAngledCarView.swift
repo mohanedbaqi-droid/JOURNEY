@@ -128,7 +128,7 @@ struct JourneyAngledCarView: View {
             SignalStripLayout(x: 215, y: 576, width: 130, height: 20, rotation: 9.0),
             // Screen-right lamp: the inner end (nearest the grille) sits a
             // little lower while the outer end stays on the lamp edge.
-            SignalStripLayout(x: 922, y: 582, width: 248, height: 21, rotation: -3.5)
+            SignalStripLayout(x: 922, y: 594, width: 248, height: 21, rotation: -3.5)
         )
     }
 
