@@ -27,7 +27,7 @@ jobs:
           key: journey-android-install-signing-v1
       - name: Test and build signed install APK
         working-directory: Android
-        run: gradle testDebugUnitTest assembleDebug --stacktrace
+        run: gradle testDebugUnitTest assembleDebug assembleDebugAndroidTest --stacktrace
       - name: Verify package and signature
         run: |
           set -e
@@ -39,10 +39,47 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: JOURNEY-Android-2.4.32-64-APK
-          path: JOURNEY-Android-2.4.32-64.apk
+          path: |
+            JOURNEY-Android-2.4.32-64.apk
+            Android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Android-test-results
           path: Android/app/build/test-results/testDebugUnitTest
+
+  ui-review:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: JOURNEY-Android-2.4.32-64-APK
+          path: packages
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: |
+            adb install $(find packages -name 'JOURNEY-Android*.apk' | head -1)
+            adb install $(find packages -name 'app-debug-androidTest.apk' | head -1)
+            adb shell pm grant com.journey.control android.permission.ACCESS_FINE_LOCATION
+            adb shell am instrument -w com.journey.control.test/androidx.test.runner.AndroidJUnitRunner | tee ui-test.log
+            grep -q 'OK (1 test)' ui-test.log
+            adb pull /sdcard/Android/data/com.journey.control/files/ui-review ui-review
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Android-UI-review
+          path: |
+            ui-review
+            ui-test.log

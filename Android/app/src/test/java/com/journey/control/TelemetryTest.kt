@@ -3,6 +3,13 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 class TelemetryTest {
+ @Test fun firmwareVersionMustBeReportedByEsp(){
+  val noVersion=JourneyStateDecoder.merge(VehicleState(),JSONObject("""{"p":1,"ac":1}"""),1000)
+  assertEquals("",noVersion.firmwareVersion)
+  val version=JourneyStateDecoder.merge(noVersion,JSONObject("""{"partialState":true,"fw":"12.77"}"""),1100)
+  assertEquals("12.77",version.firmwareVersion)
+  assertEquals("12.77",JourneyStateDecoder.merge(version,JSONObject("""{"bp":1,"dv":true}"""),1200).firmwareVersion)
+ }
  @Test fun independentDoorBitsAndLights(){
   val s=JourneyStateDecoder.merge(VehicleState(),JSONObject("""{"bp":1,"dm":86,"dk":86,"dv":true,"lv":true,"pl":true,"pv":true,"lo":false,"iv":true,"il":true,"ir":false}"""),1000)
   assertTrue(s.doorOpen(2));assertTrue(s.doorOpen(4));assertTrue(s.doorOpen(16));assertTrue(s.doorOpen(64));assertFalse(s.doorKnown(8))
