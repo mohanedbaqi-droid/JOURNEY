@@ -30,7 +30,8 @@ linear-gradient(160deg,#05070b,#0a0d13 55%,#061016)}
 .title{font-size:25px;font-weight:900;margin:0}.sub{color:var(--muted);font-size:12px}
 .vehicle-photo{width:100%;height:225px;object-fit:contain;display:block;margin:2px auto 0;filter:drop-shadow(0 10px 14px rgba(0,0,0,.52))}
 .vehicle-stage{height:238px;position:relative;display:flex;align-items:center;justify-content:center;overflow:visible;margin-top:2px}
-.vehicle-stage .vehicle-photo{height:228px;margin:0}
+.vehicle-stage .vehicle-photo{height:228px;margin:0;position:relative;z-index:1}
+.vehicle-color-layer{position:absolute;inset:5px 0 5px 0;z-index:2;pointer-events:none;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;-webkit-mask-size:contain;mask-repeat:no-repeat;mask-position:center;mask-size:contain;opacity:.78;mix-blend-mode:color}
 .plate-on-car{position:absolute;left:70%;top:70.5%;transform:translate(-50%,-50%) rotate(-1.5deg);height:22px;min-width:86px;display:flex;direction:ltr;align-items:stretch;background:#fff;color:#050505;border:1px solid #555;border-radius:3px;font:900 8px ui-monospace,monospace;box-shadow:0 1px 4px rgba(0,0,0,.42);overflow:hidden}
 .plate-on-car .irq{width:12px;display:grid;place-items:center;border-right:1px solid #555;font-size:5px;line-height:5px;padding:1px 0}
 .plate-on-car .pc,.plate-on-car .pl,.plate-on-car .pn{display:grid;place-items:center;padding:0 4px;border-right:1px solid #aaa}
@@ -91,6 +92,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 function profile(v){return profiles.find(function(p){return p.id===v.profileID})}
 function active(){return garage.find(function(v){return v.id===activeId})||null}
 function image(v){var p=profile(v);return p?'vehicles/'+encodeURIComponent(p.assetKey)+'.png':''}
+function imageMask(v){var p=profile(v);return p?'vehicle_masks/'+encodeURIComponent(p.assetKey)+'.png':''}
 function name(v){var p=profile(v);return v.nickname||((p?p.make:'')+' '+(p?p.model:''))}
 function sub(v){var p=profile(v);return (p?p.make:'')+' '+(p?p.model:'')+' • '+v.year}
 function normalizePlateNumber(x){return String(x||'').replace(/\D/g,'').slice(0,6)}
@@ -113,7 +115,11 @@ function plateHtml(v,preview){
   return '<span class="'+cls+'"><span class="irq">I<br>R<br>Q</span><span class="pc">'+esc(v.plateGovernorateCode)+'</span><span class="pl">'+esc(v.plateLetter)+'</span><span class="pn">'+esc(v.plateNumber||'000000')+'</span></span>'
 }
 function vehiclePic(v,cls){return '<img class="'+(cls||'vehicle-photo')+'" src="'+image(v)+'" alt="'+esc(name(v))+'">'}
-function vehicleStage(v){return '<div class="vehicle-stage">'+vehiclePic(v)+(plateText(v)?plateHtml(v,false):'')+'</div>'}
+function vehicleStage(v){
+  var c=v.colorHex||'#F2F2F2';
+  var layer=c.toUpperCase()==='#F2F2F2'?'':'<span class="vehicle-color-layer" style="background:'+esc(c)+';-webkit-mask-image:url(\''+imageMask(v)+'\');mask-image:url(\''+imageMask(v)+'\');mix-blend-mode:'+(c.toUpperCase()==='#161616'?'multiply':'color')+'"></span>';
+  return '<div class="vehicle-stage">'+vehiclePic(v)+layer+(plateText(v)?plateHtml(v,false):'')+'</div>'
+}
 function updateHeader(){var v=active();document.getElementById('headerSub').textContent=v?sub(v):'Smart Vehicle Control'}
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t)});render()}
 document.querySelectorAll('.tab').forEach(function(b){b.addEventListener('click',function(){setTab(b.dataset.tab)})})
