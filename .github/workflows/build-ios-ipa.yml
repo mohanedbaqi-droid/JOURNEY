@@ -23,6 +23,13 @@ jobs:
           unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
           test -f project.yml
           test -f PunisherDrive/PunisherDriveApp.swift
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("PunisherDrive/Views/GarageView.swift")
+          s = p.read_text()
+          s = s.replace(".foregroundStyle(vehicle.hasESP ? .secondary : .orange)", ".foregroundStyle(vehicle.hasESP ? Color.secondary : Color.orange)")
+          p.write_text(s)
+          PY
 
       - name: Install XcodeGen
         run: brew install xcodegen
