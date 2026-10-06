@@ -140,6 +140,27 @@ struct GarageView: View {
                 Spacer(minLength: 0)
             }
 
+            Button {
+                documentsVehicle = vehicle
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.text.rectangle.fill")
+                    Text(pd("معلومات الزبون والمستمسكات", "Customer & documents", "زانیاری و بەڵگەکانی کڕیار", "Müşteri ve belgeler", "مشتری و مدارک"))
+                    Spacer()
+                    let count = (vehicle.hasAnnualCardDocument ? 1 : 0) + (vehicle.hasUnifiedIDDocument ? 1 : 0)
+                    Text("\(count)/2")
+                        .font(.caption2.bold())
+                        .foregroundStyle(count == 2 ? .green : .cyan)
+                }
+                .font(.caption.bold())
+                .foregroundStyle(.cyan)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 10)
+                .background(.cyan.opacity(0.08), in: RoundedRectangle(cornerRadius: 13))
+                .overlay(RoundedRectangle(cornerRadius: 13).stroke(.cyan.opacity(0.18)))
+            }
+            .buttonStyle(.plain)
+
             Divider().overlay(.white.opacity(0.08))
 
             HStack(spacing: 9) {
