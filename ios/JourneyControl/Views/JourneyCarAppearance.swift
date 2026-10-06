@@ -7,10 +7,10 @@ private enum JourneyCarAppearance: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .front: return JL("أمامي — بيبان وأضواء متحركة", "Front — animated doors and lights")
-        case .angled: return JL("زاوية جانبية — صورة ثابتة", "Angled — still photo")
+        case .angled: return JL("زاوية جانبية — باب السايق والأضواء", "Angled — driver door and lights")
         }
     }
-    var asset: String { self == .front ? "JourneyLayerBody" : "JourneyAngledPhoto" }
+    var asset: String { self == .front ? "JourneyLayerBody" : "JourneyLEDClosed" }
 }
 
 struct JourneySelectedCarView: View {
@@ -19,13 +19,7 @@ struct JourneySelectedCarView: View {
 
     var body: some View {
         if JourneyCarAppearance(rawValue: selection) == .angled {
-            Image("JourneyAngledPhoto")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay { DemoOpenStateBadges(state: state).allowsHitTesting(false) }
-                .accessibilityLabel(JL("جورني بزاوية جانبية، صورة ثابتة", "Journey angled view, still photo"))
+            JourneyAngledCarView(state: state)
         } else {
             CarVisualView(state: state)
         }
@@ -52,7 +46,7 @@ struct JourneyCarAppearanceSettingsSection: View {
                 .frame(height: 160)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .accessibilityLabel(appearance.title)
-            Text(JL("الاختيار ينحفظ تلقائياً. الصورة الجانبية ثابتة؛ اختر الأمامي لمشاهدة حركة البيبان والأضواء.", "Your choice is saved automatically. The angled photo is static; choose Front to view animated doors and lights."))
+            Text(JL("الاختيار ينحفظ تلقائياً. النموذج الجانبي يعرض باب السايق والأضواء؛ النموذج الأمامي يعرض كل البيبان والصندوق.", "Your choice is saved automatically. The angled model shows the driver door and lights; the front model shows all doors and the liftgate."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } header: {
