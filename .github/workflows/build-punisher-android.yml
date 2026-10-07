@@ -13,6 +13,7 @@ on:
       - "standalone/v12/**"
       - "standalone/v13/**"
       - "standalone/v14/**"
+      - "standalone/v15/**"
       - ".github/workflows/build-punisher-android.yml"
 
 jobs:
@@ -76,7 +77,7 @@ jobs:
           masks="PunisherAndroid/app/src/main/assets/vehicle_masks"
           os.makedirs(out,exist_ok=True)
           os.makedirs(masks,exist_ok=True)
-          headers={"User-Agent":"PunisherDriveAndroid/0.3.5"}
+          headers={"User-Agent":"PunisherDriveAndroid/0.3.6"}
           session=new_session("u2netp")
 
           def url(q):
@@ -229,11 +230,23 @@ jobs:
             --mode directory \
             --js PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js
 
-      - name: Patch Android visual canvas and plate text
+      - name: Color System v2 full body masks
+        run: |
+          set -euo pipefail
+          source /tmp/pdvenv/bin/activate
+          python standalone/v15/color_system_v2.py \
+            --profiles PunisherAndroid/app/src/main/assets/vehicle_profiles.json \
+            --input-root PunisherAndroid/app/src/main/assets/vehicles \
+            --mask-root PunisherAndroid/app/src/main/assets/vehicle_masks \
+            --mode directory
+          test "$(find PunisherAndroid/app/src/main/assets/vehicle_masks -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
+
+      - name: Patch Android visual canvas plate and Color v2
         run: |
           set -euo pipefail
           python standalone/v11/android_patch.py
           python standalone/v14/android_plate_patch.py
+          python standalone/v15/android_color_v2_patch.py
 
       - uses: actions/setup-java@v4
         with:
@@ -253,11 +266,11 @@ jobs:
           set -euo pipefail
           APK="PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.3.5-9.apk"
-          ls -lh PUNISHER-DRIVE-ANDROID-0.3.5-9.apk
+          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.3.6-10.apk"
+          ls -lh PUNISHER-DRIVE-ANDROID-0.3.6-10.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-ANDROID-0.3.5-9-APK
-          path: PUNISHER-DRIVE-ANDROID-0.3.5-9.apk
+          name: PUNISHER-DRIVE-ANDROID-0.3.6-10-APK
+          path: PUNISHER-DRIVE-ANDROID-0.3.6-10.apk
           if-no-files-found: error
