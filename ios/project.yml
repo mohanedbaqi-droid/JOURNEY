@@ -13,17 +13,20 @@ targets:
     platform: iOS
     sources:
       - JourneyControl
+      - Shared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
+        CODE_SIGN_ENTITLEMENTS: JourneyControl/JourneyControl.entitlements
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) JOURNEY_APP"
         INFOPLIST_FILE: JourneyControl/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: 5.9
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.34
-        CURRENT_PROJECT_VERSION: 66
+        MARKETING_VERSION: 2.4.35
+        CURRENT_PROJECT_VERSION: 67
     dependencies:
       - package: CocoaMQTT
       - target: JourneyWidgetExtension
@@ -32,9 +35,12 @@ targets:
     platform: iOS
     sources:
       - JourneyWidget
+      - Shared
+      - path: JourneyControl/Assets.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.widget
+        CODE_SIGN_ENTITLEMENTS: JourneyWidget/JourneyWidget.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
         PRODUCT_NAME: JourneyWidget
@@ -45,5 +51,5 @@ targets:
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.34
-        CURRENT_PROJECT_VERSION: 66
+        MARKETING_VERSION: 2.4.35
+        CURRENT_PROJECT_VERSION: 67

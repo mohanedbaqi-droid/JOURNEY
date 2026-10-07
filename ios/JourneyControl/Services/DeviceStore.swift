@@ -73,5 +73,8 @@ final class DeviceStore: ObservableObject {
 
     private func saveSelection() {
         UserDefaults.standard.set(selectedID?.uuidString, forKey: selectionKey)
+        var snapshot = JourneyWidgetSnapshot()
+        if let device = selectedDevice { snapshot.deviceID = device.deviceID; snapshot.name = device.name }
+        _ = JourneyWidgetStore.write(snapshot, force: true)
     }
 }

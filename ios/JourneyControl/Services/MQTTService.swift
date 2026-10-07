@@ -5,6 +5,7 @@ import Security
 
 @MainActor
 final class MQTTService: ObservableObject {
+    static let shared = MQTTService()
     enum Connection: String {
         case notConfigured, disconnected, connecting, connected
 
@@ -41,6 +42,7 @@ final class MQTTService: ObservableObject {
     @Published private(set) var pendingRemotePower: [String: Bool] = [:]
     private var remotePowerUpdates: [String: Int] = [:]
     private var remotePowerRejections: [String: Int] = [:]
+    private var lastFullAt: [String: Date] = [:]
     private var lastHealthAt: [String: Date] = [:]
     private var lastObdAt: [String: Date] = [:]
     private var lastBodyAt: [String: Date] = [:]
@@ -110,6 +112,7 @@ final class MQTTService: ObservableObject {
             .autoconnect()
             .sink { [weak self] now in
                 guard let self else { return }
+                defer { self.syncSelectedWidget() }
                 for (deviceID, seenAt) in self.lastHealthAt where now.timeIntervalSince(seenAt) > 10 {
                     guard var state = self.vehicles[deviceID] else { continue }
                     state.espTemperatureC = nil; state.espBatteryVoltage = nil; state.espBatteryPercent = nil
@@ -156,6 +159,42 @@ final class MQTTService: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+
+    func syncSelectedWidget(force: Bool = false) {
+        let devices = DeviceStore()
+        guard let device = devices.selectedDevice else {
+            _ = JourneyWidgetStore.write(JourneyWidgetSnapshot(), force: true)
+            return
+        }
+        let state = state(for: device.deviceID)
+        var snapshot = JourneyWidgetSnapshot()
+        snapshot.deviceID = device.deviceID; snapshot.name = device.name
+        snapshot.english = defaults.string(forKey: "journey.settings.language") == "en"
+        snapshot.speedUnit = defaults.string(forKey: "journey.settings.speedUnit") ?? "kmh"
+        snapshot.temperatureUnit = defaults.string(forKey: "journey.settings.temperatureUnit") ?? "c"
+        snapshot.stateAt = lastStateAt[device.deviceID]
+        snapshot.obdAt = lastObdAt[device.deviceID]; snapshot.bodyAt = lastBodyAt[device.deviceID]
+        snapshot.healthAt = lastHealthAt[device.deviceID]; snapshot.gpsAt = lastFullAt[device.deviceID]
+        snapshot.online = state.online
+        snapshot.rpm = state.rpmValid ? state.rpm : nil
+        snapshot.speed = state.speedValid ? state.speedKph : nil
+        snapshot.coolant = state.coolantValid ? state.coolantC : nil
+        snapshot.fuel = state.fuelLevelValid ? state.fuelLevelPercent : nil
+        snapshot.battery = state.obdConnected && state.batteryVoltage > 0 ? state.batteryVoltage : nil
+        snapshot.locked = state.doorsValid ? state.simulatedLocked : nil
+        snapshot.doorKnownMask = state.doorsValid ? state.doorKnownMask : 0
+        snapshot.doorOpenMask = state.doorsValid ? state.doorOpenMask : 0
+        snapshot.lowBeam = state.lightsValid ? state.headlightsOn : nil
+        snapshot.parking = state.lightsValid && state.parkingLightsValid ? state.parkingLightsOn : nil
+        snapshot.leftTurn = state.turnsValid ? state.leftSignalOn : nil
+        snapshot.rightTurn = state.turnsValid ? state.rightSignalOn : nil
+        snapshot.remotePowered = state.online ? state.remotePowered : nil
+        snapshot.obdConnected = state.obdConnected
+        snapshot.espTemperature = state.espTemperatureC; snapshot.espBattery = state.espBatteryPercent
+        snapshot.firmware = state.firmwareVersion
+        snapshot.latitude = state.gpsValid ? state.latitude : nil; snapshot.longitude = state.gpsValid ? state.longitude : nil
+        _ = JourneyWidgetStore.write(snapshot, force: force)
     }
 
     var settings: Settings {
@@ -489,6 +528,8 @@ final class MQTTService: ObservableObject {
     }
 
     private func receive(_ state: VehicleState, from deviceID: String) {
+        defer { syncSelectedWidget() }
+        if !state.partialState { lastFullAt[deviceID] = Date() }
         if state.lastEvent == "rejected_unknown_phone" && (state.coreStatePacket || !state.partialState) {
             remotePowerRejections[deviceID, default: 0] += 1
         }

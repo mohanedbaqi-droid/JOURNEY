@@ -190,6 +190,7 @@ struct ContentView: View {
                 }
             }
             .onAppear {
+                mqtt.syncSelectedWidget(force: true)
                 WidgetCenter.shared.reloadAllTimelines()
                 if devices.devices.isEmpty { showingDevices = true }
                 if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
@@ -208,6 +209,7 @@ struct ContentView: View {
             .onChange(of: devices.selectedID, initial: false) { _, _ in
                 guard let device = devices.selectedDevice else { return }
                 mqtt.prepareBluetooth(for: device.deviceID)
+                mqtt.syncSelectedWidget(force: true)
             }
             .onReceive(homeShortcuts.$pendingShortcut) { shortcut in
                 guard let shortcut else { return }

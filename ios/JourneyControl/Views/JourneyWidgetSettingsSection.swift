@@ -2,6 +2,7 @@ import SwiftUI
 import WidgetKit
 
 struct JourneyWidgetSettingsSection: View {
+    @EnvironmentObject private var mqtt: MQTTService
     @State private var extensionPresent = false
     @State private var identityMatches = false
     @State private var signingMessage = ""
@@ -16,16 +17,24 @@ struct JourneyWidgetSettingsSection: View {
                 .foregroundStyle(extensionPresent ? Color.green : Color.orange)
             if extensionPresent {
                 Label(identityMatches
-                    ? JL("هوية الويدجيت مرتبطة بالديمو", "Widget identity matches Demo")
+                    ? JL("هوية الويدجيت مرتبطة بالتطبيق", "Widget identity matches JOURNEY")
                     : JL("هوية الويدجيت تغيّرت أثناء التوقيع؛ أعد توقيع التطبيق والإضافة معاً", "Widget identity changed during signing; re-sign the app and extension together"),
                     systemImage: identityMatches ? "checkmark.circle" : "exclamationmark.triangle")
                     .foregroundStyle(identityMatches ? Color.green : Color.orange)
                 Text(signingMessage).font(.footnote).foregroundStyle(.secondary)
             }
+            Label(JourneyWidgetStore.available ? JL("مشاركة بيانات الويدجيت متاحة", "Widget data sharing available") : JL("مشاركة بيانات الويدجيت غير متاحة بالتوقيع الحالي", "Widget data sharing unavailable with this signing profile"), systemImage: JourneyWidgetStore.available ? "checkmark.circle" : "exclamationmark.triangle")
+                .foregroundStyle(JourneyWidgetStore.available ? Color.green : Color.orange)
+            if !JourneyWidgetStore.available {
+                Text(JL("وقّع التطبيق والويدجيت مع مجموعة App Group المشتركة حتى تظهر القراءات. احتفظ بالإضافات عند التثبيت.", "Sign the app and widget with their shared App Group to display readings. Keep app extensions when installing.")).font(.footnote)
+            }
+            Text(JL("الفتح والقفل من الويدجيت بالخلفية. التشغيل يفتح تأكيد Face ID؛ الإلغاء لا يرسل أمراً.", "Widget lock and unlock run in the background. Start opens Face ID authorization; cancelling sends no command.")).font(.footnote)
+            Text(JL("الويدجيت الكبير يعرض كل القراءات المتاحة ووقت آخر تحديث. توقيت التحديث بالخلفية يحدده iOS.", "The large widget shows all available readings and the last update time. iOS schedules background widget refreshes.")).font(.footnote)
             Text(JL("ابحث عن JOURNEY بقائمة ويدجيت الشاشة الرئيسية أو شاشة القفل.", "Look for JOURNEY in the Home Screen or Lock Screen widget gallery."))
                 .font(.footnote)
             Button(JL("تحديث الويدجيت", "Refresh widgets")) {
                 checkExtension()
+                mqtt.syncSelectedWidget(force: true)
                 WidgetCenter.shared.reloadAllTimelines()
                 refreshed = true
             }
@@ -76,7 +85,7 @@ struct JourneyWidgetSettingsSection: View {
                 let provisionedID = allowedID.split(separator: ".").dropFirst().joined(separator: ".")
                 let matches = provisionedID == child || (provisionedID.hasSuffix(".*") && child.hasPrefix(String(provisionedID.dropLast()))) || provisionedID == "*"
                 signingMessage = matches
-                    ? JL("ملف توقيع الويدجيت موجود وهوية التطبيق متوافقة معه. إذا ما ظهر بالقائمة، أعد تشغيل الآيفون وافتح الديمو ثم ابحث عنه.", "Widget provisioning profile is present and matches its identity. If it is missing from the gallery, restart the iPhone, open Demo, then search again.")
+                    ? JL("ملف توقيع الويدجيت موجود وهوية التطبيق متوافقة معه. إذا ما ظهر بالقائمة، أعد تشغيل الآيفون وافتح التطبيق ثم ابحث عنه.", "Widget provisioning profile is present and matches its identity. If it is missing from the gallery, restart the iPhone, open JOURNEY, then search again.")
                     : JL("ملف توقيع الويدجيت لا يطابق هويته. أعد التوقيع بـSideloadly مع الاحتفاظ بالإضافات.", "Widget provisioning profile does not match its identity. Re-sign with Sideloadly while retaining extensions.")
             } else {
                 signingMessage = JL("لم أتمكن من قراءة ملف توقيع الويدجيت. وجود ملف الإضافة وحده لا يؤكد أن iOS سجّله.", "Unable to read the widget provisioning profile. The extension file alone does not confirm iOS registered it.")

@@ -22,6 +22,11 @@ jobs:
           swiftc ios/JourneyControl/Models/VehicleState.swift ios/JourneyControl/Models/VehicleCommand.swift ios/Tests/TelemetryDecoderTests.swift -o "$RUNNER_TEMP/decoder-tests"
           "$RUNNER_TEMP/decoder-tests"
 
+      - name: Check widget data freshness
+        run: |
+          swiftc ios/Shared/JourneyWidgetData.swift ios/Tests/WidgetSnapshotTests.swift -o "$RUNNER_TEMP/widget-tests"
+          "$RUNNER_TEMP/widget-tests"
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -71,20 +76,26 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
 
+          # Preserve desired App Group entitlements for the installation signing tool.
+          codesign --force --sign - --entitlements ios/JourneyWidget/JourneyWidget.entitlements "$APP/PlugIns/JourneyWidget.appex"
+          codesign --force --sign - --entitlements ios/JourneyControl/JourneyControl.entitlements "$APP"
+          codesign -d --entitlements :- "$APP"
+          codesign -d --entitlements :- "$APP/PlugIns/JourneyWidget.appex"
+
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/JourneyControl.app"
           cd "$RUNNER_TEMP/ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/JOURNEY-2.4.34-66-unsigned.ipa" Payload
-          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.34-66-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
-          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.34-66-unsigned.ipa" "Payload/JourneyControl.app/Info.plist" > "$RUNNER_TEMP/Info.plist"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/JOURNEY-2.4.35-67-unsigned.ipa" Payload
+          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.35-67-unsigned.ipa" | grep "Payload/JourneyControl.app/Info.plist"
+          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.35-67-unsigned.ipa" "Payload/JourneyControl.app/Info.plist" > "$RUNNER_TEMP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$RUNNER_TEMP/Info.plist"
           /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$RUNNER_TEMP/Info.plist"
-          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.34-66-unsigned.ipa" "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist" > "$RUNNER_TEMP/Widget-Info.plist"
+          /usr/bin/unzip -p "$GITHUB_WORKSPACE/JOURNEY-2.4.35-67-unsigned.ipa" "Payload/JourneyControl.app/PlugIns/JourneyWidget.appex/Info.plist" > "$RUNNER_TEMP/Widget-Info.plist"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$RUNNER_TEMP/Widget-Info.plist" | grep "^com.apple.widgetkit-extension$"
-          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.34-66-unsigned.ipa" | grep "Payload/JourneyControl.app/JourneyControl"
+          /usr/bin/unzip -l "$GITHUB_WORKSPACE/JOURNEY-2.4.35-67-unsigned.ipa" | grep "Payload/JourneyControl.app/JourneyControl"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-2.4.34-66-unsigned-IPA
-          path: JOURNEY-2.4.34-66-unsigned.ipa
+          name: JOURNEY-2.4.35-67-unsigned-IPA
+          path: JOURNEY-2.4.35-67-unsigned.ipa
           if-no-files-found: error
