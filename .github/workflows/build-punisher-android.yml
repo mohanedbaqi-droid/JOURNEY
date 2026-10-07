@@ -14,6 +14,7 @@ on:
       - "standalone/v13/**"
       - "standalone/v14/**"
       - "standalone/v15/**"
+      - "standalone/v16/**"
       - ".github/workflows/build-punisher-android.yml"
 
 jobs:
@@ -51,7 +52,7 @@ jobs:
           python3 -m venv /tmp/pdvenv
           source /tmp/pdvenv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install pillow rembg onnxruntime opencv-python-headless numpy
+          python -m pip install pillow rembg onnxruntime opencv-python-headless numpy ultralytics huggingface_hub
 
       - name: Build approved Punisher logo assets
         run: |
@@ -230,23 +231,26 @@ jobs:
             --mode directory \
             --js PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js
 
-      - name: Color System v2 full body masks
+      - name: AI Paint v3 semantic body masks
         run: |
           set -euo pipefail
           source /tmp/pdvenv/bin/activate
-          python standalone/v15/color_system_v2.py \
+          mkdir -p /tmp/paint-debug
+          python standalone/v16/ai_paint_v3.py \
             --profiles PunisherAndroid/app/src/main/assets/vehicle_profiles.json \
             --input-root PunisherAndroid/app/src/main/assets/vehicles \
             --mask-root PunisherAndroid/app/src/main/assets/vehicle_masks \
-            --mode directory
+            --mode directory \
+            --debug-dir /tmp/paint-debug
           test "$(find PunisherAndroid/app/src/main/assets/vehicle_masks -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
 
-      - name: Patch Android visual canvas plate and Color v2
+      - name: Patch Android visual canvas plate and AI Paint v3
         run: |
           set -euo pipefail
           python standalone/v11/android_patch.py
           python standalone/v14/android_plate_patch.py
           python standalone/v15/android_color_v2_patch.py
+          python standalone/v16/android_ai_paint_v3_patch.py
 
       - uses: actions/setup-java@v4
         with:
@@ -266,11 +270,11 @@ jobs:
           set -euo pipefail
           APK="PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.3.6-10.apk"
-          ls -lh PUNISHER-DRIVE-ANDROID-0.3.6-10.apk
+          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.4.0-11.apk"
+          ls -lh PUNISHER-DRIVE-ANDROID-0.4.0-11.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-ANDROID-0.3.6-10-APK
-          path: PUNISHER-DRIVE-ANDROID-0.3.6-10.apk
+          name: PUNISHER-DRIVE-ANDROID-0.4.0-11-APK
+          path: PUNISHER-DRIVE-ANDROID-0.4.0-11.apk
           if-no-files-found: error
