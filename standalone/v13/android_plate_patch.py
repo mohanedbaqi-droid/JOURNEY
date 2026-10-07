@@ -4,7 +4,7 @@ from pathlib import Path
 p = Path("PunisherAndroid/app/src/main/assets/index.html")
 s = p.read_text(encoding="utf-8")
 
-s = s.replace("Android 0.3.4 (8)", "Android 0.3.3 (7)")
+s = s.replace("Android 0.3.2 (6)", "Android 0.3.4 (8)")
 
 old = ".plate-on-car{position:absolute;left:30%;top:68%;transform:translate(-50%,-50%);height:18px;min-width:0;display:flex;direction:ltr;align-items:stretch;background:#fff;color:#050505;border:1px solid #555;border-radius:3px;font:900 7px ui-monospace,monospace;box-shadow:0 1px 4px rgba(0,0,0,.42);overflow:hidden;z-index:4}"
 new = ".plate-on-car{position:absolute;left:30%;top:68%;transform:translate(-50%,-50%);height:23px;min-width:92px;display:flex;direction:ltr;align-items:stretch;background:#fff;color:#050505;border:1px solid #555;border-radius:3px;font:1000 11.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.15px;box-shadow:0 1px 4px rgba(0,0,0,.42);overflow:hidden;z-index:4}"
