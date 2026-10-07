@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import re
 
 p=Path("PunisherAndroid/app/src/main/assets/index.html")
 s=p.read_text(encoding="utf-8")
