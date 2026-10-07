@@ -93,3 +93,10 @@ constexpr char BLE_SERVICE_UUID[] = "AF10A000-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr char BLE_COMMAND_UUID[] = "AF10A001-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr char BLE_STATE_UUID[] = "AF10A002-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr uint32_t STATE_INTERVAL_MS = 250;
+
+// Current generic S3 board has no fuel gauge: leave disabled.
+// Waveshare MAX17048: V1 SDA=3/SCL=2; V2 SDA=15/SCL=16.
+// V2 conflicts with this project's HUD pins: remap/disable HUD before enabling.
+constexpr bool ESP_BATTERY_GAUGE_ENABLED = false;
+constexpr int ESP_BATTERY_SDA_PIN = 3;
+constexpr int ESP_BATTERY_SCL_PIN = 2;

@@ -24,7 +24,7 @@ class DashboardSmokeTest {
    val about=device.findObjects(By.text("معلومات")).last()
    about.click()
    assertTrue(device.wait(Until.hasObject(By.text("إصدار التطبيق")),5000))
-   assertTrue(device.hasObject(By.text("2.4.32 (64)")))
+   assertTrue(device.hasObject(By.text("2.4.33 (65)")))
    assertTrue(device.hasObject(By.text("غير متصل")))
    capture("02-about")
    device.findObjects(By.text("OBD")).last().click()

@@ -168,11 +168,21 @@ private val English=staticCompositionLocalOf{false}
   Button({vm.send("owner_register")},enabled=s.online){Text(L("تسجيل / طلب موافقة المالك","Enroll / request owner approval"))}
   if(s.pendingPhone.isNotBlank()&&s.adminPhone==vm.phoneId){Text(s.pendingPhone);Button({vm.send("owner_approve",JSONObject().put("ownerTarget",s.pendingPhone))}){Text(L("موافقة","Approve"))}}
  }
+ EspHealth(s)
  Priority(vm,s)
  WifiSettings(vm,s)
  CellularSettings(vm,s)
  OtaSettings(vm,s)
  AboutContent(s)
+}
+@Composable private fun EspHealth(s:VehicleState)=CardX(L("صحة ESP","ESP health")){
+ val fresh=s.online && s.espTemperature!=null
+ InfoRow(L("حرارة شريحة ESP","ESP chip temperature"),if(fresh)"%.1f °C".format(java.util.Locale.US,s.espTemperature)else "—")
+ InfoRow(L("بطارية ESP","ESP battery"),if(s.online&&s.espBatteryPercent!=null)"%.0f%% · %.2f V".format(java.util.Locale.US,s.espBatteryPercent,s.espBatteryVoltage)else L("غير متاحة — تحتاج حساس بطارية","Unavailable — battery gauge required"))
+ val diagnosis=when{!fresh->L("بانتظار قراءة حرارة فعلية","Waiting for a live temperature reading");s.espThermalLevel>=2->L("حرارة مرتفعة جداً؛ افحص التهوية والتغذية","Very high temperature; check ventilation and power");s.espThermalLevel==1->L("حرارة مرتفعة؛ افحص التهوية","High temperature; check ventilation");else->L("الحرارة دون حد التنبيه","Temperature below warning threshold")}
+ Text(diagnosis,color=if(fresh&&s.espThermalLevel>0)Color(0xFFFF9C51)else MaterialTheme.colorScheme.onSurfaceVariant)
+ Text(L("تنبيه عند 65°C، وتصعيد عند 80°C. حرارة الشريحة لا تقيس حرارة البطارية أو المقصورة.","Warning at 65°C; escalation at 80°C. Chip temperature does not measure battery or cabin temperature."),style=MaterialTheme.typography.bodySmall)
+ if(s.online&&s.espResetReason==9)Text(L("آخر إعادة تشغيل: هبوط تغذية (Brownout)، وليس إثباتاً لعطل حراري.","Last reset: brownout; this does not prove a thermal fault."),color=Color(0xFFFF9C51))
 }
 @Composable private fun Priority(vm:JourneyViewModel,s:VehicleState)=CardX(L("أولوية الاتصال داخل ESP","ESP route priority")){
  var order by remember(s.connectionPriority){mutableStateOf(s.connectionPriority.split(',').filter{it in listOf("BLE","WIFI","CELLULAR")}.ifEmpty{listOf("CELLULAR","WIFI","BLE")})}

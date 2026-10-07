@@ -41,6 +41,7 @@ final class MQTTService: ObservableObject {
     @Published private(set) var pendingRemotePower: [String: Bool] = [:]
     private var remotePowerUpdates: [String: Int] = [:]
     private var remotePowerRejections: [String: Int] = [:]
+    private var lastHealthAt: [String: Date] = [:]
     private var lastObdAt: [String: Date] = [:]
     private var lastBodyAt: [String: Date] = [:]
     private var lastFeedbackAt: [String: Date] = [:]
@@ -109,6 +110,12 @@ final class MQTTService: ObservableObject {
             .autoconnect()
             .sink { [weak self] now in
                 guard let self else { return }
+                for (deviceID, seenAt) in self.lastHealthAt where now.timeIntervalSince(seenAt) > 10 {
+                    guard var state = self.vehicles[deviceID] else { continue }
+                    state.espTemperatureC = nil; state.espBatteryVoltage = nil; state.espBatteryPercent = nil
+                    state.espThermalLevel = -1
+                    self.vehicles[deviceID] = state
+                }
                 for (deviceID, seenAt) in self.lastObdAt where now.timeIntervalSince(seenAt) > 4 {
                     guard var state = self.vehicles[deviceID] else { continue }
                     state.rpmValid = false; state.speedValid = false; state.coolantValid = false
@@ -535,6 +542,22 @@ final class MQTTService: ObservableObject {
             lastStateAt[deviceID] = Date()
             return
         }
+
+        if state.espHealthPacket {
+            var merged = previous ?? VehicleState()
+            merged.online = true
+            merged.firmwareVersion = state.firmwareVersion
+            merged.espTemperatureC = state.espTemperatureC
+            merged.espBatteryVoltage = state.espBatteryVoltage
+            merged.espBatteryPercent = state.espBatteryPercent
+            merged.espThermalLevel = state.espThermalLevel
+            merged.espResetReason = state.espResetReason
+            vehicles[deviceID] = merged
+            lastHealthAt[deviceID] = Date()
+            lastStateAt[deviceID] = Date()
+            return
+        }
+        if !state.partialState { lastHealthAt[deviceID] = Date() }
 
         if state.ownerStatePacket {
             var merged = previous ?? VehicleState()

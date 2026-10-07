@@ -30,6 +30,6 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
   if(!ble.send(JourneyProtocol.command(phoneId,action,extras))){_status.value="NO_CONNECTION";return}
   _status.value="SENT_WAITING_ESP"
  }
- private fun mergeState(s:String){runCatching{_state.value=JourneyStateDecoder.merge(_state.value,JSONObject(s),SystemClock.elapsedRealtime());_status.value="CONNECTED"}.onFailure{_status.value="INVALID_PACKET"}}
+ private fun mergeState(s:String){runCatching{val old=_state.value;val next=JourneyStateDecoder.merge(old,JSONObject(s),SystemClock.elapsedRealtime());if(next.lastHealth!=old.lastHealth&&next.espTemperature!=null&&next.espThermalLevel>0&&next.espThermalLevel>old.espThermalLevel)EspHealthNotifications.show(getApplication(),next,english.value);_state.value=next;_status.value="CONNECTED"}.onFailure{_status.value="INVALID_PACKET"}}
  override fun onCleared(){ble.stop();super.onCleared()}
 }

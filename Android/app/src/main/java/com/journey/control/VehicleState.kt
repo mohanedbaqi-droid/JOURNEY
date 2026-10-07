@@ -3,6 +3,7 @@ package com.journey.control
 import org.json.JSONObject
 
 data class VehicleState(
+    val espTemperature:Double?=null, val espBatteryVoltage:Double?=null, val espBatteryPercent:Double?=null, val espThermalLevel:Int=-1, val espResetReason:Int=0, val lastHealth:Long=0,
     val online:Boolean=false, val locked:Boolean=true, val engineRunning:Boolean=false, val doorsOpen:Boolean=false,
     val doorOpenMask:Int=0, val doorKnownMask:Int=0, val doorsValid:Boolean=false,
     val headlightsOn:Boolean=false, val parkingLightsOn:Boolean=false, val parkingLightsValid:Boolean=false,
@@ -31,7 +32,7 @@ data class VehicleState(
         val obdFresh=linked && now-lastObd<=4000
         val bodyFresh=linked && now-lastBody<=4000
         val feedbackFresh=linked && now-lastFeedback<=1500
-        return copy(online=linked,rpmValid=rpmValid&&obdFresh,speedValid=speedValid&&obdFresh,coolantValid=coolantValid&&obdFresh,
+        return copy(espTemperature=espTemperature.takeIf{linked&&now-lastHealth<=10000},espBatteryVoltage=espBatteryVoltage.takeIf{linked&&now-lastHealth<=10000},espBatteryPercent=espBatteryPercent.takeIf{linked&&now-lastHealth<=10000},espThermalLevel=if(linked&&now-lastHealth<=10000)espThermalLevel else -1,online=linked,rpmValid=rpmValid&&obdFresh,speedValid=speedValid&&obdFresh,coolantValid=coolantValid&&obdFresh,
             engineRunning=engineRunning&&obdFresh,fuelValid=fuelValid&&obdFresh,doorsValid=doorsValid&&bodyFresh,lightsValid=lightsValid&&bodyFresh,turnsValid=turnsValid&&bodyFresh,
             feedbackLock=feedbackLock&&feedbackFresh,feedbackUnlock=feedbackUnlock&&feedbackFresh,feedbackStart=feedbackStart&&feedbackFresh,feedbackAlarm=feedbackAlarm&&feedbackFresh)
     }
@@ -49,11 +50,19 @@ object JourneyStateDecoder {
         val full=!b("partialState") && !j.has("p") && !j.has("ot") && !j.has("bp") && !b("wifiStatePacket") && !b("cellularStatePacket")
         val body=j.optInt("bp")==1 || full
         val obd=j.optInt("ot")==1 || b("obdTelemetryPacket") || full
+        val health=j.has("espTemperatureValid") || j.has("espBatteryValid")
+        fun healthNumber(key:String):Double? = if(j.has(key)&&!j.isNull(key))j.optDouble(key).takeIf{it.isFinite()}else null
         val feedback=j.has("feedbackLock") || j.has("feedbackUnlock") || j.has("feedbackStart") || j.has("feedbackAlarm")
         val rv=if(obd)b("rpmValid","rv") else old.rpmValid
         val rpm=i("rpm","r",old.rpm)
         val result=old.copy(
             online=true,lastPacket=now,lastBody=if(body)now else old.lastBody,lastObd=if(obd)now else old.lastObd,lastFeedback=if(feedback)now else old.lastFeedback,
+            lastHealth=if(health)now else old.lastHealth,
+            espTemperature=if(health&&b("espTemperatureValid"))healthNumber("espTemperatureC") else if(health)null else old.espTemperature,
+            espBatteryVoltage=if(health&&b("espBatteryValid"))healthNumber("espBatteryVoltage") else if(health)null else old.espBatteryVoltage,
+            espBatteryPercent=if(health&&b("espBatteryValid"))healthNumber("espBatteryPercent") else if(health)null else old.espBatteryPercent,
+            espThermalLevel=if(health)i("espThermalLevel",fallback=-1) else old.espThermalLevel,
+            espResetReason=i("espResetReason",fallback=old.espResetReason),
             firmwareVersion=t("firmwareVersion","fw",old.firmwareVersion),
             locked=b("simulatedLocked","lk",old.locked),remotePowered=b("remotePowered","rp",old.remotePowered),
             doorsOpen=if(body)b("simulatedDoorsOpen","do") else old.doorsOpen,

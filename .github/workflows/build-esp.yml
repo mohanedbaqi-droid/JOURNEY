@@ -1,8 +1,8 @@
-name: Build ESP v12.76 fixed
+name: Build ESP v12.77 fixed
 on:
   workflow_dispatch:
   push:
-    branches: [main, journey-main-real-doors]
+    branches: [main, journey-main-real-doors, journey-android-real-state]
     paths: ["ESP32/**", ".github/workflows/build-esp.yml"]
 jobs:
   build:
@@ -19,11 +19,11 @@ jobs:
           arduino-cli lib install ArduinoJson PubSubClient TM1637 "Adafruit PN532"
       - name: Compile firmware
         run: |
-          mkdir -p /tmp/JOURNEY_ESP32S3_V12_76
-          cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_76/JOURNEY_ESP32S3_V12_76.ino
-          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h /tmp/JOURNEY_ESP32S3_V12_76/
-          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_76
+          mkdir -p /tmp/JOURNEY_ESP32S3_V12_77
+          cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_77/JOURNEY_ESP32S3_V12_77.ino
+          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h /tmp/JOURNEY_ESP32S3_V12_77/
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_77
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-ESP-v12.76
+          name: JOURNEY-ESP-v12.77
           path: build-esp/*.bin

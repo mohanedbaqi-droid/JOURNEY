@@ -67,6 +67,8 @@ final class VehicleNotificationService {
         switch type {
         case "engine_started_obd": return JL("تم تشغيل السيارة", "Engine started")
         case "engine_stopped_obd": return JL("تم إطفاء السيارة", "Engine stopped")
+        case "esp_temperature_high": return JL("تنبيه: حرارة شريحة ESP مرتفعة — افحص التهوية", "Warning: high ESP chip temperature — check ventilation")
+        case "esp_temperature_critical": return JL("تحذير: حرارة شريحة ESP مرتفعة جداً — افحص التهوية والتغذية", "Warning: very high ESP chip temperature — check ventilation and power")
         case "coolant_high": return JL("تحذير: حرارة المحرك مرتفعة", "Warning: high engine temperature")
         case "battery_low": return JL("تحذير: فولت بطارية السيارة منخفض", "Warning: low vehicle battery voltage")
         case "keyless_presence_near": return JL("اقتربت من السيارة — تم اكتشاف الهاتف", "Approaching vehicle — phone detected")

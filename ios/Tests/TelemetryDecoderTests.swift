@@ -22,6 +22,10 @@ func JL(_ ar: String, _ en: String) -> String { en }
    running.rpmValid = false; precondition(!running.drlOn)
    let full = try decode.decode(VehicleState.self, from: Data(#"{"doorOpenMask":2,"doorKnownMask":86,"doorsValid":true,"parkingLightsOn":false,"parkingLightsValid":true,"lightsValid":true,"headlightsOn":true}"#.utf8))
    precondition(full.driverFrontOpen && !full.passengerFrontOpen && full.projectorsOn && full.lowBeamOn)
+   let health = try decode.decode(VehicleState.self, from: Data(#"{"partialState":true,"espHealthPacket":true,"espTemperatureValid":true,"espTemperatureC":70.5,"espThermalLevel":1,"espBatteryValid":false,"firmwareVersion":"12.77"}"#.utf8))
+   precondition(health.partialState && health.espHealthPacket && health.espTemperatureC == 70.5 && health.espBatteryVoltage == nil && health.firmwareVersion == "12.77")
+   let gauge = try decode.decode(VehicleState.self, from: Data(#"{"espHealthPacket":true,"espBatteryValid":true,"espBatteryVoltage":3.8,"espBatteryPercent":62.5}"#.utf8))
+   precondition(gauge.espBatteryVoltage == 3.8 && gauge.espBatteryPercent == 62.5 && gauge.batteryVoltage == 0)
    print("Telemetry decoder checks passed")
  }
 }

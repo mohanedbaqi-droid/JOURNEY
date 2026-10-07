@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <esp_system.h>
+#include <driver/temperature_sensor.h>
+#include <math.h>
 #include <ArduinoJson.h>
 #include <string>
 #include <BLEDevice.h>
@@ -25,6 +28,51 @@
 
 #include "ObdBleService.h"
 #include "config.h"
+
+// Internal die temperature; never represents cabin or battery temperature.
+temperature_sensor_handle_t espTempSensor = nullptr;
+bool espTempHighRange = false;
+bool configureEspTempSensor(bool high) {
+  if (espTempSensor) {
+    temperature_sensor_disable(espTempSensor);
+    temperature_sensor_uninstall(espTempSensor);
+    espTempSensor = nullptr;
+  }
+  temperature_sensor_config_t config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+  if (high) { config.range_min = 50; config.range_max = 125; }
+  espTempHighRange = high;
+  if (temperature_sensor_install(&config, &espTempSensor) != ESP_OK) return false;
+  return temperature_sensor_enable(espTempSensor) == ESP_OK;
+}
+float readEspTemperature() {
+  if (!espTempSensor && !configureEspTempSensor(false)) return NAN;
+  float sample = NAN;
+  if (temperature_sensor_get_celsius(espTempSensor, &sample) != ESP_OK) {
+    // A range error may mean the chip crossed the current range boundary.
+    if (!configureEspTempSensor(!espTempHighRange)) return NAN;
+    if (temperature_sensor_get_celsius(espTempSensor, &sample) != ESP_OK) return NAN;
+  }
+  if ((!espTempHighRange && sample >= 75) || (espTempHighRange && sample < 65))
+    configureEspTempSensor(!espTempHighRange);
+  return sample;
+}
+float espTemperatureC = 0;
+bool espTemperatureValid = false;
+float espBatteryVoltage = 0, espBatteryPercent = 0;
+bool espBatteryValid = false;
+int espThermalLevel = 0;
+uint32_t espHealthAt = 0;
+TwoWire batteryWire(1);
+bool batteryBusReady = false;
+
+bool readGaugeWord(uint8_t reg, uint16_t& value) {
+  batteryWire.beginTransmission(0x36);
+  batteryWire.write(reg);
+  if (batteryWire.endTransmission(false) != 0) return false;
+  if (batteryWire.requestFrom(uint8_t(0x36), uint8_t(2)) != 2) return false;
+  value = (uint16_t(batteryWire.read()) << 8) | batteryWire.read();
+  return true;
+}
 
 NetworkClientSecure tlsClient;
 PubSubClient mqtt(tlsClient);
@@ -1138,9 +1186,56 @@ void monitorVehicleEvents() {
   }
 }
 
+void pollEspHealth() {
+  if (espHealthAt != 0 && millis() - espHealthAt < 2000) return;
+  espHealthAt = millis();
+  float sample = readEspTemperature();
+  espTemperatureValid = isfinite(sample) && sample >= -40 && sample <= 125;
+  if (espTemperatureValid) {
+    espTemperatureC = sample;
+    // Operational warning thresholds, not a claim about hardware safe limits.
+    int next = espThermalLevel;
+    if (sample >= 80) next = 2;
+    else if (next == 2 && sample >= 75) next = 2;
+    else if (sample >= 65) next = 1;
+    else if (sample < 60) next = 0;
+    else if (next == 2) next = 1;
+    if (next > espThermalLevel) publishVehicleEvent(
+      next == 2 ? "esp_temperature_critical" : "esp_temperature_high",
+      next == 2 ? "تحذير: حرارة شريحة ESP مرتفعة جداً — افحص التهوية والتغذية" : "تنبيه: حرارة شريحة ESP مرتفعة — افحص التهوية");
+    espThermalLevel = next;
+  }
+  espBatteryValid = false;
+  if (ESP_BATTERY_GAUGE_ENABLED && batteryBusReady) {
+    uint16_t voltage, soc;
+    if (readGaugeWord(0x02, voltage) && readGaugeWord(0x04, soc)) {
+      float v = voltage * 0.000078125f;
+      float percent = soc / 256.0f;
+      if (v >= 2.5f && v <= 4.5f && percent >= 0 && percent <= 100.5f) {
+        espBatteryVoltage = v; espBatteryPercent = min(percent, 100.0f); espBatteryValid = true;
+      }
+    }
+  }
+}
+
+void addEspHealth(JsonDocument& doc) {
+  doc["firmwareVersion"] = "12.77";
+  bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
+  doc["espTemperatureValid"] = espTemperatureValid && fresh;
+  if (espTemperatureValid && fresh) doc["espTemperatureC"] = roundf(espTemperatureC * 10) / 10;
+  doc["espThermalLevel"] = espTemperatureValid && fresh ? espThermalLevel : -1;
+  doc["espBatteryValid"] = espBatteryValid && fresh;
+  if (espBatteryValid && fresh) {
+    doc["espBatteryVoltage"] = espBatteryVoltage;
+    doc["espBatteryPercent"] = espBatteryPercent;
+  }
+  doc["espResetReason"] = int(esp_reset_reason());
+}
+
 void publishState() {
   const ObdSnapshot& c = obd.snapshot();
   JsonDocument doc;
+  addEspHealth(doc);
   doc["online"] = true;
   doc["benchMode"] = false;
   // v12.66: body UI now uses confirmed BCM readings whenever available.
@@ -1236,11 +1331,22 @@ void publishState() {
   doc["lastEvent"] = lastEvent;
   doc["uptimeSeconds"] = millis() / 1000;
 
-  char payload[1400];
+  char payload[4096];
   const size_t written = serializeJson(doc, payload, sizeof(payload));
   if (bleStateCharacteristic) {
     // Owner/admin + uptime always goes first in a compact BLE-safe packet.
     publishOwnerState();
+    JsonDocument healthDoc;
+    healthDoc["partialState"] = true;
+    healthDoc["espHealthPacket"] = true;
+    addEspHealth(healthDoc);
+    char healthPayload[512];
+    size_t healthBytes = serializeJson(healthDoc, healthPayload, sizeof(healthPayload));
+    if (healthBytes > 0 && healthBytes < sizeof(healthPayload) - 1) {
+      delay(15);
+      bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(healthPayload), healthBytes);
+      bleStateCharacteristic->notify();
+    }
     delay(15); // v12.54: pace notifications so iOS does not lose the following telemetry packet.
     // Send operational core state separately. This packet contains the fields
     // needed by the iPhone for owner registration and keyless state and is kept
@@ -2219,10 +2325,14 @@ void bleCommandTask(void*) {
 }
 
 void setup() {
+  if (ESP_BATTERY_GAUGE_ENABLED) {
+    batteryBusReady = batteryWire.begin(ESP_BATTERY_SDA_PIN, ESP_BATTERY_SCL_PIN, 100000);
+    batteryWire.setTimeOut(20);
+  }
   Serial0.begin(115200);
   delay(2000);
   Network.begin();
-  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.76 REAL DOORS AND LIGHTS");
+  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.77 ESP HEALTH");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   remotePulseMs = preferences.getUInt("pulseMs", OUTPUT_PULSE_MS);
@@ -2324,12 +2434,13 @@ void setup() {
     tlsClient.setCACert(MQTT_ROOT_CA);
     mqtt.setServer(MQTT_HOST, MQTT_PORT);
     mqtt.setCallback(handleCommand);
-    mqtt.setBufferSize(1024);
+    mqtt.setBufferSize(4608);
   }
   if (generalWifiEnabled) connectWifi();
 }
 
 void loop() {
+  pollEspHealth();
   pollGeneralWifi();
   pollCellular();
   applyInternetPriority();

@@ -1237,6 +1237,17 @@ private struct ESPStatusView: View {
                 statusRow(JL("طاقة الريموت", "Remote power"), !vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off")))
                 statusRow(JL("أجهزة المالك", "Owner devices"), vehicle.ownerStateKnown ? JL("\(vehicle.authorizedPhoneCount) / 10 مسجّل", "\(vehicle.authorizedPhoneCount) / 10 registered") : JL("بانتظار ESP", "Waiting for ESP"))
             }
+            Section(JL("صحة ESP", "ESP health")) {
+                statusRow(JL("حرارة شريحة ESP", "ESP chip temperature"), vehicle.online ? vehicle.espTemperatureC.map { String(format: "%.1f °C", $0) } ?? "—" : "—")
+                statusRow(JL("بطارية ESP", "ESP battery"), vehicle.online && vehicle.espBatteryPercent != nil ? String(format: "%.0f%% · %.2f V", vehicle.espBatteryPercent ?? 0, vehicle.espBatteryVoltage ?? 0) : JL("غير متاحة — تحتاج حساس بطارية", "Unavailable — battery gauge required"))
+                Text(!vehicle.online || vehicle.espTemperatureC == nil ? JL("بانتظار قراءة حرارة فعلية", "Waiting for a live temperature reading") : vehicle.espThermalLevel >= 2 ? JL("حرارة مرتفعة جداً؛ افحص التهوية والتغذية", "Very high temperature; check ventilation and power") : vehicle.espThermalLevel == 1 ? JL("حرارة مرتفعة؛ افحص التهوية", "High temperature; check ventilation") : JL("الحرارة دون حد التنبيه", "Temperature below warning threshold"))
+                    .foregroundStyle(vehicle.online && vehicle.espTemperatureC != nil && vehicle.espThermalLevel > 0 ? Color.orange : Color.secondary)
+                Text(JL("تنبيه عند 65°C وتصعيد عند 80°C. هذه حرارة الشريحة، وليست حرارة البطارية أو المقصورة.", "Warning at 65°C; escalation at 80°C. This is chip temperature, not battery or cabin temperature.")).font(.caption)
+                if vehicle.online && vehicle.espResetReason == 9 {
+                    Text(JL("آخر إعادة تشغيل: هبوط تغذية (Brownout)، وليس إثباتاً لعطل حراري.", "Last reset: brownout; this does not prove a thermal fault.")).foregroundStyle(.orange)
+                }
+                statusRow(JL("فيرموير ESP", "ESP firmware"), vehicle.online ? (vehicle.firmwareVersion.isEmpty ? "—" : vehicle.firmwareVersion) : "—")
+            }
             Section(JL("OBD عبر BLE", "OBD over BLE")) {
                 statusRow(JL("قطعة OBD", "OBD adapter"), vehicle.obdConnected ? JL("متصلة", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
                 statusRow(JL("السرعة", "Speed"), speedUnit == "mph" ? "\(Int((Double(vehicle.speedKph) * 0.621371).rounded())) mph" : "\(vehicle.speedKph) km/h")

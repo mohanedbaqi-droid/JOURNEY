@@ -3,6 +3,19 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 class TelemetryTest {
+ @Test fun healthPacketsDoNotRefreshObdAndExpireIndependently(){
+  val old=JourneyStateDecoder.merge(VehicleState(),JSONObject("""{"ot":1,"rv":true,"r":800,"bv":13.6}"""),1000)
+  val health=JourneyStateDecoder.merge(old,JSONObject("""{"partialState":true,"espHealthPacket":true,"espTemperatureValid":true,"espTemperatureC":70.5,"espThermalLevel":1,"espBatteryValid":false,"firmwareVersion":"12.77"}"""),6000).expire(6000)
+  assertEquals(70.5,health.espTemperature!!,0.01);assertNull(health.espBatteryVoltage);assertFalse(health.rpmValid)
+  assertEquals(13.6,health.battery,0.01)
+  val heartbeat=JourneyStateDecoder.merge(health,JSONObject("""{"p":1}"""),17000).expire(17000)
+  assertTrue(heartbeat.online);assertNull(heartbeat.espTemperature);assertEquals(-1,heartbeat.espThermalLevel)
+ }
+ @Test fun gaugeReadingIsSeparateFromVehicleBattery(){
+  val s=JourneyStateDecoder.merge(VehicleState(battery=13.6),JSONObject("""{"partialState":true,"espHealthPacket":true,"espTemperatureValid":false,"espBatteryValid":true,"espBatteryVoltage":3.8,"espBatteryPercent":62.5}"""),1000)
+  assertEquals(3.8,s.espBatteryVoltage!!,0.01);assertEquals(62.5,s.espBatteryPercent!!,0.01);assertEquals(13.6,s.battery,0.01);assertNull(s.espTemperature)
+ }
+
  @Test fun firmwareVersionMustBeReportedByEsp(){
   val noVersion=JourneyStateDecoder.merge(VehicleState(),JSONObject("""{"p":1,"ac":1}"""),1000)
   assertEquals("",noVersion.firmwareVersion)

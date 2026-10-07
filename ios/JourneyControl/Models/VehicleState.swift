@@ -3,6 +3,15 @@ import Foundation
 struct VehicleState: Codable {
     /// Small BLE discovery packets carry only OBD results.  They must merge
     /// into, rather than replace, the last complete vehicle state.
+    var espTemperatureValid = false
+    var espBatteryValid = false
+    var espHealthPacket = false
+    var firmwareVersion = ""
+    var espTemperatureC: Double? = nil
+    var espBatteryVoltage: Double? = nil
+    var espBatteryPercent: Double? = nil
+    var espThermalLevel = -1
+    var espResetReason = 0
     var bodyStatePacket = false
     var rpmValid = false
     var coolantValid = false
@@ -172,6 +181,7 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case espHealthPacket, firmwareVersion, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason
         case doorOpenMask, doorKnownMask, parkingLightsOn, parkingLightsValid
         case bodyStatePacket, rpmValid, coolantValid, speedValid, doorsValid, lightsValid, turnsValid, readDiagnostics
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
@@ -188,6 +198,19 @@ struct VehicleState: Codable {
     init(from decoder: Decoder) throws {
         let box = try decoder.container(keyedBy: CodingKeys.self)
         let compact = try decoder.container(keyedBy: CompactCodingKeys.self)
+        espHealthPacket = try box.decodeIfPresent(Bool.self, forKey: .espHealthPacket) ?? false
+        firmwareVersion = try box.decodeIfPresent(String.self, forKey: .firmwareVersion) ?? ""
+        espTemperatureValid = try box.decodeIfPresent(Bool.self, forKey: .espTemperatureValid) ?? false
+        if espTemperatureValid {
+            espTemperatureC = try box.decodeIfPresent(Double.self, forKey: .espTemperatureC)
+        }
+        espBatteryValid = try box.decodeIfPresent(Bool.self, forKey: .espBatteryValid) ?? false
+        if espBatteryValid {
+            espBatteryVoltage = try box.decodeIfPresent(Double.self, forKey: .espBatteryVoltage)
+            espBatteryPercent = try box.decodeIfPresent(Double.self, forKey: .espBatteryPercent)
+        }
+        espThermalLevel = try box.decodeIfPresent(Int.self, forKey: .espThermalLevel) ?? -1
+        espResetReason = try box.decodeIfPresent(Int.self, forKey: .espResetReason) ?? 0
         let compactPacket = (try compact.decodeIfPresent(Int.self, forKey: .packet) ?? 0) == 1
         partialState = try box.decodeIfPresent(Bool.self, forKey: .partialState) ?? compactPacket
         ownerStatePacket = try box.decodeIfPresent(Bool.self, forKey: .ownerStatePacket) ?? compactPacket
@@ -198,7 +221,7 @@ struct VehicleState: Codable {
         obdTelemetryPacket = fullObdTelemetryPacket || compactObdTelemetryPacket
         wifiStatePacket = try box.decodeIfPresent(Bool.self, forKey: .wifiStatePacket) ?? false
         cellularStatePacket = try box.decodeIfPresent(Bool.self, forKey: .cellularStatePacket) ?? false
-        if obdTelemetryPacket || wifiStatePacket || cellularStatePacket { partialState = true }
+        if espHealthPacket || obdTelemetryPacket || wifiStatePacket || cellularStatePacket { partialState = true }
         vehicleEventPacket = try box.decodeIfPresent(Bool.self, forKey: .vehicleEventPacket) ?? false
         vehicleEventId = try box.decodeIfPresent(String.self, forKey: .vehicleEventId) ?? ""
         vehicleEventType = try box.decodeIfPresent(String.self, forKey: .vehicleEventType) ?? ""
