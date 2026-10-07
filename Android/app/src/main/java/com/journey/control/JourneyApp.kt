@@ -205,7 +205,7 @@ private val English=staticCompositionLocalOf{false}
  OutlinedButton({vm.send("cellular_config",JSONObject().put("cellularSettings",JSONObject().put("enabled",false)))},enabled=s.online){Text(L("إطفاء الشريحة","Disable SIM"))}
 }
 @Composable private fun OtaSettings(vm:JourneyViewModel,s:VehicleState)=CardX(L("تحديث ESP عبر الإنترنت","ESP internet update")){
- var url by remember{mutableStateOf("https://raw.githubusercontent.com/mohanedbaqi-droid/JOURNEY/main/firmware/v12.76/firmware.bin")};var confirm by remember{mutableStateOf(false)}
+ var url by remember{mutableStateOf("https://raw.githubusercontent.com/mohanedbaqi-droid/JOURNEY/main/firmware/v12.77/firmware.bin")};var confirm by remember{mutableStateOf(false)}
  Field(L("رابط firmware.bin","firmware.bin URL"),url){url=it}
  Button({confirm=true},enabled=s.online&&url.startsWith("https://")&&url.endsWith(".bin")){Text(L("تحديث ESP","Update ESP"))}
  Text(L("الـESP يحتاج إنترنت عبر Wi-Fi أو شريحة حتى ينزل الملف.","ESP needs internet through Wi-Fi or SIM to download the file."),style=MaterialTheme.typography.bodySmall)
