@@ -18,7 +18,7 @@ private struct JourneyWidgetProvider: TimelineProvider {
         let now = Date(), snapshot = JourneyWidgetStore.read() ?? JourneyWidgetSnapshot()
         let deadlines = [(snapshot.obdAt, 5.1), (snapshot.bodyAt, 5.1), (snapshot.healthAt, 10.1), (snapshot.gpsAt, 12.1), (snapshot.stateAt, 12.1)]
         let dates = [now] + deadlines.compactMap { date, lifetime -> Date? in
-            guard let date else { return nil }; let expiry = date.addingTimeInterval(lifetime)
+            guard let date, date <= now else { return nil }; let expiry = date.addingTimeInterval(lifetime)
             return expiry > now ? expiry : nil
         }.sorted() + [now.addingTimeInterval(30.1)]
         completion(Timeline(entries: dates.map { entry($0, snapshot) }, policy: .after(now.addingTimeInterval(900))))
@@ -86,7 +86,7 @@ private struct JourneyWidgetView: View {
         VStack(alignment: .leading, spacing: 2) { Text(value).font(.system(size: 13, weight: .bold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7); Text(title).font(.system(size: 9)).foregroundStyle(.white.opacity(0.55)) }.frame(maxWidth: .infinity, alignment: .leading)
     }
     private var small: some View {
-        VStack(spacing: 4) { header; JourneyWidgetCar(s: s).frame(maxHeight: 57); HStack { metric("RPM", integer(s.rpm)); metric(t("حرارة", "Coolant"), temperature) }; actions; footer }
+        VStack(spacing: 4) { header; Spacer(minLength: 0); HStack { metric("RPM", integer(s.rpm)); metric(t("حرارة", "Coolant"), temperature) }; Spacer(minLength: 0); actions; footer }
     }
     private var medium: some View {
         VStack(spacing: 5) {

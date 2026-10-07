@@ -53,6 +53,10 @@ import UIKit
             JourneyWidgetStore.setStatus(deviceID: deviceID, message: text("وصلت قراءة جديدة من ESP", "New ESP reading received"))
             return
         }
+        guard DeviceStore().selectedDevice?.deviceID == deviceID else {
+            JourneyWidgetStore.setStatus(deviceID: deviceID, message: text("تغيّرت السيارة؛ أُلغي الأمر", "Vehicle changed; command cancelled"))
+            return
+        }
         guard let command = BenchAction(rawValue: action), [.lock, .unlock, .start].contains(command), mqtt.send(command, to: deviceID) else {
             JourneyWidgetStore.setStatus(deviceID: deviceID, message: text("تعذر إرسال الأمر", "Could not send command"))
             return
