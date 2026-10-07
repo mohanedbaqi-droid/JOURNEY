@@ -4,8 +4,8 @@ import WidgetKit
 #endif
 
 struct JourneyWidgetSnapshot: Codable, Equatable {
-    var deviceID = ""
-    var name = "JOURNEY"
+    var deviceID = "journey-esp32s3-01"
+    var name = "سيارة جورني"
     var english = false
     var stateAt: Date? = nil
     var obdAt: Date? = nil
@@ -55,8 +55,9 @@ struct JourneyWidgetSnapshot: Codable, Equatable {
         if !s.online { s.remotePowered = nil }
         return s
     }
+    private func key(_ value: Bool?) -> String { value.map { $0 ? "1" : "0" } ?? "?" }
     var importantKey: String {
-        "\(deviceID)|\(online)|\(locked)|\(doorKnownMask)|\(doorOpenMask)|\(lowBeam)|\(parking)|\(leftTurn)|\(rightTurn)|\((rpm ?? -1) > 0)"
+        "\(deviceID)|\(online)|\(key(locked))|\(doorKnownMask)|\(doorOpenMask)|\(key(lowBeam))|\(key(parking))|\(key(leftTurn))|\(key(rightTurn))|\((rpm ?? -1) > 0)"
     }
 }
 
@@ -70,16 +71,19 @@ struct JourneyWidgetCommandStatus: Codable {
 enum JourneyWidgetStore {
     static let declaredGroup = "group.com.abuseif.journey"
     static var groupURL: URL? {
-        var groups = [declaredGroup]
-        // Signing tools may remap App Groups; use the granted Journey group.
-        if let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
-           let data = try? Data(contentsOf: url),
-           let start = data.range(of: Data("<?xml".utf8)), let end = data.range(of: Data("</plist>".utf8)), start.lowerBound < end.upperBound,
-           let plist = try? PropertyListSerialization.propertyList(from: data.subdata(in: start.lowerBound..<end.upperBound), format: nil) as? [String: Any],
-           let entitlements = plist["Entitlements"] as? [String: Any],
-           let granted = entitlements["com.apple.security.application-groups"] as? [String] {
-            groups = granted.filter { $0.lowercased().contains("journey") } + groups
+        // Sideloading profiles can omit or remap App Groups. Calling
+        // containerURL with a group that the installed profile did not grant
+        // can prevent the widget extension from producing its first timeline.
+        guard let profileURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: profileURL),
+              let start = data.range(of: Data("<?xml".utf8)),
+              let end = data.range(of: Data("</plist>".utf8)), start.lowerBound < end.upperBound,
+              let plist = try? PropertyListSerialization.propertyList(from: data.subdata(in: start.lowerBound..<end.upperBound), format: nil) as? [String: Any],
+              let entitlements = plist["Entitlements"] as? [String: Any],
+              let granted = entitlements["com.apple.security.application-groups"] as? [String] else {
+            return nil
         }
+        let groups = granted.filter { $0.lowercased().contains("journey") }
         for group in groups {
             if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) { return url }
         }

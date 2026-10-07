@@ -17,10 +17,14 @@ private struct JourneyWidgetProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<JourneyWidgetEntry>) -> Void) {
         let now = Date(), snapshot = JourneyWidgetStore.read() ?? JourneyWidgetSnapshot()
         let deadlines = [(snapshot.obdAt, 5.1), (snapshot.bodyAt, 5.1), (snapshot.healthAt, 10.1), (snapshot.gpsAt, 12.1), (snapshot.stateAt, 12.1)]
-        let dates = [now] + deadlines.compactMap { date, lifetime -> Date? in
+        let candidates = [now] + deadlines.compactMap { date, lifetime -> Date? in
             guard let date, date <= now else { return nil }; let expiry = date.addingTimeInterval(lifetime)
             return expiry > now ? expiry : nil
-        }.sorted() + [now.addingTimeInterval(30.1)]
+        } + [now.addingTimeInterval(30.1)]
+        // WidgetKit expects a strictly ordered timeline. Several data sources
+        // can share one packet timestamp, so collapse duplicate deadlines.
+        var seen = Set<Int64>()
+        let dates = candidates.sorted().filter { seen.insert(Int64($0.timeIntervalSince1970 * 1_000)).inserted }
         completion(Timeline(entries: dates.map { entry($0, snapshot) }, policy: .after(now.addingTimeInterval(900))))
     }
 }
