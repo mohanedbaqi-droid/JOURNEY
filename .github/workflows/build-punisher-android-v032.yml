@@ -1,0 +1,160 @@
+name: Build Punisher Drive Android 0.3.2 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [punisher-drive]
+    paths:
+      - "standalone/v11/**"
+      - "PunisherAndroid/app/build.gradle.kts"
+      - ".github/workflows/build-punisher-android-v032.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore vehicle catalog
+        run: |
+          set -euo pipefail
+          cat standalone/v04/part00.b64 standalone/v04/part01.b64 standalone/v04/part02.b64 standalone/v04/part03.b64 standalone/v04/part04.b64 > /tmp/pd_v04.b64
+          base64 -d /tmp/pd_v04.b64 > /tmp/pd_v04.zip
+          rm -rf /tmp/pd_v04
+          mkdir -p /tmp/pd_v04
+          unzip -oq /tmp/pd_v04.zip -d /tmp/pd_v04
+          mkdir -p PunisherAndroid/app/src/main/assets/vehicles
+          mkdir -p PunisherAndroid/app/src/main/assets/vehicle_masks
+          cp /tmp/pd_v04/PunisherDrive/Resources/vehicle_profiles.json PunisherAndroid/app/src/main/assets/vehicle_profiles.json
+          python3 - <<'PY'
+          import json
+          p='PunisherAndroid/app/src/main/assets/vehicle_profiles.json'
+          with open(p,encoding='utf-8') as f:data=json.load(f)
+          assert len(data)==56
+          with open('PunisherAndroid/app/src/main/assets/vehicle_profiles.js','w',encoding='utf-8') as f:
+              f.write('window.VEHICLE_PROFILES=')
+              json.dump(data,f,ensure_ascii=False,separators=(',',':'))
+              f.write(';')
+          PY
+
+      - name: Install image tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          python3 -m venv /tmp/pdvenv
+          source /tmp/pdvenv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install pillow rembg onnxruntime opencv-python-headless numpy
+
+      - name: Build Punisher logo assets
+        run: |
+          set -euo pipefail
+          rsvg-convert -w 1024 -h 1024 standalone/v07/assets/PunisherMark.svg -o PunisherAndroid/app/src/main/assets/punisher_mark.png
+          rm -f PunisherAndroid/app/src/main/res/drawable/ic_launcher.xml
+          cp PunisherAndroid/app/src/main/assets/punisher_mark.png PunisherAndroid/app/src/main/res/drawable/ic_launcher.png
+
+      - name: Prepare 56 transparent vehicle images
+        run: |
+          set -euo pipefail
+          source /tmp/pdvenv/bin/activate
+          python <<'PY'
+          import io,json,os,time,urllib.parse,urllib.request
+          from PIL import Image
+          from rembg import remove,new_session
+
+          with open('PunisherAndroid/app/src/main/assets/vehicle_profiles.json',encoding='utf-8') as f: profiles=json.load(f)
+          assert len(profiles)==56
+          out='PunisherAndroid/app/src/main/assets/vehicles'
+          os.makedirs(out,exist_ok=True)
+          session=new_session('u2netp')
+          headers={'User-Agent':'PunisherDriveAndroid/0.3.2'}
+
+          def url(q):
+              return 'https://tse1.mm.bing.net/th?q='+urllib.parse.quote_plus(q)+'&w=1600&h=1050&c=7&rs=1&p=0'
+          def get(u):
+              req=urllib.request.Request(u,headers=headers)
+              with urllib.request.urlopen(req,timeout=40) as r:data=r.read()
+              if len(data)<7000:raise RuntimeError('small image')
+              return data
+          def clean(data):
+              try:
+                  raw=remove(data,session=session)
+                  im=Image.open(io.BytesIO(raw)).convert('RGBA')
+              except Exception:
+                  im=Image.open(io.BytesIO(data)).convert('RGBA')
+              bb=im.getbbox()
+              if bb:im=im.crop(bb)
+              canvas=Image.new('RGBA',(1500,1000),(0,0,0,0))
+              scale=min(1380/im.width,900/im.height)
+              nw,nh=max(1,int(im.width*scale)),max(1,int(im.height*scale))
+              im=im.resize((nw,nh),Image.Resampling.LANCZOS)
+              canvas.alpha_composite(im,((1500-nw)//2,(1000-nh)//2))
+              return canvas
+
+          for i,p in enumerate(profiles,1):
+              asset=p['assetKey'];make=p['make'];model=p['model'];gen=p.get('generation','')
+              queries=[
+                  f'{make} {model} {gen} white front three quarter studio car',
+                  f'{make} {model} {gen} silver front 3/4 vehicle',
+                  f'{make} {model} white front three quarter'
+              ]
+              car=None
+              for q in queries:
+                  try:
+                      c=clean(get(url(q)))
+                      if c.getbbox() and c.getbbox()[2]-c.getbbox()[0]>500:
+                          car=c;break
+                  except Exception as e:
+                      print('retry',asset,e)
+              if car is None:raise RuntimeError('failed '+asset)
+              car.save(os.path.join(out,asset+'.png'),optimize=True)
+              print(f'[{i:02d}/56] {asset}')
+              time.sleep(.03)
+          PY
+          test "$(find PunisherAndroid/app/src/main/assets/vehicles -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
+
+      - name: Direction-aware Visual AI fit
+        run: |
+          set -euo pipefail
+          source /tmp/pdvenv/bin/activate
+          python standalone/v11/visual_ai_fit.py \
+            --profiles PunisherAndroid/app/src/main/assets/vehicle_profiles.json \
+            --input-root PunisherAndroid/app/src/main/assets/vehicles \
+            --mask-root PunisherAndroid/app/src/main/assets/vehicle_masks \
+            --metadata PunisherAndroid/app/src/main/assets/vehicle_visual_ai.json \
+            --js PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js \
+            --mode directory
+          test "$(find PunisherAndroid/app/src/main/assets/vehicle_masks -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
+
+      - name: Patch Android visual canvas
+        run: |
+          python3 standalone/v11/android_patch.py
+          grep -q 'vehicle-canvas' PunisherAndroid/app/src/main/assets/index.html
+          grep -q 'Android 0.3.2 (6)' PunisherAndroid/app/src/main/assets/index.html
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build APK
+        working-directory: PunisherAndroid
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Verify APK
+        run: |
+          set -euo pipefail
+          APK='PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk'
+          test -s "$APK"
+          cp "$APK" 'PUNISHER-DRIVE-ANDROID-0.3.2-6.apk'
+          ls -lh PUNISHER-DRIVE-ANDROID-0.3.2-6.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PUNISHER-DRIVE-ANDROID-0.3.2-6-APK
+          path: PUNISHER-DRIVE-ANDROID-0.3.2-6.apk
+          if-no-files-found: error
