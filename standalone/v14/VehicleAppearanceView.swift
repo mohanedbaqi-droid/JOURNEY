@@ -79,7 +79,6 @@ struct VehicleAppearanceView: View {
         }
         .navigationTitle(pdt("appearance"))
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonDisplayMode(.minimal)
         .toolbarBackground(Color.black.opacity(0.94), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
     }
