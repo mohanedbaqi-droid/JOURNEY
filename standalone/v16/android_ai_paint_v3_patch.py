@@ -93,26 +93,14 @@ if anchor not in s:
     raise SystemExit("imageMask anchor not found")
 s=s.replace(anchor,helpers)
 
-old_stage='''function vehicleStage(v){
-  var c=v.colorHex||'#F2F2F2';
-  var hex=c.toUpperCase();
-  var painted=hex!=='#F2F2F2';
-  var neutral=(hex==='#161616'||hex==='#A8ADB3'||hex==='#5C6268');
-  var mode=neutral?'multiply':'color';
-  var opacity=hex==='#161616'?.92:(neutral?.84:.98);
-  var base='<img class="vehicle-photo '+(painted?'paint-base':'')+'" src="'+image(v)+'" alt="'+esc(name(v))+'">';
-  var layer=painted?'<span class="vehicle-color-layer" style="background:'+esc(c)+';opacity:'+opacity+';mix-blend-mode:'+mode+';-webkit-mask-image:url(\''+imageMask(v)+'\');mask-image:url(\''+imageMask(v)+'\')"></span>':'';
-  var detail=painted?'<img class="vehicle-detail-layer" src="'+image(v)+'" alt="">':'';
-  return '<div class="vehicle-stage"><div class="vehicle-canvas">'+base+layer+detail+(plateText(v)?plateHtml(v,false):'')+'</div></div>'
-}'''
 new_stage='''function vehicleStage(v){
   var c=v.colorHex||'#F2F2F2';
   var canvas='<canvas class="paint-canvas" data-image="'+image(v)+'" data-mask="'+imageMask(v)+'" data-color="'+esc(c)+'"></canvas>';
   return '<div class="vehicle-stage"><div class="vehicle-canvas">'+canvas+(plateText(v)?plateHtml(v,false):'')+'</div></div>'
 }'''
-if old_stage not in s:
-    raise SystemExit("AI Paint v3 vehicleStage anchor not found")
-s=s.replace(old_stage,new_stage)
+s,n=re.subn(r"function vehicleStage\(v\)\{.*?\n\}(?=\nfunction updateHeader)",lambda m:new_stage,s,count=1,flags=re.S)
+if n!=1:
+    raise SystemExit("AI Paint v3 vehicleStage regex anchor not found")
 
 old_render="function render(){updateHeader();var c=document.getElementById('content');if(tab==='garage')c.innerHTML=garageHtml();else if(tab==='map'){c.innerHTML=mapHtml();setTimeout(loadMap,20)}else if(tab==='settings')c.innerHTML=settingsHtml();else if(tab==='ai')c.innerHTML=aiHtml();else if(tab==='about')c.innerHTML=aboutHtml();else c.innerHTML=homeHtml();bind();applyLang()}"
 new_render="function render(){updateHeader();var c=document.getElementById('content');if(tab==='garage')c.innerHTML=garageHtml();else if(tab==='map'){c.innerHTML=mapHtml();setTimeout(loadMap,20)}else if(tab==='settings')c.innerHTML=settingsHtml();else if(tab==='ai')c.innerHTML=aiHtml();else if(tab==='about')c.innerHTML=aboutHtml();else c.innerHTML=homeHtml();bind();applyLang();paintVehicleCanvases()}"
