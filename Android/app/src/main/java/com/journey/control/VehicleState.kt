@@ -3,7 +3,7 @@ package com.journey.control
 import org.json.JSONObject
 
 data class VehicleState(
-    val espTemperature:Double?=null, val espBatteryVoltage:Double?=null, val espBatteryPercent:Double?=null, val espThermalLevel:Int=-1, val espResetReason:Int=0, val lastHealth:Long=0,
+    val espTempWarningC:Int?=null, val espTemperature:Double?=null, val espBatteryVoltage:Double?=null, val espBatteryPercent:Double?=null, val espThermalLevel:Int=-1, val espResetReason:Int=0, val lastHealth:Long=0,
     val online:Boolean=false, val locked:Boolean=true, val engineRunning:Boolean=false, val doorsOpen:Boolean=false,
     val doorOpenMask:Int=0, val doorKnownMask:Int=0, val doorsValid:Boolean=false,
     val headlightsOn:Boolean=false, val parkingLightsOn:Boolean=false, val parkingLightsValid:Boolean=false,
@@ -62,6 +62,7 @@ object JourneyStateDecoder {
             espBatteryVoltage=if(health&&b("espBatteryValid"))healthNumber("espBatteryVoltage") else if(health)null else old.espBatteryVoltage,
             espBatteryPercent=if(health&&b("espBatteryValid"))healthNumber("espBatteryPercent") else if(health)null else old.espBatteryPercent,
             espThermalLevel=if(health)i("espThermalLevel",fallback=-1) else old.espThermalLevel,
+            espTempWarningC=if(j.has("espTempWarningC"))i("espTempWarningC").takeIf{it in 35..75}else old.espTempWarningC,
             espResetReason=i("espResetReason",fallback=old.espResetReason),
             firmwareVersion=t("firmwareVersion","fw",old.firmwareVersion),
             locked=b("simulatedLocked","lk",old.locked),remotePowered=b("remotePowered","rp",old.remotePowered),

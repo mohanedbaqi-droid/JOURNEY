@@ -26,9 +26,10 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
  fun setAppearance(value:Boolean){angled.value=value;prefs.edit().putBoolean("angled",value).apply()}
  fun setDark(value:Boolean){dark.value=value;prefs.edit().putBoolean("dark",value).apply()}
  fun connect(){ble.start(phoneId)}
- fun send(action:String,extras:JSONObject=JSONObject()){
-  if(!ble.send(JourneyProtocol.command(phoneId,action,extras))){_status.value="NO_CONNECTION";return}
+ fun send(action:String,extras:JSONObject=JSONObject()):Boolean{
+  if(!ble.send(JourneyProtocol.command(phoneId,action,extras))){_status.value="NO_CONNECTION";return false}
   _status.value="SENT_WAITING_ESP"
+  return true
  }
  private fun mergeState(s:String){runCatching{val old=_state.value;val next=JourneyStateDecoder.merge(old,JSONObject(s),SystemClock.elapsedRealtime());if(next.lastHealth!=old.lastHealth&&next.espTemperature!=null&&next.espThermalLevel>0&&next.espThermalLevel>old.espThermalLevel)EspHealthNotifications.show(getApplication(),next,english.value);_state.value=next;_status.value="CONNECTED"}.onFailure{_status.value="INVALID_PACKET"}}
  override fun onCleared(){ble.stop();super.onCleared()}

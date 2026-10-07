@@ -550,6 +550,7 @@ final class MQTTService: ObservableObject {
             merged.espTemperatureC = state.espTemperatureC
             merged.espBatteryVoltage = state.espBatteryVoltage
             merged.espBatteryPercent = state.espBatteryPercent
+            merged.espTempWarningC = state.espTempWarningC
             merged.espThermalLevel = state.espThermalLevel
             merged.espResetReason = state.espResetReason
             vehicles[deviceID] = merged

@@ -1,4 +1,4 @@
-name: Build ESP v12.77 fixed
+name: Build ESP v12.78 fixed
 on:
   workflow_dispatch:
   push:
@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check thermal thresholds and hysteresis
+        run: g++ ESP32/tests/thermal_policy_test.cpp -o /tmp/thermal-test && /tmp/thermal-test
       - uses: arduino/setup-arduino-cli@v2
       - name: Install platform and libraries
         run: |
@@ -19,11 +21,11 @@ jobs:
           arduino-cli lib install ArduinoJson PubSubClient TM1637 "Adafruit PN532"
       - name: Compile firmware
         run: |
-          mkdir -p /tmp/JOURNEY_ESP32S3_V12_77
-          cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_77/JOURNEY_ESP32S3_V12_77.ino
-          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h /tmp/JOURNEY_ESP32S3_V12_77/
-          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_77
+          mkdir -p /tmp/JOURNEY_ESP32S3_V12_78
+          cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_78/JOURNEY_ESP32S3_V12_78.ino
+          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h ESP32/EspThermalPolicy.h /tmp/JOURNEY_ESP32S3_V12_78/
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_78
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-ESP-v12.77
+          name: JOURNEY-ESP-v12.78
           path: build-esp/*.bin

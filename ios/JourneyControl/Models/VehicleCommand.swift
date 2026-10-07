@@ -158,10 +158,11 @@ struct KeylessPresence: Codable, Equatable {
 }
 
 struct ESPRuntimeSettings: Codable, Equatable {
-    var remotePulseMs: Int
-    var remoteWakeDelayMs: Int
-    var remotePowerOffDelayMs: Int
-    var hudBrightness: Int
+    var remotePulseMs: Int? = nil
+    var remoteWakeDelayMs: Int? = nil
+    var remotePowerOffDelayMs: Int? = nil
+    var hudBrightness: Int? = nil
+    var espTempWarningC: Int? = nil
 }
 
 struct PowerSaveSettings: Codable, Equatable {

@@ -1,11 +1,16 @@
-# ESP health v12.77
+# ESP health v12.78
 
 Every 2 seconds the ESP samples its internal die temperature. BLE uses a separate
 partial `espHealthPacket` (<512 bytes); MQTT includes the same fields. Health
 packets never refresh OBD or BCM readings. Apps expire health after 10 seconds.
 
-Warnings are operational presets, not certified hardware limits: high at 65°C,
-critical at 80°C; clear/escalation hysteresis at 60/75°C. Sensor ranges switch
+Warnings are operational presets, not certified hardware limits: high defaults
+to 50°C, adjustable from 35–75°C in 1°C steps using `esp_settings` with
+`espSettings.espTempWarningC`. ESP clamps and persists the value in NVS
+`tempWarnC`, reports it in health packets, and samples again after a change.
+Apps confirm saving only after the ESP reports the requested value.
+High clears below the chosen threshold minus 5°C; critical remains at 80°C
+and clears below 75°C into the corresponding high/normal state. Sensor ranges switch
 between -10..80°C and 50..125°C. Invalid readings display unavailable. A high
 chip reading is not evidence that a battery is safe, or that heat caused a reset.
 Reset reason 9 is shown as brownout separately. No brownout protection is disabled.

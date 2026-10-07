@@ -3,6 +3,16 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 class TelemetryTest {
+ @Test fun thermalThresholdRequiresDeviceReportAndSurvivesPartialPackets(){
+  val old=JourneyStateDecoder.merge(VehicleState(),JSONObject("""{"partialState":true,"espHealthPacket":true,"espTemperatureValid":true,"espTemperatureC":51,"espTempWarningC":50,"espThermalLevel":1}"""),1000)
+  assertEquals(50,old.espTempWarningC)
+  val heartbeat=JourneyStateDecoder.merge(old,JSONObject("""{"p":1}"""),2000)
+  assertEquals(50,heartbeat.espTempWarningC);assertEquals(1000L,heartbeat.lastHealth)
+  val changed=JourneyStateDecoder.merge(heartbeat,JSONObject("""{"partialState":true,"espHealthPacket":true,"espTemperatureValid":true,"espTemperatureC":51,"espTempWarningC":60,"espThermalLevel":0}"""),3000)
+  assertEquals(60,changed.espTempWarningC);assertEquals(0,changed.espThermalLevel)
+  assertNull(JourneyStateDecoder.merge(VehicleState(),JSONObject("""{"espTempWarningC":99}"""),1000).espTempWarningC)
+ }
+
  @Test fun healthPacketsDoNotRefreshObdAndExpireIndependently(){
   val old=JourneyStateDecoder.merge(VehicleState(),JSONObject("""{"ot":1,"rv":true,"r":800,"bv":13.6}"""),1000)
   val health=JourneyStateDecoder.merge(old,JSONObject("""{"partialState":true,"espHealthPacket":true,"espTemperatureValid":true,"espTemperatureC":70.5,"espThermalLevel":1,"espBatteryValid":false,"firmwareVersion":"12.77"}"""),6000).expire(6000)

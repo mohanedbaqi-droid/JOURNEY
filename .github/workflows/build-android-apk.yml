@@ -41,12 +41,12 @@ jobs:
           test -s "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -4
-          cp "$APK" JOURNEY-Android-2.4.33-65.apk
+          cp "$APK" JOURNEY-Android-2.4.34-66.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-Android-2.4.33-65-APK
+          name: JOURNEY-Android-2.4.34-66-APK
           path: |
-            JOURNEY-Android-2.4.33-65.apk
+            JOURNEY-Android-2.4.34-66.apk
             Android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: JOURNEY-Android-2.4.33-65-APK
+          name: JOURNEY-Android-2.4.34-66-APK
           path: packages
       - name: Enable KVM
         run: |

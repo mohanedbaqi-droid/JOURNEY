@@ -35,7 +35,7 @@ private val English=staticCompositionLocalOf{false}
    background=Color(0xFF02070C),onBackground=Color(0xFFF2F6FA),surface=Color(0xFF09141F),onSurface=Color(0xFFF2F6FA),
    surfaceVariant=Color(0xFF122330),onSurfaceVariant=Color(0xFF98ADB9),outline=Color(0xFF254353),secondary=Cyan,tertiary=Cyan,secondaryContainer=Color(0xFF133C4A),onSecondaryContainer=Cyan,surfaceTint=Color.Transparent,surfaceContainer=Color(0xFF09141F),surfaceContainerLow=Color(0xFF09141F),surfaceContainerHighest=Color(0xFF122330)
   )else lightColorScheme(primary=Color(0xFF006E88),onPrimary=Color.White,primaryContainer=Color(0xFFE0F4FB),onPrimaryContainer=Color(0xFF006078),background=Color(0xFFF2F7FA),surface=Color.White,onSurface=Color(0xFF12232D),surfaceVariant=Color(0xFFE4EEF3),onSurfaceVariant=Color(0xFF536876),outline=Color(0xFFCEDFE7))){
-   Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Header(vm,s,{tab=5},{tab=6})},bottomBar={Nav(tab){tab=it}}){pad->Box(Modifier.padding(pad).fillMaxSize()){when(tab){0->About(s);1->Obd(vm,s);2->Home(vm,s);3->Car(vm,s);4->MapPage(s);6->Page{EspHealth(s);OtaSettings(vm,s)};else->Settings(vm,s)}}}
+   Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Header(vm,s,{tab=5},{tab=6})},bottomBar={Nav(tab){tab=it}}){pad->Box(Modifier.padding(pad).fillMaxSize()){when(tab){0->About(s);1->Obd(vm,s);2->Home(vm,s);3->Car(vm,s);4->MapPage(s);6->Page{EspHealth(vm,s);OtaSettings(vm,s)};else->Settings(vm,s)}}}
   }
  }
 }
@@ -168,21 +168,45 @@ private val English=staticCompositionLocalOf{false}
   Button({vm.send("owner_register")},enabled=s.online){Text(L("تسجيل / طلب موافقة المالك","Enroll / request owner approval"))}
   if(s.pendingPhone.isNotBlank()&&s.adminPhone==vm.phoneId){Text(s.pendingPhone);Button({vm.send("owner_approve",JSONObject().put("ownerTarget",s.pendingPhone))}){Text(L("موافقة","Approve"))}}
  }
- EspHealth(s)
+ EspHealth(vm,s)
  Priority(vm,s)
  WifiSettings(vm,s)
  CellularSettings(vm,s)
  OtaSettings(vm,s)
  AboutContent(s)
 }
-@Composable private fun EspHealth(s:VehicleState)=CardX(L("صحة ESP","ESP health")){
+@Composable private fun EspHealth(vm:JourneyViewModel,s:VehicleState)=CardX(L("صحة ESP","ESP health")){
  InfoRow(L("فيرموير ESP","ESP firmware"),if(s.online)s.firmwareVersion.ifBlank{"—"}else "—")
  val fresh=s.online && s.espTemperature!=null
  InfoRow(L("حرارة شريحة ESP","ESP chip temperature"),if(fresh)"%.1f °C".format(java.util.Locale.US,s.espTemperature)else "—")
  InfoRow(L("بطارية ESP","ESP battery"),if(s.online&&s.espBatteryPercent!=null)"%.0f%% · %.2f V".format(java.util.Locale.US,s.espBatteryPercent,s.espBatteryVoltage)else L("غير متاحة — تحتاج حساس بطارية","Unavailable — battery gauge required"))
  val diagnosis=when{!fresh->L("بانتظار قراءة حرارة فعلية","Waiting for a live temperature reading");s.espThermalLevel>=2->L("حرارة مرتفعة جداً؛ افحص التهوية والتغذية","Very high temperature; check ventilation and power");s.espThermalLevel==1->L("حرارة مرتفعة؛ افحص التهوية","High temperature; check ventilation");else->L("الحرارة دون حد التنبيه","Temperature below warning threshold")}
  Text(diagnosis,color=if(fresh&&s.espThermalLevel>0)Color(0xFFFF9C51)else MaterialTheme.colorScheme.onSurfaceVariant)
- Text(L("تنبيه عند 65°C، وتصعيد عند 80°C. حرارة الشريحة لا تقيس حرارة البطارية أو المقصورة.","Warning at 65°C; escalation at 80°C. Chip temperature does not measure battery or cabin temperature."),style=MaterialTheme.typography.bodySmall)
+ var warning by rememberSaveable{mutableFloatStateOf(50f)}
+ var dirty by rememberSaveable{mutableStateOf(false)}
+ var pending by remember{mutableStateOf<Int?>(null)}
+ var saveState by remember{mutableIntStateOf(0)}
+ LaunchedEffect(s.espTempWarningC,s.lastHealth){
+  val saved=s.espTempWarningC
+  if(saved!=null){
+   if(pending==saved){pending=null;dirty=false;saveState=2}
+   if(!dirty&&pending==null)warning=saved.toFloat()
+  }
+ }
+ LaunchedEffect(pending){if(pending!=null){kotlinx.coroutines.delay(10000);if(pending!=null){pending=null;saveState=3}}}
+ InfoRow(L("حد التنبيه المحفوظ","Saved warning threshold"),s.espTempWarningC?.let{"$it °C"}?:L("بانتظار ESP v12.78","Waiting for ESP v12.78"))
+ InfoRow(L("بداية تنبيه الحرارة","Temperature warning starts at"),"${warning.toInt()} °C")
+ Slider(value=warning,onValueChange={warning=it;dirty=true;saveState=0},valueRange=35f..75f,steps=39,enabled=s.online&&s.espTempWarningC!=null&&pending==null)
+ Button({
+  val target=warning.toInt()
+  if(vm.send("esp_settings",JSONObject().put("espSettings",JSONObject().put("espTempWarningC",target)))){pending=target;saveState=1}else saveState=3
+ },enabled=s.online&&s.espTempWarningC!=null&&pending==null&&warning.toInt()!=s.espTempWarningC){Text(L("حفظ حد التنبيه على ESP","Save warning threshold to ESP"))}
+ when(saveState){
+  1->Text(L("تم الإرسال؛ بانتظار تأكيد ESP","Sent; waiting for ESP confirmation"))
+  2->Text(L("أكد ESP حفظ حد التنبيه","ESP confirmed the saved warning threshold"))
+  3->Text(L("لم يصل تأكيد؛ تحقق من الاتصال وأعد المحاولة","No confirmation received; check the connection and retry"))
+ }
+ Text(L("الافتراضي 50°C؛ التصعيد عند 80°C. حرارة الشريحة لا تقيس حرارة البطارية أو المقصورة.","Default 50°C; escalation at 80°C. Chip temperature does not measure battery or cabin temperature."),style=MaterialTheme.typography.bodySmall)
  if(s.online&&s.espResetReason==9)Text(L("آخر إعادة تشغيل: هبوط تغذية (Brownout)، وليس إثباتاً لعطل حراري.","Last reset: brownout; this does not prove a thermal fault."),color=Color(0xFFFF9C51))
 }
 @Composable private fun Priority(vm:JourneyViewModel,s:VehicleState)=CardX(L("أولوية الاتصال داخل ESP","ESP route priority")){
@@ -205,7 +229,7 @@ private val English=staticCompositionLocalOf{false}
  OutlinedButton({vm.send("cellular_config",JSONObject().put("cellularSettings",JSONObject().put("enabled",false)))},enabled=s.online){Text(L("إطفاء الشريحة","Disable SIM"))}
 }
 @Composable private fun OtaSettings(vm:JourneyViewModel,s:VehicleState)=CardX(L("تحديث ESP عبر الإنترنت","ESP internet update")){
- var url by remember{mutableStateOf("https://raw.githubusercontent.com/mohanedbaqi-droid/JOURNEY/main/firmware/v12.77/firmware.bin")};var confirm by remember{mutableStateOf(false)}
+ var url by remember{mutableStateOf("https://raw.githubusercontent.com/mohanedbaqi-droid/JOURNEY/main/firmware/v12.78/firmware.bin")};var confirm by remember{mutableStateOf(false)}
  Field(L("رابط firmware.bin","firmware.bin URL"),url){url=it}
  Button({confirm=true},enabled=s.online&&url.startsWith("https://")&&url.endsWith(".bin")){Text(L("تحديث ESP","Update ESP"))}
  Text(L("الـESP يحتاج إنترنت عبر Wi-Fi أو شريحة حتى ينزل الملف.","ESP needs internet through Wi-Fi or SIM to download the file."),style=MaterialTheme.typography.bodySmall)

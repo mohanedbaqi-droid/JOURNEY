@@ -2,6 +2,7 @@
 #include <esp_system.h>
 #include <driver/temperature_sensor.h>
 #include <math.h>
+#include "EspThermalPolicy.h"
 #include <ArduinoJson.h>
 #include <string>
 #include <BLEDevice.h>
@@ -61,6 +62,7 @@ bool espTemperatureValid = false;
 float espBatteryVoltage = 0, espBatteryPercent = 0;
 bool espBatteryValid = false;
 int espThermalLevel = 0;
+int espTempWarningC = 50;
 uint32_t espHealthAt = 0;
 TwoWire batteryWire(1);
 bool batteryBusReady = false;
@@ -1194,12 +1196,7 @@ void pollEspHealth() {
   if (espTemperatureValid) {
     espTemperatureC = sample;
     // Operational warning thresholds, not a claim about hardware safe limits.
-    int next = espThermalLevel;
-    if (sample >= 80) next = 2;
-    else if (next == 2 && sample >= 75) next = 2;
-    else if (sample >= 65) next = 1;
-    else if (sample < 60) next = 0;
-    else if (next == 2) next = 1;
+    int next = espThermalNextLevel(sample, espThermalLevel, espTempWarningC);
     if (next > espThermalLevel) publishVehicleEvent(
       next == 2 ? "esp_temperature_critical" : "esp_temperature_high",
       next == 2 ? "تحذير: حرارة شريحة ESP مرتفعة جداً — افحص التهوية والتغذية" : "تنبيه: حرارة شريحة ESP مرتفعة — افحص التهوية");
@@ -1219,10 +1216,11 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.77";
+  doc["firmwareVersion"] = "12.78";
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
   doc["espTemperatureValid"] = espTemperatureValid && fresh;
   if (espTemperatureValid && fresh) doc["espTemperatureC"] = roundf(espTemperatureC * 10) / 10;
+  doc["espTempWarningC"] = espTempWarningC;
   doc["espThermalLevel"] = espTemperatureValid && fresh ? espThermalLevel : -1;
   doc["espBatteryValid"] = espBatteryValid && fresh;
   if (espBatteryValid && fresh) {
@@ -2104,6 +2102,12 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     const uint32_t wake = constrain(doc["espSettings"]["remoteWakeDelayMs"] | static_cast<int>(remoteWakeDelayMs), 100, 5000);
     const uint32_t off = constrain(doc["espSettings"]["remotePowerOffDelayMs"] | static_cast<int>(remotePowerOffDelayMs), 200, 10000);
     const uint8_t brightness = constrain(doc["espSettings"]["hudBrightness"] | static_cast<int>(hudBrightness), 0, 7);
+    const int warning = constrain(doc["espSettings"]["espTempWarningC"] | espTempWarningC, 35, 75);
+    if (warning != espTempWarningC) {
+      espTempWarningC = warning;
+      preferences.putUChar("tempWarnC", warning);
+      espHealthAt = 0; // Re-evaluate the live temperature on the next loop.
+    }
     remotePulseMs = pulse;
     remoteWakeDelayMs = wake;
     remotePowerOffDelayMs = off;
@@ -2332,9 +2336,10 @@ void setup() {
   Serial0.begin(115200);
   delay(2000);
   Network.begin();
-  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.77 ESP HEALTH");
+  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.78 ESP HEALTH");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
+  espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
   remotePulseMs = preferences.getUInt("pulseMs", OUTPUT_PULSE_MS);
   remoteWakeDelayMs = preferences.getUInt("wakeMs", REMOTE_POWER_WAKE_DELAY_MS);
   remotePowerOffDelayMs = preferences.getUInt("offMs", REMOTE_POWER_OFF_DELAY_MS);

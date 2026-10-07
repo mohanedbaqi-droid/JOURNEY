@@ -1219,6 +1219,10 @@ private struct ESPStatusView: View {
     @State private var wakeDelayMs = 1000.0
     @State private var powerOffDelayMs = 2000.0
     @State private var hudBrightness = 5.0
+    @State private var tempWarningC = 50.0
+    @State private var tempWarningDirty = false
+    @State private var pendingTempWarning: Int?
+    @State private var tempSaveStatus = ""
     @State private var showingFirmwarePicker = false
     @State private var updateStatus = ""
     @State private var isUpdating = false
@@ -1242,7 +1246,15 @@ private struct ESPStatusView: View {
                 statusRow(JL("بطارية ESP", "ESP battery"), vehicle.online && vehicle.espBatteryPercent != nil ? String(format: "%.0f%% · %.2f V", vehicle.espBatteryPercent ?? 0, vehicle.espBatteryVoltage ?? 0) : JL("غير متاحة — تحتاج حساس بطارية", "Unavailable — battery gauge required"))
                 Text(!vehicle.online || vehicle.espTemperatureC == nil ? JL("بانتظار قراءة حرارة فعلية", "Waiting for a live temperature reading") : vehicle.espThermalLevel >= 2 ? JL("حرارة مرتفعة جداً؛ افحص التهوية والتغذية", "Very high temperature; check ventilation and power") : vehicle.espThermalLevel == 1 ? JL("حرارة مرتفعة؛ افحص التهوية", "High temperature; check ventilation") : JL("الحرارة دون حد التنبيه", "Temperature below warning threshold"))
                     .foregroundStyle(vehicle.online && vehicle.espTemperatureC != nil && vehicle.espThermalLevel > 0 ? Color.orange : Color.secondary)
-                Text(JL("تنبيه عند 65°C وتصعيد عند 80°C. هذه حرارة الشريحة، وليست حرارة البطارية أو المقصورة.", "Warning at 65°C; escalation at 80°C. This is chip temperature, not battery or cabin temperature.")).font(.caption)
+                statusRow(JL("حد التنبيه المحفوظ", "Saved warning threshold"), vehicle.espTempWarningC.map { "\($0) °C" } ?? JL("بانتظار ESP v12.78", "Waiting for ESP v12.78"))
+                statusRow(JL("بداية تنبيه الحرارة", "Temperature warning starts at"), "\(Int(tempWarningC)) °C")
+                Slider(value: $tempWarningC, in: 35...75, step: 1, onEditingChanged: { editing in
+                    if editing { tempWarningDirty = true; tempSaveStatus = "" }
+                }).disabled(!vehicle.online || vehicle.espTempWarningC == nil || pendingTempWarning != nil)
+                Button(JL("حفظ حد التنبيه على ESP", "Save warning threshold to ESP")) { saveTempWarning() }
+                    .disabled(!vehicle.online || vehicle.espTempWarningC == nil || pendingTempWarning != nil || Int(tempWarningC) == vehicle.espTempWarningC)
+                if !tempSaveStatus.isEmpty { Text(tempSaveStatus).font(.footnote) }
+                Text(JL("الافتراضي 50°C؛ التصعيد عند 80°C. هذه حرارة الشريحة، وليست حرارة البطارية أو المقصورة.", "Default 50°C; escalation at 80°C. This is chip temperature, not battery or cabin temperature.")).font(.caption)
                 if vehicle.online && vehicle.espResetReason == 9 {
                     Text(JL("آخر إعادة تشغيل: هبوط تغذية (Brownout)، وليس إثباتاً لعطل حراري.", "Last reset: brownout; this does not prove a thermal fault.")).foregroundStyle(.orange)
                 }
@@ -1317,7 +1329,8 @@ private struct ESPStatusView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .onAppear { loadSettings() }
+        .onAppear { loadSettings(); syncTempWarning() }
+        .onChange(of: vehicle.espTempWarningC) { _ in syncTempWarning() }
         .fileImporter(isPresented: $showingFirmwarePicker, allowedContentTypes: [.data]) { result in
             if case .success(let file) = result { uploadFirmware(file) }
             if case .failure(let error) = result { updateStatus = error.localizedDescription }
@@ -1347,6 +1360,35 @@ private struct ESPStatusView: View {
         maintenanceMode = vehicle.maintenanceMode
         powerSaveMode = vehicle.powerSaveMode
         powerSaveIdleMinutes = Double(vehicle.powerSaveIdleMinutes)
+    }
+
+    private func syncTempWarning() {
+        guard let saved = vehicle.espTempWarningC else { return }
+        if pendingTempWarning == saved {
+            pendingTempWarning = nil
+            tempWarningDirty = false
+            tempSaveStatus = JL("أكد ESP حفظ حد التنبيه", "ESP confirmed the saved warning threshold")
+        }
+        if !tempWarningDirty && pendingTempWarning == nil { tempWarningC = Double(saved) }
+    }
+
+    private func saveTempWarning() {
+        guard let deviceID, vehicle.online, vehicle.espTempWarningC != nil else { return }
+        let target = Int(tempWarningC)
+        let settings = ESPRuntimeSettings(espTempWarningC: target)
+        guard mqtt.sendESPSettings(settings, to: deviceID) else {
+            tempSaveStatus = JL("تعذر الإرسال؛ تحقق من الاتصال", "Could not send; check the connection")
+            return
+        }
+        pendingTempWarning = target
+        tempSaveStatus = JL("تم الإرسال؛ بانتظار تأكيد ESP", "Sent; waiting for ESP confirmation")
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            if pendingTempWarning == target {
+                pendingTempWarning = nil
+                tempSaveStatus = JL("لم يصل تأكيد؛ تحقق من الاتصال وأعد المحاولة", "No confirmation received; check the connection and retry")
+            }
+        }
     }
 
     private func saveSettings() {

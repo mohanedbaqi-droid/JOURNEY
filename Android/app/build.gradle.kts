@@ -10,8 +10,8 @@ android {
         applicationId = "com.journey.control"
         minSdk = 21
         targetSdk = 35
-        versionCode = 65
-        versionName = "2.4.33"
+        versionCode = 66
+        versionName = "2.4.34"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

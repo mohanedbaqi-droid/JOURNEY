@@ -7,6 +7,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import androidx.test.uiautomator.UiScrollable
+import androidx.test.uiautomator.UiSelector
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,7 +26,7 @@ class DashboardSmokeTest {
    val about=device.findObjects(By.text("معلومات")).last()
    about.click()
    assertTrue(device.wait(Until.hasObject(By.text("إصدار التطبيق")),5000))
-   assertTrue(device.hasObject(By.text("2.4.33 (65)")))
+   assertTrue(device.hasObject(By.text("2.4.34 (66)")))
    assertTrue(device.hasObject(By.text("غير متصل")))
    capture("02-about")
    device.findObjects(By.text("OBD")).last().click()
@@ -39,6 +41,12 @@ class DashboardSmokeTest {
    device.findObjects(By.text("ESP")).first().click()
    assertTrue(device.wait(Until.hasObject(By.text("صحة ESP")),5000))
    assertTrue(device.hasObject(By.text("بانتظار قراءة حرارة فعلية")))
+   assertTrue(device.hasObject(By.text("بداية تنبيه الحرارة")))
+   assertTrue(device.hasObject(By.text("50 °C")))
+   UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text("حفظ حد التنبيه على ESP"))
+   val save=device.findObject(By.text("حفظ حد التنبيه على ESP"))
+   assertNotNull(save)
+   assertFalse(save.isEnabled) // Offline cannot fake a saved ESP setting.
    capture("06-esp-health")
   }
  }

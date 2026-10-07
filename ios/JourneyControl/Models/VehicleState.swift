@@ -10,6 +10,7 @@ struct VehicleState: Codable {
     var espTemperatureC: Double? = nil
     var espBatteryVoltage: Double? = nil
     var espBatteryPercent: Double? = nil
+    var espTempWarningC: Int? = nil
     var espThermalLevel = -1
     var espResetReason = 0
     var bodyStatePacket = false
@@ -181,7 +182,7 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case espHealthPacket, firmwareVersion, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason
+        case espHealthPacket, firmwareVersion, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason, espTempWarningC
         case doorOpenMask, doorKnownMask, parkingLightsOn, parkingLightsValid
         case bodyStatePacket, rpmValid, coolantValid, speedValid, doorsValid, lightsValid, turnsValid, readDiagnostics
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
@@ -209,6 +210,8 @@ struct VehicleState: Codable {
             espBatteryVoltage = try box.decodeIfPresent(Double.self, forKey: .espBatteryVoltage)
             espBatteryPercent = try box.decodeIfPresent(Double.self, forKey: .espBatteryPercent)
         }
+        let warning = try box.decodeIfPresent(Int.self, forKey: .espTempWarningC)
+        espTempWarningC = warning.flatMap { (35...75).contains($0) ? $0 : nil }
         espThermalLevel = try box.decodeIfPresent(Int.self, forKey: .espThermalLevel) ?? -1
         espResetReason = try box.decodeIfPresent(Int.self, forKey: .espResetReason) ?? 0
         let compactPacket = (try compact.decodeIfPresent(Int.self, forKey: .packet) ?? 0) == 1
