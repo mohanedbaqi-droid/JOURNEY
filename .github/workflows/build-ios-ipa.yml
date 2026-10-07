@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.8.3 IPA
+name: Build Punisher Drive Standalone v0.8.4 IPA
 
 on:
   workflow_dispatch:
@@ -14,6 +14,7 @@ on:
       - "standalone/v10/**"
       - "standalone/v11/**"
       - "standalone/v12/**"
+      - "standalone/v13/**"
       - ".github/workflows/build-ios-ipa.yml"
 
 jobs:
@@ -29,7 +30,7 @@ jobs:
           base64 -D -i "$RUNNER_TEMP/pd_v04.b64" -o "$RUNNER_TEMP/pd_v04.zip"
           rm -rf PunisherDrive PunisherDrive.xcodeproj project.yml
           unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
-          cp standalone/v12/project.yml project.yml
+          cp standalone/v13/project.yml project.yml
           cp standalone/v09/PunisherDriveApp.swift PunisherDrive/PunisherDriveApp.swift
           cp standalone/v07/LaunchSplashView.swift PunisherDrive/Views/LaunchSplashView.swift
           cp standalone/v07/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
@@ -37,8 +38,8 @@ jobs:
           cp standalone/v10/GarageView.swift PunisherDrive/Views/GarageView.swift
           cp standalone/v10/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
           cp standalone/v09/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
-          cp standalone/v12/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
-          cp standalone/v12/IraqPlateData.swift PunisherDrive/Views/IraqPlateData.swift
+          cp standalone/v13/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
+          cp standalone/v13/IraqPlateData.swift PunisherDrive/Views/IraqPlateData.swift
           cp standalone/v09/FleetMapView.swift PunisherDrive/Views/FleetMapView.swift
           cp standalone/v10/SettingsView.swift PunisherDrive/Views/SettingsView.swift
           cp standalone/v09/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
@@ -336,7 +337,7 @@ jobs:
         run: |
           set -euo pipefail
           source "$RUNNER_TEMP/pdvenv/bin/activate"
-          python standalone/v11/visual_ai_fit.py \
+          python standalone/v13/visual_ai_fit.py \
             --profiles PunisherDrive/Resources/vehicle_profiles.json \
             --input-root PunisherDrive/Assets.xcassets \
             --mask-root PunisherDrive/Assets.xcassets \
@@ -373,11 +374,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.3-16-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.3-16-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.4-17-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.4-17-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-IOS-0.8.3-16-TEST-IPA
-          path: PUNISHER-DRIVE-IOS-0.8.3-16-TEST.ipa
+          name: PUNISHER-DRIVE-IOS-0.8.4-17-TEST-IPA
+          path: PUNISHER-DRIVE-IOS-0.8.4-17-TEST.ipa
           if-no-files-found: error
