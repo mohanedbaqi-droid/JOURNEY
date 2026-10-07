@@ -53,7 +53,7 @@ final class VehicleNotificationService {
 
         let content = UNMutableNotificationContent()
         content.title = vehicleName
-        content.body = text.isEmpty ? eventText(for: type) : text
+        content.body = type.hasPrefix("esp_temperature_") || text.isEmpty ? eventText(for: type) : text
         content.sound = .default
         content.threadIdentifier = "journey.vehicle.events"
         content.categoryIdentifier = "JOURNEY_VEHICLE"
