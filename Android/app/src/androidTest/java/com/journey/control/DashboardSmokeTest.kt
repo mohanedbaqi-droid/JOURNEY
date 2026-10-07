@@ -46,7 +46,11 @@ class DashboardSmokeTest {
    UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text("حفظ حد التنبيه على ESP"))
    val save=device.findObject(By.text("حفظ حد التنبيه على ESP"))
    assertNotNull(save)
-   assertFalse(save.isEnabled) // Offline cannot fake a saved ESP setting.
+   save.click() // A disabled button must not send or show a save result offline.
+   device.waitForIdle()
+   assertFalse(device.hasObject(By.text("تم الإرسال؛ بانتظار تأكيد ESP")))
+   assertFalse(device.hasObject(By.text("لم يصل تأكيد؛ تحقق من الاتصال وأعد المحاولة")))
+   assertFalse(device.hasObject(By.text("أكد ESP حفظ حد التنبيه")))
    capture("06-esp-health")
   }
  }
