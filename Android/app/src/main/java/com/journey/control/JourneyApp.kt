@@ -35,18 +35,18 @@ private val English=staticCompositionLocalOf{false}
    background=Color(0xFF02070C),onBackground=Color(0xFFF2F6FA),surface=Color(0xFF09141F),onSurface=Color(0xFFF2F6FA),
    surfaceVariant=Color(0xFF122330),onSurfaceVariant=Color(0xFF98ADB9),outline=Color(0xFF254353),secondary=Cyan,tertiary=Cyan,secondaryContainer=Color(0xFF133C4A),onSecondaryContainer=Cyan,surfaceTint=Color.Transparent,surfaceContainer=Color(0xFF09141F),surfaceContainerLow=Color(0xFF09141F),surfaceContainerHighest=Color(0xFF122330)
   )else lightColorScheme(primary=Color(0xFF006E88),onPrimary=Color.White,primaryContainer=Color(0xFFE0F4FB),onPrimaryContainer=Color(0xFF006078),background=Color(0xFFF2F7FA),surface=Color.White,onSurface=Color(0xFF12232D),surfaceVariant=Color(0xFFE4EEF3),onSurfaceVariant=Color(0xFF536876),outline=Color(0xFFCEDFE7))){
-   Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Header(vm,s){tab=5}},bottomBar={Nav(tab){tab=it}}){pad->Box(Modifier.padding(pad).fillMaxSize()){when(tab){0->About(s);1->Obd(vm,s);2->Home(vm,s);3->Car(vm,s);4->MapPage(s);else->Settings(vm,s)}}}
+   Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={Header(vm,s,{tab=5},{tab=6})},bottomBar={Nav(tab){tab=it}}){pad->Box(Modifier.padding(pad).fillMaxSize()){when(tab){0->About(s);1->Obd(vm,s);2->Home(vm,s);3->Car(vm,s);4->MapPage(s);6->Page{EspHealth(s);OtaSettings(vm,s)};else->Settings(vm,s)}}}
   }
  }
 }
-@Composable private fun Header(vm:JourneyViewModel,s:VehicleState,settings:()->Unit){
+@Composable private fun Header(vm:JourneyViewModel,s:VehicleState,settings:()->Unit,esp:()->Unit){
  val status by vm.status.collectAsState()
  Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal=16.dp,vertical=6.dp)){
   CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr){
    Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
     IconButton(settings,Modifier.testTag("settings")){Icon(Icons.Default.Menu,L("الإعدادات","Settings"),tint=MaterialTheme.colorScheme.primary)}
     Column(horizontalAlignment=Alignment.CenterHorizontally){Text("J O U R N E Y",fontWeight=FontWeight.Black,style=MaterialTheme.typography.titleLarge);Text(L("سيارة جورني","Journey vehicle"),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelMedium)}
-    Box(Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),contentAlignment=Alignment.Center){Icon(Icons.Default.Bluetooth,L("البلوتوث","Bluetooth"),tint=if(s.online)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
+    Column(horizontalAlignment=Alignment.CenterHorizontally){Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),contentAlignment=Alignment.Center){Icon(Icons.Default.Bluetooth,L("البلوتوث","Bluetooth"),tint=if(s.online)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)};TextButton(esp,contentPadding=PaddingValues(0.dp),modifier=Modifier.height(26.dp)){Text("ESP",style=MaterialTheme.typography.labelMedium)}}
    }
   }
   Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
@@ -176,6 +176,7 @@ private val English=staticCompositionLocalOf{false}
  AboutContent(s)
 }
 @Composable private fun EspHealth(s:VehicleState)=CardX(L("صحة ESP","ESP health")){
+ InfoRow(L("فيرموير ESP","ESP firmware"),if(s.online)s.firmwareVersion.ifBlank{"—"}else "—")
  val fresh=s.online && s.espTemperature!=null
  InfoRow(L("حرارة شريحة ESP","ESP chip temperature"),if(fresh)"%.1f °C".format(java.util.Locale.US,s.espTemperature)else "—")
  InfoRow(L("بطارية ESP","ESP battery"),if(s.online&&s.espBatteryPercent!=null)"%.0f%% · %.2f V".format(java.util.Locale.US,s.espBatteryPercent,s.espBatteryVoltage)else L("غير متاحة — تحتاج حساس بطارية","Unavailable — battery gauge required"))

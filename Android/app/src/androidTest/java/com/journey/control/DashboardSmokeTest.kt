@@ -36,6 +36,10 @@ class DashboardSmokeTest {
    device.findObjects(By.desc("الإعدادات")).first().click()
    assertTrue(device.wait(Until.hasObject(By.text("واجهة التطبيق")),5000))
    capture("05-settings")
+   device.findObjects(By.text("ESP")).first().click()
+   assertTrue(device.wait(Until.hasObject(By.text("صحة ESP")),5000))
+   assertTrue(device.hasObject(By.text("بانتظار قراءة حرارة فعلية")))
+   capture("06-esp-health")
   }
  }
  private fun capture(name:String){
