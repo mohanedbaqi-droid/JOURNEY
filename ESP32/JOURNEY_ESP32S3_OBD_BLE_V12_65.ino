@@ -2104,8 +2104,13 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     const uint8_t brightness = constrain(doc["espSettings"]["hudBrightness"] | static_cast<int>(hudBrightness), 0, 7);
     const int warning = constrain(doc["espSettings"]["espTempWarningC"] | espTempWarningC, 35, 75);
     if (warning != espTempWarningC) {
+      if (preferences.putUChar("tempWarnC", warning) != 1) {
+        lastCommandId = id;
+        lastEvent = "esp_settings_failed";
+        publishState();
+        return;
+      }
       espTempWarningC = warning;
-      preferences.putUChar("tempWarnC", warning);
       espHealthAt = 0; // Re-evaluate the live temperature on the next loop.
     }
     remotePulseMs = pulse;
