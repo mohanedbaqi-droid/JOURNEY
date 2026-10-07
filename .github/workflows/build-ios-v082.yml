@@ -1,0 +1,194 @@
+name: Build Punisher Drive Standalone v0.8.2 IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [punisher-drive]
+    paths:
+      - "standalone/v11/**"
+      - ".github/workflows/build-ios-v082.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore standalone project
+        run: |
+          set -euo pipefail
+          cat standalone/v04/part00.b64 standalone/v04/part01.b64 standalone/v04/part02.b64 standalone/v04/part03.b64 standalone/v04/part04.b64 > "$RUNNER_TEMP/pd_v04.b64"
+          base64 -D -i "$RUNNER_TEMP/pd_v04.b64" -o "$RUNNER_TEMP/pd_v04.zip"
+          rm -rf PunisherDrive PunisherDrive.xcodeproj project.yml
+          unzip -oq "$RUNNER_TEMP/pd_v04.zip" -d .
+
+          cp standalone/v11/project.yml project.yml
+          cp standalone/v09/PunisherDriveApp.swift PunisherDrive/PunisherDriveApp.swift
+          cp standalone/v07/LaunchSplashView.swift PunisherDrive/Views/LaunchSplashView.swift
+          cp standalone/v07/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
+          cp standalone/v10/RootView.swift PunisherDrive/Views/RootView.swift
+          cp standalone/v10/GarageView.swift PunisherDrive/Views/GarageView.swift
+          cp standalone/v10/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
+          cp standalone/v09/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
+          cp standalone/v11/VehicleAssetImage.swift PunisherDrive/Views/VehicleAssetImage.swift
+          cp standalone/v08/IraqPlateData.swift PunisherDrive/Views/IraqPlateData.swift
+          cp standalone/v09/FleetMapView.swift PunisherDrive/Views/FleetMapView.swift
+          cp standalone/v10/SettingsView.swift PunisherDrive/Views/SettingsView.swift
+          cp standalone/v09/VehiclePickerView.swift PunisherDrive/Views/VehiclePickerView.swift
+          cp standalone/v09/AboutView.swift PunisherDrive/Views/AboutView.swift
+          cp standalone/v09/PDLocalization.swift PunisherDrive/Views/PDLocalization.swift
+          cp standalone/v11/VehicleVisualAI.swift PunisherDrive/Views/VehicleVisualAI.swift
+          cp standalone/v09/SmartAIView.swift PunisherDrive/Views/SmartAIView.swift
+          cp standalone/v10/CustomerDocumentsView.swift PunisherDrive/Views/CustomerDocumentsView.swift
+          cp standalone/v10/CustomerServerSettingsView.swift PunisherDrive/Views/CustomerServerSettingsView.swift
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('PunisherDrive/Views/RootView.swift')
+          s=p.read_text()
+          s=s.replace('.padding(.bottom, 18)', '.padding(.bottom, 118)')
+          p.write_text(s)
+          PY
+
+      - name: Install image tools
+        run: |
+          brew install librsvg
+          python3 -m venv "$RUNNER_TEMP/pdvenv"
+          source "$RUNNER_TEMP/pdvenv/bin/activate"
+          python -m pip install --upgrade pip
+          python -m pip install pillow rembg onnxruntime opencv-python-headless numpy
+
+      - name: Build Punisher brand assets
+        run: |
+          set -euo pipefail
+          mkdir -p PunisherDrive/Assets.xcassets/AppIcon.appiconset
+          mkdir -p PunisherDrive/Assets.xcassets/PunisherMark.imageset
+          rsvg-convert -w 1024 -h 1024 standalone/v07/assets/PunisherMark.svg -o "$RUNNER_TEMP/PunisherMark-1024.png"
+          cp "$RUNNER_TEMP/PunisherMark-1024.png" PunisherDrive/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          cp "$RUNNER_TEMP/PunisherMark-1024.png" PunisherDrive/Assets.xcassets/PunisherMark.imageset/PunisherMark.png
+          cat > PunisherDrive/Assets.xcassets/Contents.json <<'JSON'
+          {"info":{"author":"xcode","version":1}}
+          JSON
+          cat > PunisherDrive/Assets.xcassets/AppIcon.appiconset/Contents.json <<'JSON'
+          {"images":[{"filename":"AppIcon-1024.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}
+          JSON
+          cat > PunisherDrive/Assets.xcassets/PunisherMark.imageset/Contents.json <<'JSON'
+          {"images":[{"filename":"PunisherMark.png","idiom":"universal","scale":"1x"},{"idiom":"universal","scale":"2x"},{"idiom":"universal","scale":"3x"}],"info":{"author":"xcode","version":1}}
+          JSON
+
+      - name: Prepare 56 transparent vehicle images
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/pdvenv/bin/activate"
+          python <<'PY'
+          import io,json,os,time,urllib.parse,urllib.request
+          from PIL import Image
+          from rembg import remove,new_session
+
+          profiles_path='PunisherDrive/Resources/vehicle_profiles.json'
+          assets_root='PunisherDrive/Assets.xcassets'
+          with open(profiles_path,encoding='utf-8') as f: profiles=json.load(f)
+          assert len(profiles)==56
+          session=new_session('u2netp')
+          headers={'User-Agent':'PunisherDriveAssets/0.8.2'}
+
+          def url(q):
+              return 'https://tse1.mm.bing.net/th?q='+urllib.parse.quote_plus(q)+'&w=1600&h=1050&c=7&rs=1&p=0'
+          def get(u):
+              req=urllib.request.Request(u,headers=headers)
+              with urllib.request.urlopen(req,timeout=40) as r: data=r.read()
+              if len(data)<7000: raise RuntimeError('image too small')
+              return data
+          def clean(data):
+              try:
+                  raw=remove(data,session=session)
+                  im=Image.open(io.BytesIO(raw)).convert('RGBA')
+              except Exception:
+                  im=Image.open(io.BytesIO(data)).convert('RGBA')
+              bb=im.getbbox()
+              if bb: im=im.crop(bb)
+              canvas=Image.new('RGBA',(1500,1000),(0,0,0,0))
+              scale=min(1380/im.width,900/im.height)
+              nw,nh=max(1,int(im.width*scale)),max(1,int(im.height*scale))
+              im=im.resize((nw,nh),Image.Resampling.LANCZOS)
+              canvas.alpha_composite(im,((1500-nw)//2,(1000-nh)//2))
+              return canvas
+
+          for i,p in enumerate(profiles,1):
+              asset=p['assetKey'];make=p['make'];model=p['model'];gen=p.get('generation','')
+              queries=[
+                  f'{make} {model} {gen} white front three quarter studio car',
+                  f'{make} {model} {gen} silver front 3/4 vehicle',
+                  f'{make} {model} white front three quarter'
+              ]
+              car=None
+              for q in queries:
+                  try:
+                      c=clean(get(url(q)))
+                      if c.getbbox() and c.getbbox()[2]-c.getbbox()[0]>500:
+                          car=c;break
+                  except Exception as e:
+                      print('retry',asset,e)
+              if car is None: raise RuntimeError('failed '+asset)
+              imageset=os.path.join(assets_root,asset+'.imageset')
+              os.makedirs(imageset,exist_ok=True)
+              car.save(os.path.join(imageset,asset+'.png'),optimize=True)
+              with open(os.path.join(imageset,'Contents.json'),'w') as f:
+                  json.dump({'images':[{'filename':asset+'.png','idiom':'universal','scale':'1x'},{'idiom':'universal','scale':'2x'},{'idiom':'universal','scale':'3x'}],'info':{'author':'xcode','version':1}},f)
+              print(f'[{i:02d}/56] {asset}')
+              time.sleep(.03)
+          PY
+
+      - name: Direction-aware Visual AI fit
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/pdvenv/bin/activate"
+          python standalone/v11/visual_ai_fit.py \
+            --profiles PunisherDrive/Resources/vehicle_profiles.json \
+            --input-root PunisherDrive/Assets.xcassets \
+            --mask-root PunisherDrive/Assets.xcassets \
+            --metadata PunisherDrive/Resources/vehicle_visual_ai.json \
+            --mode xcassets
+          test "$(find PunisherDrive/Assets.xcassets -maxdepth 1 -name '*_bodymask.imageset' | wc -l | tr -d ' ')" -eq 56
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build unsigned device app
+        run: |
+          set -o pipefail
+          rm -rf "$RUNNER_TEMP/PunisherDerived"
+          xcodebuild \
+            -project PunisherDrive.xcodeproj \
+            -scheme PunisherDrive \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/PunisherDerived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Sign and package IPA
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/PunisherDerived/Build/Products/Release-iphoneos/PunisherDrive.app"
+          test -d "$APP"
+          /usr/bin/codesign --force --deep --sign - --timestamp=none "$APP"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+          rm -rf "$RUNNER_TEMP/punisher-ipa"
+          mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
+          /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
+          cd "$RUNNER_TEMP/punisher-ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.2-15-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.8.2-15-TEST.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PUNISHER-DRIVE-IOS-0.8.2-15-TEST-IPA
+          path: PUNISHER-DRIVE-IOS-0.8.2-15-TEST.ipa
+          if-no-files-found: error
