@@ -5,10 +5,11 @@ private struct JourneyWidgetEntry: TimelineEntry {
     let date: Date
     let vehicle: JourneyWidgetSnapshot
     let message: String?
+    let sharingAvailable: Bool
 }
 private struct JourneyWidgetProvider: TimelineProvider {
     func entry(_ date: Date, _ snapshot: JourneyWidgetSnapshot) -> JourneyWidgetEntry {
-        JourneyWidgetEntry(date: date, vehicle: snapshot.expired(at: date), message: JourneyWidgetStore.status(deviceID: snapshot.deviceID, at: date))
+        JourneyWidgetEntry(date: date, vehicle: snapshot.expired(at: date), message: JourneyWidgetStore.status(deviceID: snapshot.deviceID, at: date), sharingAvailable: JourneyWidgetStore.available)
     }
     func placeholder(in context: Context) -> JourneyWidgetEntry { entry(Date(), JourneyWidgetSnapshot()) }
     func getSnapshot(in context: Context, completion: @escaping (JourneyWidgetEntry) -> Void) {
@@ -32,6 +33,7 @@ private struct JourneyWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: JourneyWidgetEntry
     private var s: JourneyWidgetSnapshot { entry.vehicle }
+    private var sharingAvailable: Bool { entry.sharingAvailable }
     private func t(_ ar: String, _ en: String) -> String { s.text(ar, en) }
     private func flag(_ value: Bool?, _ yes: String, _ no: String) -> String { value.map { $0 ? yes : no } ?? "—" }
     private func integer(_ value: Int?) -> String { value.map(String.init) ?? "—" }
@@ -40,6 +42,9 @@ private struct JourneyWidgetView: View {
     private var speed: String { s.speed.map { s.speedUnit == "mph" ? String(Int(Double($0) * 0.621371)) + " mph" : "\($0) km/h" } ?? "—" }
     var body: some View {
         Group {
+            if !sharingAvailable {
+                unavailable
+            } else {
             switch family {
             case .systemLarge: large
             case .systemSmall: small
@@ -48,11 +53,33 @@ private struct JourneyWidgetView: View {
             case .accessoryRectangular: VStack(alignment: .leading) { Text(s.name).bold(); Text(integer(s.rpm) + " RPM · " + temperature) }
             default: medium
             }
+            }
         }
         .foregroundStyle(.white)
         .environment(\.layoutDirection, s.english ? .leftToRight : .rightToLeft)
         .containerBackground(for: .widget) { LinearGradient(colors: [Color(red: 0.02, green: 0.07, blue: 0.11), Color(red: 0.03, green: 0.17, blue: 0.21), .black], startPoint: .topLeading, endPoint: .bottomTrailing) }
         .widgetURL(URL(string: "journeycontrol://widget/open"))
+    }
+    // A real, readable offline view independent of App Group data or BLE.
+    // Do not expose nonfunctional vehicle-control buttons when sharing is absent.
+    private var unavailable: some View {
+        VStack(spacing: 9) {
+            Image(systemName: "car.side.fill")
+                .font(.system(size: 27))
+                .foregroundStyle(.cyan)
+            Text("JOURNEY").font(.system(size: 17, weight: .bold))
+            Text("غير متصل").font(.system(size: 13, weight: .semibold))
+            Text("مشاركة بيانات الويدجت غير متاحة بالتوقيع الحالي")
+                .font(.system(size: 10))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.white.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+            Text("افتح التطبيق لعرض حالة السيارة")
+                .font(.system(size: 9))
+                .foregroundStyle(.cyan)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(8)
     }
     private var header: some View {
         HStack(spacing: 5) {
@@ -69,7 +96,7 @@ private struct JourneyWidgetView: View {
                 Text(t("آخر قراءة", "Last reading"))
                 if let date = s.stateAt { Text(date, style: .time) } else { Text("—") }
                 Spacer(minLength: 0)
-                if !JourneyWidgetStore.available { Text(t("المشاركة غير متاحة", "Sharing unavailable")) }
+                if !sharingAvailable { Text(t("المشاركة غير متاحة", "Sharing unavailable")) }
             }.font(.system(size: 8)).foregroundStyle(.white.opacity(0.55))
         }
     }
