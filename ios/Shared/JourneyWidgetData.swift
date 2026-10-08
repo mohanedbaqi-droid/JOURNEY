@@ -71,23 +71,13 @@ struct JourneyWidgetCommandStatus: Codable {
 enum JourneyWidgetStore {
     static let declaredGroup = "group.com.abuseif.journey"
     static var groupURL: URL? {
-        // Sideloading profiles can omit or remap App Groups. Calling
-        // containerURL with a group that the installed profile did not grant
-        // can prevent the widget extension from producing its first timeline.
-        guard let profileURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
-              let data = try? Data(contentsOf: profileURL),
-              let start = data.range(of: Data("<?xml".utf8)),
-              let end = data.range(of: Data("</plist>".utf8)), start.lowerBound < end.upperBound,
-              let plist = try? PropertyListSerialization.propertyList(from: data.subdata(in: start.lowerBound..<end.upperBound), format: nil) as? [String: Any],
-              let entitlements = plist["Entitlements"] as? [String: Any],
-              let granted = entitlements["com.apple.security.application-groups"] as? [String] else {
-            return nil
-        }
-        let groups = granted.filter { $0.lowercased().contains("journey") }
-        for group in groups {
-            if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) { return url }
-        }
-        return nil
+        // Query the effective entitlement through the system instead of parsing
+        // embedded.mobileprovision. Sideloaders can re-sign the extension without
+        // bundling that profile, even when its App Group entitlement is valid.
+        // A missing entitlement returns nil, allowing the widget to show offline.
+        return FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: declaredGroup
+        )
     }
     static var available: Bool { groupURL != nil }
     static func read() -> JourneyWidgetSnapshot? {
