@@ -25,8 +25,8 @@ targets:
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.36
-        CURRENT_PROJECT_VERSION: 68
+        MARKETING_VERSION: 2.4.37
+        CURRENT_PROJECT_VERSION: 69
     dependencies:
       - package: CocoaMQTT
       - target: JourneyWidgetExtension
@@ -51,5 +51,5 @@ targets:
         DEVELOPMENT_TEAM: 6778LWD4ZB
         CODE_SIGN_STYLE: Automatic
         TARGETED_DEVICE_FAMILY: "1,2"
-        MARKETING_VERSION: 2.4.36
-        CURRENT_PROJECT_VERSION: 68
+        MARKETING_VERSION: 2.4.37
+        CURRENT_PROJECT_VERSION: 69
