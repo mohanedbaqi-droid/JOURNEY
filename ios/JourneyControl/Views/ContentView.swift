@@ -396,7 +396,6 @@ struct ContentView: View {
             faceIDError = JL("أضف جهاز السيارة أولاً حتى يعمل الاختصار.", "Add a vehicle device first to use this shortcut.")
             return
         }
-
         Task {
             let allowed = await faceID.authenticate(
                 reason: JL("تأكيد \(shortcut.title) من اختصار الشاشة الرئيسية", "Confirm \(shortcut.title) from the home screen shortcut")
@@ -405,7 +404,37 @@ struct ContentView: View {
                 faceIDError = faceID.lastError
                 return
             }
-            _ = mqtt.send(shortcut.action, to: device.deviceID)
+            if shortcut.action == .start {
+                confirmStart = true
+                return
+            }
+            let deviceID = device.deviceID
+            mqtt.prepareBluetooth(for: deviceID)
+            if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
+            // Wait for a fresh ESP state rather than silently dropping the
+            // command while the app is waking up from a widget deep link.
+            let previous = mqtt.lastStateAt[deviceID]
+            var ready = false
+            for _ in 0..<40 {
+                if let at = mqtt.lastStateAt[deviceID],
+                   Date().timeIntervalSince(at) >= 0,
+                   Date().timeIntervalSince(at) < 4,
+                   mqtt.state(for: deviceID).online,
+                   (at != previous || Date().timeIntervalSince(at) < 2) {
+                    ready = true
+                    break
+                }
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            guard ready else {
+                faceIDError = JL("ESP غير متصل؛ لم يُرسل الأمر.", "ESP is offline; command was not sent.")
+                return
+            }
+            guard mqtt.send(shortcut.action, to: deviceID) else {
+                faceIDError = JL("تعذر إرسال الأمر إلى ESP.", "Could not send the command to ESP.")
+                return
+            }
+            mqtt.syncSelectedWidget(force: true)
         }
     }
 
