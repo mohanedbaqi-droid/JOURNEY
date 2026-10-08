@@ -63,23 +63,45 @@ private struct JourneyWidgetView: View {
     // A real, readable offline view independent of App Group data or BLE.
     // Do not expose nonfunctional vehicle-control buttons when sharing is absent.
     private var unavailable: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: 7) {
             Image(systemName: "car.side.fill")
-                .font(.system(size: 27))
+                .font(.system(size: family == .systemSmall ? 20 : 27))
                 .foregroundStyle(.cyan)
-            Text("JOURNEY").font(.system(size: 17, weight: .bold))
-            Text("غير متصل").font(.system(size: 13, weight: .semibold))
-            Text("مشاركة بيانات الويدجت غير متاحة بالتوقيع الحالي")
-                .font(.system(size: 10))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.white.opacity(0.75))
-                .fixedSize(horizontal: false, vertical: true)
-            Text("افتح التطبيق لعرض حالة السيارة")
-                .font(.system(size: 9))
-                .foregroundStyle(.cyan)
+            Text("JOURNEY").font(.system(size: 15, weight: .bold))
+            Text(t("غير متصل", "Offline")).font(.system(size: 11, weight: .semibold))
+            if family != .systemSmall {
+                Text(t("المشاركة غير متاحة بالتوقيع الحالي", "Sharing unavailable with this signing profile"))
+                    .font(.system(size: 10))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+            HStack(spacing: 5) {
+                fallbackLink("lock", icon: "lock.fill", label: t("قفل", "Lock"))
+                fallbackLink("unlock", icon: "lock.open.fill", label: t("فتح", "Unlock"))
+                fallbackLink("start", icon: "faceid", label: t("تشغيل", "Start"))
+            }
+            if family != .systemSmall {
+                Text(t("تفتح الأزرار التطبيق وتطلب Face ID قبل إرسال الأمر", "Buttons open the app and require Face ID before sending"))
+                    .font(.system(size: 9))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.65))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(8)
+        .padding(6)
+    }
+    private func fallbackLink(_ path: String, icon: String, label: String) -> some View {
+        Link(destination: URL(string: "journeycontrol://widget/\(path)")!) {
+            VStack(spacing: 2) {
+                Image(systemName: icon)
+                Text(label).lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.cyan)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background(.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+        }
     }
     private var header: some View {
         HStack(spacing: 5) {
