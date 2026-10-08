@@ -18,6 +18,7 @@ on:
       - "standalone/v17/**"
       - "standalone/v18/**"
       - "standalone/v19/**"
+      - "standalone/v20/**"
       - ".github/workflows/build-punisher-android.yml"
 
 jobs:
@@ -250,7 +251,7 @@ jobs:
         run: |
           set -euo pipefail
           source /tmp/pdvenv/bin/activate
-          python standalone/v19/ai_paint_v4_1.py \
+          python standalone/v20/ai_paint_v4_2.py \
             --profiles PunisherAndroid/app/src/main/assets/vehicle_profiles.json \
             --input-root PunisherAndroid/app/src/main/assets/vehicles \
             --mask-root PunisherAndroid/app/src/main/assets/vehicle_masks \
@@ -266,6 +267,7 @@ jobs:
           python standalone/v16/android_ai_paint_v3_patch.py
           python standalone/v18/android_full_paint_v4_patch.py
           python standalone/v19/android_plate_fit_patch.py
+          python standalone/v20/android_plate_patch.py
 
       - uses: actions/setup-java@v4
         with:
@@ -285,11 +287,11 @@ jobs:
           set -euo pipefail
           APK="PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.4.3-14.apk"
-          ls -lh PUNISHER-DRIVE-ANDROID-0.4.3-14.apk
+          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.4.4-15.apk"
+          ls -lh PUNISHER-DRIVE-ANDROID-0.4.4-15.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-ANDROID-0.4.3-14-APK
-          path: PUNISHER-DRIVE-ANDROID-0.4.3-14.apk
+          name: PUNISHER-DRIVE-ANDROID-0.4.4-15-APK
+          path: PUNISHER-DRIVE-ANDROID-0.4.4-15.apk
           if-no-files-found: error
