@@ -15,6 +15,8 @@ on:
       - "standalone/v14/**"
       - "standalone/v15/**"
       - "standalone/v16/**"
+      - "standalone/v17/**"
+      - "standalone/v18/**"
       - ".github/workflows/build-punisher-android.yml"
 
 jobs:
@@ -231,26 +233,37 @@ jobs:
             --mode directory \
             --js PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js
 
-      - name: AI Paint v3 semantic body masks
+      - name: Dedicated AI license plate detector
         run: |
           set -euo pipefail
           source /tmp/pdvenv/bin/activate
-          mkdir -p /tmp/paint-debug
-          python standalone/v16/ai_paint_v3.py \
+          python standalone/v18/plate_detector_v2.py \
+            --profiles PunisherAndroid/app/src/main/assets/vehicle_profiles.json \
+            --input-root PunisherAndroid/app/src/main/assets/vehicles \
+            --metadata PunisherAndroid/app/src/main/assets/vehicle_visual_ai.json \
+            --mode directory \
+            --js PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js
+          test -s PunisherAndroid/app/src/main/assets/vehicle_visual_ai.js
+
+      - name: AI Paint v4 full paint replacement masks
+        run: |
+          set -euo pipefail
+          source /tmp/pdvenv/bin/activate
+          python standalone/v18/ai_paint_v4.py \
             --profiles PunisherAndroid/app/src/main/assets/vehicle_profiles.json \
             --input-root PunisherAndroid/app/src/main/assets/vehicles \
             --mask-root PunisherAndroid/app/src/main/assets/vehicle_masks \
-            --mode directory \
-            --debug-dir /tmp/paint-debug
+            --mode directory
           test "$(find PunisherAndroid/app/src/main/assets/vehicle_masks -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
 
-      - name: Patch Android visual canvas plate and AI Paint v3
+      - name: Patch Android Full Paint v4 and natural plate
         run: |
           set -euo pipefail
           python standalone/v11/android_patch.py
           python standalone/v14/android_plate_patch.py
           python standalone/v15/android_color_v2_patch.py
           python standalone/v16/android_ai_paint_v3_patch.py
+          python standalone/v18/android_full_paint_v4_patch.py
 
       - uses: actions/setup-java@v4
         with:
@@ -270,11 +283,11 @@ jobs:
           set -euo pipefail
           APK="PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.4.0-11.apk"
-          ls -lh PUNISHER-DRIVE-ANDROID-0.4.0-11.apk
+          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.4.2-13.apk"
+          ls -lh PUNISHER-DRIVE-ANDROID-0.4.2-13.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-ANDROID-0.4.0-11-APK
-          path: PUNISHER-DRIVE-ANDROID-0.4.0-11.apk
+          name: PUNISHER-DRIVE-ANDROID-0.4.2-13-APK
+          path: PUNISHER-DRIVE-ANDROID-0.4.2-13.apk
           if-no-files-found: error
