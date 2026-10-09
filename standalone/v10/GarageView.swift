@@ -90,7 +90,11 @@ struct GarageView: View {
                             profile: profile,
                             colorHex: vehicle.vehicleColorHex,
                             maxHeight: 96,
-                            plateText: vehicle.vehiclePlateText
+                            plateText: vehicle.vehiclePlateText,
+                    plateShiftX: vehicle.vehiclePlateShiftX,
+                    plateShiftY: vehicle.vehiclePlateShiftY,
+                    plateScale: vehicle.vehiclePlateScale,
+                    plateAngleOffset: vehicle.vehiclePlateAngleOffset
                         )
                         .frame(width: 132, height: 98)
                     } else {
