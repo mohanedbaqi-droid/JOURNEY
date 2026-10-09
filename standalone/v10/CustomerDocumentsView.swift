@@ -73,7 +73,16 @@ enum CustomerDocumentStorage {
                 create: true
               )
         else { return nil }
-        return appSupport.appendingPathComponent(relativePath)
+        // Refuse parent-directory traversal and paths outside the private docs store.
+        let parts = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0] == rootName,
+              UUID(uuidString: String(parts[1])) != nil,
+              parts[2] == "annual.jpg" || parts[2] == "unified.jpg" else { return nil }
+        return appSupport
+            .appendingPathComponent(rootName, isDirectory: true)
+            .appendingPathComponent(String(parts[1]), isDirectory: true)
+            .appendingPathComponent(String(parts[2]), isDirectory: false)
     }
 }
 
@@ -87,8 +96,8 @@ struct CustomerDocumentsView: View {
     @State private var customerPhone: String
     @State private var annualPath: String?
     @State private var unifiedPath: String?
-    @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var pendingPhotoKind: CustomerDocumentKind?
+    @State private var annualPhotoItem: PhotosPickerItem?
+    @State private var unifiedPhotoItem: PhotosPickerItem?
     @State private var cameraKind: CustomerDocumentKind?
     @State private var showCamera = false
     @State private var errorText: String?
@@ -131,19 +140,13 @@ struct CustomerDocumentsView: View {
             }
             .ignoresSafeArea()
         }
-        .onChange(of: selectedPhotoItem) { _, item in
-            guard let item, let kind = pendingPhotoKind else { return }
-            Task {
-                do {
-                    guard let data = try await item.loadTransferable(type: Data.self),
-                          let image = UIImage(data: data) else { return }
-                    await MainActor.run { store(image, for: kind) }
-                } catch {
-                    await MainActor.run {
-                        errorText = error.localizedDescription
-                    }
-                }
-            }
+        // Separate photo selections prevent saving the ID photo under registration,
+        // and allow choosing the same photo again after the selection is reset.
+        .onChange(of: annualPhotoItem) { _, item in
+            importPhoto(item, for: .annual)
+        }
+        .onChange(of: unifiedPhotoItem) { _, item in
+            importPhoto(item, for: .unified)
         }
         .alert(pd("تعذر حفظ المستمسك", "Could not save document", "پاشەکەوتکردن سەرکەوتوو نەبوو", "Belge kaydedilemedi", "ذخیره مدرک انجام نشد"), isPresented: Binding(
             get: { errorText != nil },
@@ -256,13 +259,10 @@ struct CustomerDocumentsView: View {
                 }
                 .documentActionButton(tint: .red)
 
-                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                PhotosPicker(selection: kind == .annual ? $annualPhotoItem : $unifiedPhotoItem, matching: .images) {
                     Label(pd("الصور", "Photos", "وێنەکان", "Fotoğraflar", "تصاویر"), systemImage: "photo.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .simultaneousGesture(TapGesture().onEnded {
-                    pendingPhotoKind = kind
-                })
                 .documentActionButton(tint: .cyan)
 
                 if path != nil {
@@ -334,6 +334,49 @@ struct CustomerDocumentsView: View {
             .background((exists ? Color.green : Color.white).opacity(0.08), in: Capsule())
     }
 
+    private func importPhoto(_ item: PhotosPickerItem?, for kind: CustomerDocumentKind) {
+        guard let item else { return }
+        Task {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    await MainActor.run {
+                        errorText = pd("الصورة غير مدعومة", "Unsupported image", "وێنە پشتگیری ناکرێت", "Desteklenmeyen resim", "تصویر پشتیبانی نمی‌شود")
+                        resetPhotoSelection(for: kind)
+                    }
+                    return
+                }
+                await MainActor.run {
+                    store(image, for: kind)
+                    resetPhotoSelection(for: kind)
+                }
+            } catch {
+                await MainActor.run {
+                    errorText = error.localizedDescription
+                    resetPhotoSelection(for: kind)
+                }
+            }
+        }
+    }
+
+    private func resetPhotoSelection(for kind: CustomerDocumentKind) {
+        if kind == .annual {
+            annualPhotoItem = nil
+        } else {
+            unifiedPhotoItem = nil
+        }
+    }
+
+    private func persistDocumentChanges() {
+        garage.updateCustomerDocuments(
+            vehicle,
+            customerName: customerName,
+            customerPhone: customerPhone,
+            annualCardPath: annualPath,
+            unifiedIDPath: unifiedPath
+        )
+    }
+
     private func store(_ image: UIImage, for kind: CustomerDocumentKind) {
         do {
             let relative = try CustomerDocumentStorage.save(image, vehicleID: vehicle.id, kind: kind)
@@ -342,7 +385,9 @@ struct CustomerDocumentsView: View {
             } else {
                 unifiedPath = relative
             }
-            pendingPhotoKind = nil
+            // Save document references immediately so navigation without pressing
+            // the details Save button cannot leave a missing/stale document path.
+            persistDocumentChanges()
         } catch {
             errorText = error.localizedDescription
         }
@@ -355,6 +400,7 @@ struct CustomerDocumentsView: View {
         } else {
             unifiedPath = nil
         }
+        persistDocumentChanges()
     }
 }
 
