@@ -21,6 +21,10 @@ on:
       - "standalone/v20/**"
       - ".github/workflows/build-punisher-android.yml"
 
+concurrency:
+  group: punisher-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
