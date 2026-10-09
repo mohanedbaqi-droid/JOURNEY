@@ -434,8 +434,13 @@ struct CameraImagePicker: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
-        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
-        picker.cameraCaptureMode = .photo
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            picker.sourceType = .camera
+            picker.cameraCaptureMode = .photo
+        } else {
+            // cameraCaptureMode is invalid on photoLibrary and can crash on iPad/simulator.
+            picker.sourceType = .photoLibrary
+        }
         picker.delegate = context.coordinator
         picker.allowsEditing = false
         return picker
