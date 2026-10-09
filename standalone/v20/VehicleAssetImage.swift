@@ -6,6 +6,10 @@ struct VehicleAssetImage: View {
     let colorHex: String
     var maxHeight: CGFloat = 180
     var plateText: String = ""
+    var plateShiftX: Double = 0
+    var plateShiftY: Double = 0
+    var plateScale: Double = 1
+    var plateAngleOffset: Double = 0
 
     @AppStorage("punisher.ai.visual") private var visualAI = true
 
@@ -69,8 +73,12 @@ struct VehicleAssetImage: View {
     @ViewBuilder
     private func plateOverlay(in imageRect: CGRect) -> some View {
         if let plate = parsedPlate {
-            let width = min(imageRect.width * 0.24, max(26, imageRect.width * ai.plateW))
+            // Auto-detected plate box, with an optional per-vehicle correction.
+            let autoWidth = min(imageRect.width * 0.24, max(26, imageRect.width * ai.plateW))
+            let width = min(imageRect.width * 0.30, autoWidth * min(1.6, max(0.6, plateScale)))
             let height = width * (31.0 / 140.0)
+            let x = min(0.98, max(0.02, ai.plateX + plateShiftX))
+            let y = min(0.98, max(0.02, ai.plateY + plateShiftY))
 
             IraqiPlateView(
                 governorateCode: plate.code,
@@ -79,10 +87,10 @@ struct VehicleAssetImage: View {
                 compact: true
             )
             .frame(width: width, height: height)
-            .rotationEffect(.degrees(ai.plateAngle))
+            .rotationEffect(.degrees(ai.plateAngle + plateAngleOffset))
             .position(
-                x: imageRect.minX + imageRect.width * ai.plateX,
-                y: imageRect.minY + imageRect.height * ai.plateY
+                x: imageRect.minX + imageRect.width * x,
+                y: imageRect.minY + imageRect.height * y
             )
             .shadow(color: .black.opacity(0.34), radius: 1, y: 1)
         }
