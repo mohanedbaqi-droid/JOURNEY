@@ -1,4 +1,4 @@
-name: Build Punisher Drive Standalone v0.9.6 IPA
+name: Build Punisher Drive Standalone v0.9.7 IPA
 
 on:
   workflow_dispatch:
@@ -415,11 +415,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.6-26-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.6-26-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.7-27-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.7-27-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-IOS-0.9.6-26-TEST-IPA
-          path: PUNISHER-DRIVE-IOS-0.9.6-26-TEST.ipa
+          name: PUNISHER-DRIVE-IOS-0.9.7-27-TEST-IPA
+          path: PUNISHER-DRIVE-IOS-0.9.7-27-TEST.ipa
           if-no-files-found: error
