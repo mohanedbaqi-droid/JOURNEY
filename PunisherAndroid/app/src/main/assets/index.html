@@ -59,6 +59,23 @@ linear-gradient(160deg,#05070b,#0a0d13 55%,#061016)}
 radial-gradient(circle at center,rgba(215,28,35,.16),transparent 35%),
 linear-gradient(#040507,#071018);display:flex;align-items:center;justify-content:center;text-align:center;transition:opacity .35s}
 #splash.hide{opacity:0;pointer-events:none}.splash-logo{width:265px;height:265px;object-fit:contain;filter:drop-shadow(0 0 25px rgba(215,28,35,.45))}.splash-title{font-size:34px;font-weight:1000;letter-spacing:1px;color:var(--red);font-style:italic}.splash-drive{font-size:35px;font-weight:1000;letter-spacing:2px;color:var(--cyan);font-style:italic}.splash-sub{font-size:11px;color:#dbe7ee;letter-spacing:3px;margin-top:9px}
+
+/* Match vehicle photo, paint mask and plate to the same source coordinates. */
+.vehicle-stage{display:flex;align-items:center;justify-content:center}
+.vehicle-media{position:relative;width:min(100%,342px);aspect-ratio:3/2;flex:none}
+.vehicle-stage .vehicle-media .vehicle-photo{position:absolute;inset:0;width:100%;height:100%;margin:0;object-fit:fill;z-index:1}
+.vehicle-stage .vehicle-media .vehicle-color-layer{position:absolute;inset:0;z-index:2;-webkit-mask-size:100% 100%;mask-size:100% 100%}
+.vehicle-stage .vehicle-media .plate-on-car{z-index:3;min-width:0;height:auto;aspect-ratio:140/31;align-items:stretch;box-sizing:border-box;border-radius:1px;overflow:hidden;font-size:clamp(3px,1.2vw,7px);line-height:1}
+.vehicle-stage .plate-on-car .irq,.vehicle-stage .plate-on-car .pc,.vehicle-stage .plate-on-car .pl,.vehicle-stage .plate-on-car .pn{display:flex;align-items:center;justify-content:center;min-width:0;width:auto;padding:0 1px;box-sizing:border-box;white-space:nowrap;overflow:hidden}
+.vehicle-stage .plate-on-car .irq{flex:0 0 12%;font-size:clamp(2px,.65vw,4px);line-height:1}
+.vehicle-stage .plate-on-car .pc{flex:0 0 20%}
+.vehicle-stage .plate-on-car .pl{flex:0 0 15%}
+.vehicle-stage .plate-on-car .pn{flex:1;border-right:0}
+.plate-fit-controls{margin:12px 0;padding:12px;border:1px solid rgba(0,205,235,.25);border-radius:14px;background:rgba(0,205,235,.035)}
+.plate-fit-controls label{display:block;margin:10px 0 4px}
+.plate-fit-controls input[type=range]{display:block;width:100%;accent-color:#00cdeb}
+.ctrl:disabled{opacity:.50;filter:grayscale(.5);cursor:not-allowed}
+
 </style>
 <script src="vehicle_profiles.js"></script>
 <script src="vehicle_visual_ai.js"></script>
@@ -98,6 +115,11 @@ Object.assign(I18N.ku,{customerDocs:'زانیاری و بەڵگەکانی کڕی
 Object.assign(I18N.tr,{customerDocs:'Müşteri ve belgeler',customerName:'Ad soyad',customerPhone:'Telefon numarası',annualDoc:'Araç ruhsatı',unifiedDoc:'Ulusal kimlik kartı',cameraPhotos:'Kamera / fotoğraf seç',savedLocal:'Yerel kaydedildi',notAdded:'Eklenmedi',privacy:'Gizlilik',privacyText:'Belgeler uygulama içinde kalır; Customer Server ve kimlik doğrulama ayarlanana kadar yüklenmez.',customerServer:'Customer Server',serverNotConfigured:'Sunucu henüz yapılandırılmadı',serverUrl:'HTTPS URL',projectName:'Proje / şube adı',serverSave:'Sunucu ayarlarını kaydet',uploadDisabled:'API ve kimlik doğrulama belirlenene kadar yükleme kapalıdır.'});
 Object.assign(I18N.fa,{customerDocs:'مشتری و مدارک',customerName:'نام کامل',customerPhone:'شماره تلفن',annualDoc:'کارت خودرو',unifiedDoc:'کارت ملی',cameraPhotos:'دوربین / انتخاب تصویر',savedLocal:'محلی ذخیره شد',notAdded:'اضافه نشده',privacy:'حریم خصوصی',privacyText:'مدارک داخل برنامه می‌مانند و تا تنظیم Customer Server و احراز هویت بارگذاری نمی‌شوند.',customerServer:'Customer Server',serverNotConfigured:'سرور هنوز تنظیم نشده',serverUrl:'آدرس HTTPS',projectName:'نام پروژه / شعبه',serverSave:'ذخیره تنظیمات سرور',uploadDisabled:'بارگذاری تا تعیین API و احراز هویت غیرفعال می‌ماند.'});
 
+Object.assign(I18N.ar,{plateFit:'ضبط مكان اللوحة',fitX:'يمين / يسار',fitY:'فوك / جوه',fitScale:'حجم اللوحة',fitAngle:'ميلان اللوحة',resetFit:'إعادة ضبط الـAI',espLinked:'مربوط',controlWaiting:'أوامر التحكم تنتظر اتصال ESP فعلياً'});
+Object.assign(I18N.en,{plateFit:'Plate placement',fitX:'Left / right',fitY:'Up / down',fitScale:'Plate size',fitAngle:'Plate angle',resetFit:'Reset AI placement',espLinked:'Linked',controlWaiting:'Controls require a verified live ESP connection'});
+Object.assign(I18N.ku,{plateFit:'شوێنی تابلۆ',fitX:'چەپ / ڕاست',fitY:'سەرەوە / خوارەوە',fitScale:'قەبارەی تابلۆ',fitAngle:'لاربوونی تابلۆ',resetFit:'گەڕانەوە بۆ AI',espLinked:'بەستراو',controlWaiting:'فەرمانەکان پەیوەندیی ESPی پشتڕاستکراو دەوێت'});
+Object.assign(I18N.tr,{plateFit:'Plaka yerleşimi',fitX:'Sol / sağ',fitY:'Yukarı / aşağı',fitScale:'Plaka boyutu',fitAngle:'Plaka açısı',resetFit:'AI konumunu sıfırla',espLinked:'Bağlı',controlWaiting:'Kontroller doğrulanmış ESP bağlantısı gerektirir'});
+Object.assign(I18N.fa,{plateFit:'جای پلاک',fitX:'چپ / راست',fitY:'بالا / پایین',fitScale:'اندازه پلاک',fitAngle:'زاویه پلاک',resetFit:'بازنشانی AI',espLinked:'پیوند شده',controlWaiting:'کنترل‌ها نیازمند ارتباط زنده و تأییدشده ESP هستند'});
 function t(k){return (I18N[lang]&&I18N[lang][k])||I18N.en[k]||k}
 function applyLang(){
   document.documentElement.lang=lang;
@@ -149,13 +171,15 @@ function visualMeta(v){
 }
 function plateHtml(v,preview){
   migratePlate(v);
-  var cls=preview?'iraq-plate-preview':'plate-on-car';
-  var st='';
+  var cls=preview?'iraq-plate-preview':'plate-on-car',st='';
   if(!preview){
-    var m=visualMeta(v);
-    if(m){
-      st=' style="left:'+(m.plateX*100).toFixed(2)+'%;top:'+(m.plateY*100).toFixed(2)+'%;min-width:0;width:'+(m.plateW*100).toFixed(2)+'%;height:'+(m.plateH*100).toFixed(2)+'%;transform:translate(-50%,-50%) rotate('+m.plateAngle+'deg)"'
-    }
+    var m=visualMeta(v)||{plateX:.70,plateY:.70,plateW:.14,plateAngle:0};
+    var clamp=function(x,min,max){return Math.max(min,Math.min(max,x))};
+    var x=clamp(Number(m.plateX||.70)+Number(v.plateShiftX||0),.02,.98);
+    var y=clamp(Number(m.plateY||.70)+Number(v.plateShiftY||0),.02,.98);
+    var width=clamp(Number(m.plateW||.14)*100*Number(v.plateScale||1),6,24);
+    var angle=Number(m.plateAngle||0)+Number(v.plateAngleOffset||0);
+    st=' style="left:'+(x*100).toFixed(2)+'%;top:'+(y*100).toFixed(2)+'%;width:'+width.toFixed(2)+'%;transform:translate(-50%,-50%) rotate('+angle.toFixed(2)+'deg)"'
   }
   return '<span class="'+cls+'"'+st+'><span class="irq">I<br>R<br>Q</span><span class="pc">'+esc(v.plateGovernorateCode)+'</span><span class="pl">'+esc(v.plateLetter)+'</span><span class="pn">'+esc(v.plateNumber||'000000')+'</span></span>'
 }
@@ -165,7 +189,7 @@ function vehicleStage(v){
   var m=visualMeta(v);
   var opacity=m&&m.colorStrength?m.colorStrength:.72;
   var layer=c.toUpperCase()==='#F2F2F2'?'':'<span class="vehicle-color-layer" style="background:'+esc(c)+';opacity:'+opacity+';-webkit-mask-image:url(\''+imageMask(v)+'\');mask-image:url(\''+imageMask(v)+'\');mix-blend-mode:'+(c.toUpperCase()==='#161616'?'multiply':'color')+'"></span>';
-  return '<div class="vehicle-stage">'+vehiclePic(v)+layer+(plateText(v)?plateHtml(v,false):'')+'</div>'
+  return '<div class="vehicle-stage"><div class="vehicle-media">'+vehiclePic(v)+layer+(plateText(v)?plateHtml(v,false):'')+'</div></div>'
 }
 function updateHeader(){var v=active();document.getElementById('headerSub').textContent=v?sub(v):'Smart Vehicle Control'}
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t)});render()}
@@ -175,10 +199,10 @@ function homeHtml(){
   var v=active();
   if(!v)return '<div class="card empty"><div class="big">☠</div><h3>'+t('garageEmpty')+'</h3><p>'+t('addFirst')+'</p><button class="btn fill" data-act="add">'+t('addFirst')+'</button></div>';
   return '<div class="card accent"><div class="row between"><div><h2 class="title">'+esc(name(v))+'</h2><div class="sub">'+esc(sub(v))+'</div></div><span class="badge">'+t('active')+'</span></div>'+vehicleStage(v)+'</div>'+
-  '<div class="pills"><div class="pill '+(v.espDeviceID?'on':'')+'">ESP '+(v.espDeviceID?'Online':t('notLinked'))+'</div><div class="pill '+(v.latitude!=null&&v.longitude!=null?'on':'')+'">GPS</div><div class="pill">OBD</div></div>'+
+  '<div class="pills"><div class="pill">ESP '+(v.espDeviceID?t('espLinked'):t('notLinked'))+'</div><div class="pill '+(v.latitude!=null&&v.longitude!=null?'on':'')+'">GPS</div><div class="pill">OBD</div></div>'+
   '<button class="btn" style="width:100%;margin-bottom:8px" data-act="appearance" data-id="'+v.id+'">'+t('colorPlate')+'</button>'+
   '<button class="btn" style="width:100%;margin-bottom:12px" data-act="documents" data-id="'+v.id+'">👤 '+t('customerDocs')+'</button>'+
-  '<div class="card"><div class="section">'+t('quick')+'</div><div class="grid2"><button class="ctrl red">🔒<br>'+t('lock')+'</button><button class="ctrl cyan">🔓<br>'+t('unlock')+'</button><button class="ctrl red">⏻<br>'+t('start')+'</button><button class="ctrl cyan">🔔<br>'+t('alarm')+'</button></div></div>';
+  '<div class="card"><div class="section">'+t('quick')+'</div><div class="sub" style="margin:8px 0">'+t('controlWaiting')+'</div><div class="grid2"><button class="ctrl red" disabled>🔒<br>'+t('lock')+'</button><button class="ctrl cyan" disabled>🔓<br>'+t('unlock')+'</button><button class="ctrl red" disabled>⏻<br>'+t('start')+'</button><button class="ctrl cyan" disabled>🔔<br>'+t('alarm')+'</button></div></div>';
 }
 function garageHtml(){
   var h='<div class="row between"><div><h1 class="title">'+t('garage')+'</h1><div class="sub">'+garage.length+' '+t('vehicle')+'</div></div><button class="btn" data-act="add">'+t('addCar')+'</button></div>';
