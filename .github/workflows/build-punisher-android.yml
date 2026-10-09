@@ -298,11 +298,11 @@ jobs:
           set -euo pipefail
           APK="PunisherAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.4.5-16.apk"
-          ls -lh PUNISHER-DRIVE-ANDROID-0.4.5-16.apk
+          cp "$APK" "PUNISHER-DRIVE-ANDROID-0.4.6-17.apk"
+          ls -lh PUNISHER-DRIVE-ANDROID-0.4.6-17.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-ANDROID-0.4.5-16-APK
-          path: PUNISHER-DRIVE-ANDROID-0.4.5-16.apk
+          name: PUNISHER-DRIVE-ANDROID-0.4.6-17-APK
+          path: PUNISHER-DRIVE-ANDROID-0.4.6-17.apk
           if-no-files-found: error
