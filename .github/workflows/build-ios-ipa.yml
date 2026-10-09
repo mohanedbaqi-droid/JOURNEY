@@ -404,11 +404,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/punisher-ipa/Payload"
           /usr/bin/ditto "$APP" "$RUNNER_TEMP/punisher-ipa/Payload/PunisherDrive.app"
           cd "$RUNNER_TEMP/punisher-ipa"
-          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.5-24-TEST.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.5-24-TEST.ipa"
+          /usr/bin/zip -qry "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.5-25-TEST.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PUNISHER-DRIVE-IOS-0.9.5-25-TEST.ipa"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PUNISHER-DRIVE-IOS-0.9.5-24-TEST-IPA
-          path: PUNISHER-DRIVE-IOS-0.9.5-24-TEST.ipa
+          name: PUNISHER-DRIVE-IOS-0.9.5-25-TEST-IPA
+          path: PUNISHER-DRIVE-IOS-0.9.5-25-TEST.ipa
           if-no-files-found: error
