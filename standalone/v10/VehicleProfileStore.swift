@@ -15,6 +15,12 @@ struct GarageVehicle: Codable, Identifiable, Hashable {
     var plateGovernorateCode: String?
     var plateLetter: String?
     var plateNumber: String?
+    // Fine tuning for plates when automatic position detection misses a bumper.
+    // Optional so previously saved garage JSON decodes without migration.
+    var plateShiftX: Double?
+    var plateShiftY: Double?
+    var plateScale: Double?
+    var plateAngleOffset: Double?
 
     // Customer / owner information. All fields are optional for backward compatibility.
     var customerName: String?
@@ -132,6 +138,11 @@ struct GarageVehicle: Codable, Identifiable, Hashable {
         return IraqPlateData.parse(vehiclePlateText)?.number ?? ""
     }
 
+    var vehiclePlateShiftX: Double { max(-0.20, min(0.20, plateShiftX ?? 0)) }
+    var vehiclePlateShiftY: Double { max(-0.20, min(0.20, plateShiftY ?? 0)) }
+    var vehiclePlateScale: Double { max(0.6, min(1.6, plateScale ?? 1.0)) }
+    var vehiclePlateAngleOffset: Double { max(-15, min(15, plateAngleOffset ?? 0)) }
+
     var hasAnnualCardDocument: Bool {
         guard let annualCardDocumentPath else { return false }
         return !annualCardDocumentPath.isEmpty
@@ -227,6 +238,22 @@ final class VehicleProfileStore: ObservableObject {
         vehicles[index].plateLetter = letter
         vehicles[index].plateNumber = number
         vehicles[index].plateText = IraqPlateData.formatted(code: code, letter: letter, number: number)
+        persist()
+        if activeVehicleID == vehicle.id { postVehicleChanged(vehicles[index]) }
+    }
+
+    func updatePlateFit(
+        _ vehicle: GarageVehicle,
+        shiftX: Double,
+        shiftY: Double,
+        scale: Double,
+        angle: Double
+    ) {
+        guard let index = vehicles.firstIndex(where: { $0.id == vehicle.id }) else { return }
+        vehicles[index].plateShiftX = max(-0.20, min(0.20, shiftX))
+        vehicles[index].plateShiftY = max(-0.20, min(0.20, shiftY))
+        vehicles[index].plateScale = max(0.6, min(1.6, scale))
+        vehicles[index].plateAngleOffset = max(-15, min(15, angle))
         persist()
         if activeVehicleID == vehicle.id { postVehicleChanged(vehicles[index]) }
     }
