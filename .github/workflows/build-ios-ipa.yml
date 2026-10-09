@@ -22,6 +22,7 @@ on:
       - "standalone/v18/**"
       - "standalone/v19/**"
       - "standalone/v20/**"
+      - "standalone/tests/**"
       - ".github/workflows/build-ios-ipa.yml"
 
 concurrency:
@@ -69,6 +70,12 @@ jobs:
           source "$RUNNER_TEMP/pdvenv/bin/activate"
           python -m pip install --upgrade pip
           python -m pip install pillow rembg onnxruntime opencv-python-headless numpy ultralytics huggingface_hub
+
+      - name: Regression test - keep windows unpainted
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/pdvenv/bin/activate"
+          python standalone/tests/test_paint_mask.py
 
       - name: Build approved Punisher assets
         run: |
