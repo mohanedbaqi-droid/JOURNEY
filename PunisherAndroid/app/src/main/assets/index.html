@@ -290,15 +290,57 @@ function appearance(v){
   migratePlate(v);selectedColor=v.colorHex||'#F2F2F2';
   var govOptions=governorates.map(function(g){return '<option value="'+g[0]+'" '+(g[0]===v.plateGovernorateCode?'selected':'')+'>'+g[0]+' • '+g[1]+'</option>'}).join('');
   var letterOptions=plateLetters.map(function(x){return '<option value="'+x+'" '+(x===v.plateLetter?'selected':'')+'>'+x+'</option>'}).join('');
-  openModal('<h2>'+t('appearance')+'</h2><div style="text-align:center">'+vehicleStage(v)+plateHtml(v,true)+'</div><div class="plate-grid"><div><label>'+t('governorate')+'</label><select id="plateGov" class="field">'+govOptions+'</select></div><div><label>'+t('letter')+'</label><select id="plateLetter" class="field">'+letterOptions+'</select></div></div><label>'+t('number6')+'</label><input id="plateNumber" class="field" inputmode="numeric" maxlength="6" value="'+esc(v.plateNumber||'')+'" placeholder="123456"><div class="palette">'+colors().map(function(c){return '<button class="swatch '+(c[1].toLowerCase()===selectedColor.toLowerCase()?'sel':'')+'" data-color="'+c[1]+'"><div class="dot" style="background:'+c[1]+'"></div>'+c[0]+'</button>'}).join('')+'</div><button class="btn fill" style="width:100%" id="appearanceSave">'+t('save')+'</button>')
+  var fields=[
+    ['fitX','plateShiftX','fitX',-.18,.18,.005,0],
+    ['fitY','plateShiftY','fitY',-.18,.18,.005,0],
+    ['fitScale','plateScale','fitScale',.6,1.6,.02,1],
+    ['fitAngle','plateAngleOffset','fitAngle',-15,15,.5,0]
+  ];
+  var fitHtml=fields.map(function(d){
+    var value=v[d[1]]==null?d[6]:Number(v[d[1]]);
+    return '<label for="'+d[0]+'">'+t(d[2])+' <small id="'+d[0]+'Value">'+value.toFixed(2)+'</small></label>'+
+      '<input type="range" id="'+d[0]+'" min="'+d[3]+'" max="'+d[4]+'" step="'+d[5]+'" value="'+value+'">'
+  }).join('');
+  openModal('<h2>'+t('appearance')+'</h2>'+
+    '<div style="text-align:center"><div id="appearanceVehicleStage">'+vehicleStage(v)+'</div><div id="appearancePlatePreview">'+plateHtml(v,true)+'</div></div>'+
+    '<div class="plate-grid"><div><label>'+t('governorate')+'</label><select id="plateGov" class="field">'+govOptions+'</select></div>'+
+    '<div><label>'+t('letter')+'</label><select id="plateLetter" class="field">'+letterOptions+'</select></div></div>'+
+    '<label>'+t('number6')+'</label><input id="plateNumber" class="field" inputmode="numeric" maxlength="6" value="'+esc(v.plateNumber||'')+'" placeholder="123456">'+
+    '<div class="palette">'+colors().map(function(c){return '<button class="swatch '+(c[1].toLowerCase()===selectedColor.toLowerCase()?'sel':'')+'" data-color="'+c[1]+'"><div class="dot" style="background:'+c[1]+'"></div>'+c[0]+'</button>'}).join('')+'</div>'+
+    '<div class="plate-fit-controls"><b>'+t('plateFit')+'</b>'+fitHtml+
+    '<button class="btn" style="width:100%;margin-top:12px" id="fitReset">'+t('resetFit')+'</button></div>'+
+    '<button class="btn fill" style="width:100%" id="appearanceSave">'+t('save')+'</button>')
+}
+
+function refreshAppearancePreview(){
+  var sheet=document.getElementById('sheet');
+  var v=garage.find(function(x){return x.id===sheet.dataset.vid});
+  var stage=document.getElementById('appearanceVehicleStage');
+  if(!v||!stage)return;
+  var number=normalizePlateNumber(document.getElementById('plateNumber').value);
+  var gov=document.getElementById('plateGov').value,letter=document.getElementById('plateLetter').value;
+  var p=Object.assign({},v,{
+    colorHex:selectedColor,plateGovernorateCode:gov,plateLetter:letter,
+    plateNumber:number,plateText:number?(gov+' '+letter+' '+number):'',
+    plateShiftX:Number(document.getElementById('fitX').value),
+    plateShiftY:Number(document.getElementById('fitY').value),
+    plateScale:Number(document.getElementById('fitScale').value),
+    plateAngleOffset:Number(document.getElementById('fitAngle').value)
+  });
+  stage.innerHTML=vehicleStage(p);
+  var platePreview=document.getElementById('appearancePlatePreview');
+  if(platePreview)platePreview.innerHTML=plateHtml(p,true);
 }
 function bindModal(){fillAdd();
 document.querySelectorAll('.doc-file').forEach(function(input){input.onchange=function(){var id=document.getElementById('sheet').dataset.vid,v=garage.find(function(x){return x.id===id});if(v&&input.files&&input.files[0])compressAndStoreDoc(input.files[0],v,input.dataset.kind,document.getElementById(input.dataset.kind+'Status'))}});
 document.querySelectorAll('.doc-delete').forEach(function(b){b.onclick=function(){var id=document.getElementById('sheet').dataset.vid,v=garage.find(function(x){return x.id===id}),kind=b.dataset.kind;if(!v)return;try{if(window.AndroidDocs)AndroidDocs.deleteDocument(v.id,kind)}catch(e){}v[kind+'DocSaved']=false;save();var st=document.getElementById(kind+'Status');if(st)st.textContent=t('notAdded')}});
 var cs=document.getElementById('customerSave');if(cs)cs.onclick=function(){var id=document.getElementById('sheet').dataset.vid,v=garage.find(function(x){return x.id===id});if(v){v.customerName=(document.getElementById('customerName').value||'').trim();v.customerPhone=(document.getElementById('customerPhone').value||'').trim();v.customerServerSyncState='local-only';save()}closeModal();render()};
 var ss=document.getElementById('serverSave');if(ss)ss.onclick=function(){var u=(document.getElementById('serverUrl').value||'').trim(),p=(document.getElementById('serverProject').value||'').trim();if(u&&u.indexOf('https://')!==0){alert('HTTPS required');return}localStorage.setItem('pd_customer_server_url',u);localStorage.setItem('pd_customer_server_project',p);closeModal();render()};
-document.querySelectorAll('.swatch').forEach(function(b){b.onclick=function(){selectedColor=b.dataset.color;document.querySelectorAll('.swatch').forEach(function(x){x.classList.toggle('sel',x.dataset.color===selectedColor)})}});var pn=document.getElementById('plateNumber');if(pn)pn.oninput=function(){pn.value=normalizePlateNumber(pn.value)};
-var s=document.getElementById('appearanceSave');if(s)s.onclick=function(){var id=document.getElementById('sheet').dataset.vid;var v=garage.find(function(x){return x.id===id});if(v){v.colorHex=selectedColor;v.plateGovernorateCode=document.getElementById('plateGov').value;v.plateLetter=document.getElementById('plateLetter').value;v.plateNumber=normalizePlateNumber(document.getElementById('plateNumber').value);v.plateText=v.plateNumber?(v.plateGovernorateCode+' '+v.plateLetter+' '+v.plateNumber):'';save()}closeModal();render()};var es=document.getElementById('espSave');if(es)es.onclick=function(){var id=document.getElementById('sheet').dataset.vid;var v=garage.find(function(x){return x.id===id});if(v){var d=document.getElementById('esp').value.trim();garage.forEach(function(x){if(x.id!==v.id&&x.espDeviceID===d)x.espDeviceID=''});v.espDeviceID=d;save()}closeModal();render()}}
+document.querySelectorAll('.swatch').forEach(function(b){b.onclick=function(){selectedColor=b.dataset.color;document.querySelectorAll('.swatch').forEach(function(x){x.classList.toggle('sel',x.dataset.color===selectedColor)});refreshAppearancePreview()}});var pn=document.getElementById('plateNumber');if(pn)pn.oninput=function(){pn.value=normalizePlateNumber(pn.value);refreshAppearancePreview()};
+['plateGov','plateLetter'].forEach(function(id){var el=document.getElementById(id);if(el)el.onchange=refreshAppearancePreview});
+['fitX','fitY','fitScale','fitAngle'].forEach(function(id){var el=document.getElementById(id);if(el)el.oninput=function(){document.getElementById(id+'Value').textContent=Number(el.value).toFixed(2);refreshAppearancePreview()}});
+var reset=document.getElementById('fitReset');if(reset)reset.onclick=function(){[['fitX',0],['fitY',0],['fitScale',1],['fitAngle',0]].forEach(function(p){document.getElementById(p[0]).value=p[1];document.getElementById(p[0]+'Value').textContent=Number(p[1]).toFixed(2)});refreshAppearancePreview()};
+var s=document.getElementById('appearanceSave');if(s)s.onclick=function(){var id=document.getElementById('sheet').dataset.vid;var v=garage.find(function(x){return x.id===id});if(v){v.colorHex=selectedColor;v.plateGovernorateCode=document.getElementById('plateGov').value;v.plateLetter=document.getElementById('plateLetter').value;v.plateNumber=normalizePlateNumber(document.getElementById('plateNumber').value);v.plateText=v.plateNumber?(v.plateGovernorateCode+' '+v.plateLetter+' '+v.plateNumber):'';v.plateShiftX=Number(document.getElementById('fitX').value);v.plateShiftY=Number(document.getElementById('fitY').value);v.plateScale=Number(document.getElementById('fitScale').value);v.plateAngleOffset=Number(document.getElementById('fitAngle').value);save()}closeModal();render()};var es=document.getElementById('espSave');if(es)es.onclick=function(){var id=document.getElementById('sheet').dataset.vid;var v=garage.find(function(x){return x.id===id});if(v){var d=document.getElementById('esp').value.trim();garage.forEach(function(x){if(x.id!==v.id&&x.espDeviceID===d)x.espDeviceID=''});v.espDeviceID=d;save()}closeModal();render()}}
 function espDialog(v){openModal('<h2>ESP</h2><input id="esp" class="field" value="'+esc(v.espDeviceID||'')+'" placeholder="ESP Device ID"><button class="btn fill" style="width:100%" id="espSave">'+t('save')+'</button>')}
 function bind(){document.querySelectorAll('[data-act]').forEach(function(b){b.onclick=function(){var a=b.dataset.act,id=b.dataset.id,v=garage.find(function(x){return x.id===id});if(a==='add')addDialog();if(a==='server')customerServerDialog();if(a==='activate'&&v){activeId=v.id;save();render()}if(a==='documents'&&v){customerDocs(v)}if(a==='appearance'&&v){document.getElementById('sheet').dataset.vid=v.id;appearance(v);document.getElementById('sheet').dataset.vid=v.id}if(a==='esp'&&v){espDialog(v);document.getElementById('sheet').dataset.vid=v.id}}});document.querySelectorAll('[data-tabgo]').forEach(function(b){b.onclick=function(){setTab(b.dataset.tabgo)}});var ls=document.getElementById('langSelect');if(ls)ls.onchange=function(){lang=ls.value;localStorage.setItem('pd_lang',lang);applyLang();render()}}
 function loadMap(){var located=garage.filter(function(v){return v.latitude!=null&&v.longitude!=null});if(!located.length)return;var old=document.getElementById('leafletScript');if(old)old.remove();var css=document.getElementById('leafletCss');if(!css){css=document.createElement('link');css.id='leafletCss';css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';css.integrity='sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';css.crossOrigin='anonymous';document.head.appendChild(css)}var sc=document.createElement('script');sc.id='leafletScript';sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';sc.integrity='sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';sc.crossOrigin='anonymous';sc.onload=function(){var m=L.map('map');var pts=[];located.forEach(function(v){var p=[v.latitude,v.longitude];pts.push(p);var mk=L.circleMarker(p,{radius:v.id===activeId?12:9,color:v.id===activeId?'#d71c23':'#00cdeb',fillColor:'#111722',fillOpacity:.95,weight:3}).addTo(m);mk.bindPopup('<b>'+esc(name(v))+'</b><br>'+esc(plateText(v)||'—')+'<br>'+t('speed')+': '+Math.round(v.speedKmh||0)+' km/h');mk.on('click',function(){showMapInfo(v)})});if(pts.length===1)m.setView(pts[0],15);else m.fitBounds(pts,{padding:[30,30]})};document.head.appendChild(sc)}
