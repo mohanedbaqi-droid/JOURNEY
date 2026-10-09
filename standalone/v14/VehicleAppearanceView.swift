@@ -10,6 +10,10 @@ struct VehicleAppearanceView: View {
     @State private var governorateCode: String
     @State private var plateLetter: String
     @State private var plateNumber: String
+    @State private var plateShiftX: Double
+    @State private var plateShiftY: Double
+    @State private var plateScale: Double
+    @State private var plateAngleOffset: Double
 
     private let palette: [VehiclePaint] = [
         .init(name: "أبيض", hex: "#F2F2F2"),
@@ -30,6 +34,10 @@ struct VehicleAppearanceView: View {
         _governorateCode = State(initialValue: vehicle.vehiclePlateGovernorateCode)
         _plateLetter = State(initialValue: vehicle.vehiclePlateLetter)
         _plateNumber = State(initialValue: vehicle.vehiclePlateNumber)
+        _plateShiftX = State(initialValue: vehicle.vehiclePlateShiftX)
+        _plateShiftY = State(initialValue: vehicle.vehiclePlateShiftY)
+        _plateScale = State(initialValue: vehicle.vehiclePlateScale)
+        _plateAngleOffset = State(initialValue: vehicle.vehiclePlateAngleOffset)
     }
 
     private var formattedPlate: String {
@@ -49,6 +57,7 @@ struct VehicleAppearanceView: View {
                     previewCard
                     colorSection
                     plateSection
+                    plateFitSection
 
                     Button {
                         garage.updateAppearance(
@@ -57,6 +66,13 @@ struct VehicleAppearanceView: View {
                             governorateCode: governorateCode,
                             plateLetter: plateLetter,
                             plateNumber: plateNumber
+                        )
+                        garage.updatePlateFit(
+                            vehicle,
+                            shiftX: plateShiftX,
+                            shiftY: plateShiftY,
+                            scale: plateScale,
+                            angle: plateAngleOffset
                         )
                         dismiss()
                     } label: {
@@ -119,7 +135,11 @@ struct VehicleAppearanceView: View {
                         profile: profile,
                         colorHex: selectedHex,
                         maxHeight: 210,
-                        plateText: formattedPlate
+                        plateText: formattedPlate,
+                        plateShiftX: plateShiftX,
+                        plateShiftY: plateShiftY,
+                        plateScale: plateScale,
+                        plateAngleOffset: plateAngleOffset
                     )
                     .padding(.horizontal, 4)
                 }
@@ -175,6 +195,65 @@ struct VehicleAppearanceView: View {
         .padding(14)
         .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(.cyan.opacity(0.16)))
+    }
+
+    // Plate-detector fallback: local corrections for difficult car angles.
+    // Changes are previewed live and persist only when Save is pressed.
+    private var plateFitSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(
+                pd("ضبط مكان اللوحة", "Adjust plate placement", "ڕێکخستنی شوێنی تابلۆ", "Plaka konumunu ayarla", "تنظیم محل پلاک"),
+                systemImage: "viewfinder"
+            )
+            .font(.headline)
+            .foregroundStyle(.cyan)
+            Text(pd(
+                "إذا الـAI حط اللوحة بمكان مو مضبوط، عدّل موقعها وحجمها وشوف التغيير مباشرة على صورة السيارة.",
+                "If AI misses the bumper, fine-tune the plate position and size in the live preview.",
+                "ئەگەر AI شوێنی تابلۆ هەڵە کرد، شوێن و قەبارەکەی لە پێشبینینی ڕاستەوخۆ ڕێکبخە.",
+                "Yapay zekâ plakayı yanlış yerleştirirse, canlı önizlemede konum ve boyutu ayarla.",
+                "اگر هوش مصنوعی جای پلاک را اشتباه تشخیص داد، مکان و اندازه را تنظیم کنید."
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            plateFitSlider(pd("يمين / يسار", "Left / right", "چەپ / ڕاست", "Sol / sağ", "چپ / راست"), value: $plateShiftX, range: -0.18...0.18)
+            plateFitSlider(pd("فوك / جوه", "Up / down", "سەرەوە / خوارەوە", "Yukarı / aşağı", "بالا / پایین"), value: $plateShiftY, range: -0.18...0.18)
+            plateFitSlider(pd("حجم اللوحة", "Plate size", "قەبارەی تابلۆ", "Plaka boyutu", "اندازه پلاک"), value: $plateScale, range: 0.6...1.6)
+            plateFitSlider(pd("ميلان اللوحة", "Plate angle", "لاربوونی تابلۆ", "Plaka açısı", "زاویه پلاک"), value: $plateAngleOffset, range: -15...15)
+
+            Button {
+                plateShiftX = 0
+                plateShiftY = 0
+                plateScale = 1
+                plateAngleOffset = 0
+            } label: {
+                Label(
+                    pd("رجوع لضبط الـAI", "Reset to AI placement", "گەڕانەوە بۆ ڕێکخستنی AI", "Yapay zekâ konumuna dön", "بازگشت به تنظیم خودکار"),
+                    systemImage: "arrow.counterclockwise"
+                )
+                .font(.subheadline.bold())
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(14)
+        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).stroke(.cyan.opacity(0.16)))
+    }
+
+    private func plateFitSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(title).font(.caption.bold())
+                Spacer()
+                Text(String(format: "%.2f", value.wrappedValue))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: range)
+                .tint(.cyan)
+        }
     }
 
     private var plateSection: some View {
