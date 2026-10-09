@@ -280,6 +280,13 @@ jobs:
           python standalone/v19/android_plate_fit_patch.py
           python standalone/v20/android_plate_patch.py
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate packaged Punisher Android frontend
+        run: node standalone/tests/punisher_android_smoke.cjs
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
