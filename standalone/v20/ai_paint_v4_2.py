@@ -10,11 +10,17 @@ POSITIVE={
  "hood","left_mirror","right_mirror","tailgate","trunk"
 }
 NEGATIVE={
- "back_glass","front_glass",
+ "back_glass","front_glass","rear_glass","windshield","windscreen",
+ "left_window","right_window","side_window","window","sunroof",
  "back_left_light","back_light","back_right_light",
  "front_left_light","front_light","front_right_light",
- "wheel"
+ "wheel","tire","tyre","headlight","taillight"
 }
+
+# Car-part models use different labels. Prioritize every transparent/dark
+# component over painted body, even when a broad door/hood mask overlaps it.
+NON_PAINT_TOKENS=("glass","window","windshield","windscreen","sunroof",
+                  "wheel","tire","tyre","light","lamp","grille","grill")
 
 def load_image(args,asset):
     p=os.path.join(args.input_root,asset+".imageset",asset+".png") if args.mode=="xcassets" else os.path.join(args.input_root,asset+".png")
@@ -46,12 +52,12 @@ def semantic_masks(model,image):
     data=result.masks.data.detach().cpu().numpy()
     classes=result.boxes.cls.detach().cpu().numpy().astype(int)
     for i,cls in enumerate(classes):
-        name=str(result.names[int(cls)])
+        name=str(result.names[int(cls)]).lower()
         m=resize_mask(data[i],(w,h))
-        if name in POSITIVE:
-            pos=np.maximum(pos,m); names_seen.append("+"+name)
-        elif name in NEGATIVE:
+        if name in NEGATIVE or any(token in name for token in NON_PAINT_TOKENS):
             neg=np.maximum(neg,m); names_seen.append("-"+name)
+        elif name in POSITIVE:
+            pos=np.maximum(pos,m); names_seen.append("+"+name)
     return np.clip(pos,0,1),np.clip(neg,0,1),names_seen
 
 def make_hard_body_mask(image,pos,neg):
@@ -89,10 +95,28 @@ def make_hard_body_mask(image,pos,neg):
     chrome=np.clip((texture-.19)/.25,0,1)*low_sat
     body*=1.-.72*chrome*(1.-.55*pos)
 
+    # The model can mistakenly mark a whole door, including dark side glass,
+    # as paint. Protect windows from the ORIGINAL white/silver source image
+    # independent of semantic body confidence. The upper-vehicle ROI keeps
+    # darker lower panels, tires and deep body shadows from causing holes.
+    foreground=np.where(alpha>.08)
+    if foreground[0].size:
+        y0=int(foreground[0].min()); y1=int(foreground[0].max())
+        rel_y=(np.arange(gray.shape[0],dtype=np.float32)-y0)/max(1,y1-y0)
+        upper=(rel_y[:,None]<.57)
+    else:
+        upper=np.zeros_like(gray,dtype=bool)
+
     local_dark=cv2.GaussianBlur(gray,(0,0),4.0)
-    glass_like=(local_dark<104.) & (pos<.55)
+    glass_like=upper & (local_dark<156.) & (gray<187.) & (alpha>.06)
+    # Seal gaps left by specular highlights on the glass, without recoloring
+    # the windshield or dark windows when the semantic model gets them wrong.
+    glass_binary=cv2.morphologyEx(
+        glass_like.astype(np.uint8)*255,
+        cv2.MORPH_CLOSE,np.ones((5,5),np.uint8))
+    glass_binary=cv2.dilate(glass_binary,np.ones((3,3),np.uint8),iterations=1)
     binary=(body>.30).astype(np.uint8)*255
-    binary[glass_like]=0
+    binary[glass_binary>0]=0
     # Connect hood/doors/fenders as one paint surface.
     binary=cv2.morphologyEx(binary,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8),iterations=1)
     binary=cv2.morphologyEx(binary,cv2.MORPH_OPEN,np.ones((3,3),np.uint8),iterations=1)
@@ -101,7 +125,7 @@ def make_hard_body_mask(image,pos,neg):
     hard_neg=(neg>.18).astype(np.uint8)*255
     hard_neg=cv2.dilate(hard_neg,np.ones((9,9),np.uint8),iterations=1)
     binary[hard_neg>0]=0
-    binary[glass_like]=0
+    binary[glass_binary>0]=0
     binary[alpha<.06]=0
 
     # Keep meaningful connected body components.
