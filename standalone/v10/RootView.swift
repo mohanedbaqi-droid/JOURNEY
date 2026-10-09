@@ -243,9 +243,11 @@ struct RootView: View {
     private func statusStrip(vehicle: GarageVehicle) -> some View {
         HStack(spacing: 8) {
             statusPill(
-                vehicle.hasESP ? "ESP Online" : "ESP Offline",
-                icon: vehicle.hasESP ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash",
-                active: vehicle.hasESP
+                vehicle.hasESP
+                    ? pd("ESP مربوط", "ESP linked", "ESP بەستراوە", "ESP bağlı", "ESP متصل‌شده")
+                    : pd("ESP غير مربوط", "ESP not linked", "ESP نەبەستراوە", "ESP bağlı değil", "ESP جفت نشده"),
+                icon: "antenna.radiowaves.left.and.right.slash",
+                active: false
             )
             statusPill("GPS", icon: "location.fill", active: false)
             statusPill("OBD", icon: "waveform.path.ecg", active: false)
@@ -271,7 +273,9 @@ struct RootView: View {
             HStack {
                 Text(pdt("quick_control")).font(.headline)
                 Spacer()
-                Text("حسب بروفايل السيارة")
+                Text(pd("بانتظار اتصال ESP فعلي", "Waiting for verified ESP connection",
+                        "چاوەڕوانی پەیوەندی ESP", "ESP bağlantısı bekleniyor",
+                        "در انتظار اتصال تأییدشده ESP"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -293,7 +297,11 @@ struct RootView: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(enabled ? tint : .white.opacity(0.46))
                 Text(title).font(.subheadline.bold())
-                Text(enabled ? pdt("profile_ready") : pdt("not_enabled"))
+                Text(enabled
+                    ? pd("بانتظار الاتصال", "Waiting for connection",
+                         "چاوەڕوانی پەیوەندی", "Bağlantı bekleniyor",
+                         "در انتظار اتصال")
+                    : pdt("not_enabled"))
                     .font(.caption2)
                     .foregroundStyle(enabled ? .white.opacity(0.72) : .white.opacity(0.38))
             }
