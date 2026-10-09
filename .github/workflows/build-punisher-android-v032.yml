@@ -2,12 +2,6 @@ name: Build Punisher Drive Android 0.3.2 APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [punisher-drive]
-    paths:
-      - "standalone/v11/**"
-      - "PunisherAndroid/app/build.gradle.kts"
-      - ".github/workflows/build-punisher-android-v032.yml"
 
 jobs:
   build:
