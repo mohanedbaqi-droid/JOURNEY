@@ -24,6 +24,10 @@ on:
       - "standalone/v20/**"
       - ".github/workflows/build-ios-ipa.yml"
 
+concurrency:
+  group: punisher-ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-15
