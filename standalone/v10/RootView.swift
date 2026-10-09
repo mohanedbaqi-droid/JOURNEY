@@ -227,7 +227,11 @@ struct RootView: View {
                     profile: profile,
                     colorHex: vehicle.vehicleColorHex,
                     maxHeight: 214,
-                    plateText: vehicle.vehiclePlateText
+                    plateText: vehicle.vehiclePlateText,
+                    plateShiftX: vehicle.vehiclePlateShiftX,
+                    plateShiftY: vehicle.vehiclePlateShiftY,
+                    plateScale: vehicle.vehiclePlateScale,
+                    plateAngleOffset: vehicle.vehiclePlateAngleOffset
                 )
                 .padding(.horizontal, 2)
             }
