@@ -256,6 +256,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
+        guard !demoSuspended else { return }
         let name = ((advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let wantedID = pending?.deviceID ?? preferredDeviceID
@@ -311,6 +312,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard !demoSuspended else { return }
         guard error == nil, let services = peripheral.services else { return }
         for service in services where service.uuid == self.service {
             peripheral.discoverCharacteristics([commandUUID, stateUUID], for: service)
@@ -318,6 +320,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        guard !demoSuspended else { return }
         guard error == nil, let characteristics = service.characteristics else { return }
         var discoveredStateCharacteristic: CBCharacteristic?
         for characteristic in characteristics {
@@ -338,6 +341,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        guard !demoSuspended else { return }
         guard characteristic.uuid == stateUUID,
               error == nil,
               characteristic.isNotifying,
@@ -357,7 +361,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             if let config = keylessConfigs[deviceID] {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self, weak peripheral] in
                     guard let self, let peripheral, peripheral.state == .connected,
-                          let characteristic = self.commandCharacteristic else { return }
+                          let characteristic = self.commandCharacteristic, !self.demoSuspended else { return }
                     self.write(
                         VehicleCommand(action: .keylessConfig, keyless: config),
                         to: peripheral,
@@ -378,6 +382,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard !demoSuspended else { return }
         guard error == nil, peripheral.state == .connected,
               let deviceID = deviceIDs[peripheral.identifier]
         else { return }
@@ -432,6 +437,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard !demoSuspended else { return }
         guard characteristic.uuid == commandUUID else { return }
         if let error {
             status = JL("فشل إرسال أمر BLE: \(error.localizedDescription)", "BLE command failed: \(error.localizedDescription)")
