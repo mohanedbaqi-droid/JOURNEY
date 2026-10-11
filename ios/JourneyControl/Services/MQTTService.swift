@@ -396,6 +396,7 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     private func publishCloud(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        guard !defaults.bool(forKey: "journey.demo.enabled") else { return false }
         guard cloudPathAvailable(for: deviceID), let client else { return false }
         do {
             let data = try JSONEncoder().encode(command)
@@ -414,6 +415,7 @@ final class MQTTService: ObservableObject {
 
     /// Registers the selected ESP32 for BLE background reconnection.
     func prepareBluetooth(for deviceID: String) {
+        guard !defaults.bool(forKey: "journey.demo.enabled") else { return }
         restoreCachedOwnerStateIfNeeded(for: deviceID)
         bluetooth.prepareConnection(to: deviceID)
     }
@@ -422,6 +424,7 @@ final class MQTTService: ObservableObject {
     /// separate from sending a vehicle command, so the status becomes connected
     /// before the user touches any control.
     func resumeBluetooth(for deviceID: String) {
+        guard !defaults.bool(forKey: "journey.demo.enabled") else { return }
         restoreCachedOwnerStateIfNeeded(for: deviceID)
         bluetooth.resumeConnection(to: deviceID)
     }
