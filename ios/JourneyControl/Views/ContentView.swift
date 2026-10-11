@@ -428,16 +428,9 @@ struct ContentView: View {
             return
         }
         Task {
-            // Lock/unlock shortcuts use the app's enrolled owner transport;
-            // start remains protected by a fresh biometric confirmation.
+            // Lock/unlock use the owner's transport without a biometric prompt.
+            // Start shows a safety confirmation; its Send button performs Face ID.
             if shortcut.action == .start {
-                let allowed = await faceID.authenticate(
-                    reason: JL("تأكيد تشغيل JOURNEY من الويدجت", "Confirm JOURNEY engine start from widget")
-                )
-                guard allowed else {
-                    faceIDError = faceID.lastError
-                    return
-                }
                 confirmStart = true
                 return
             }
