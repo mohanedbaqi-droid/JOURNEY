@@ -56,7 +56,8 @@ final class JourneyLiveActivityService {
             lowBeam: value.lowBeam,
             leftTurn: value.leftTurn,
             rightTurn: value.rightTurn,
-            lastReading: value.stateAt
+            lastReading: value.stateAt,
+            layoutStyle: defaults.string(forKey: "journey.liveActivity.layout") ?? "detailed"
         )
         let now = Date()
         var comparable = state
@@ -76,7 +77,8 @@ final class JourneyLiveActivityService {
            previous.lowBeam == state.lowBeam,
            previous.leftTurn == state.leftTurn,
            previous.rightTurn == state.rightTurn,
-           previous.demoMode == state.demoMode {
+           previous.demoMode == state.demoMode,
+           previous.layoutStyle == state.layoutStyle {
             return
         }
 
