@@ -160,11 +160,23 @@ private struct JourneyWidgetView: View {
     }
     private var actions: some View {
         HStack(spacing: 5) {
-            Link(destination: URL(string: "journeycontrol://widget/lock")!) {
-                action("lock.fill", t("قفل", "Lock"), .cyan)
-            }
-            Link(destination: URL(string: "journeycontrol://widget/unlock")!) {
-                action("lock.open.fill", t("فتح", "Unlock"), .cyan)
+            if s.demoMode {
+                // AppIntents execute the simulated command inside the
+                // extension, without opening the containing app.
+                Button(intent: JourneyLockIntent(deviceID: s.deviceID)) {
+                    action("lock.fill", t("قفل", "Lock"), .cyan)
+                }
+                Button(intent: JourneyUnlockIntent(deviceID: s.deviceID)) {
+                    action("lock.open.fill", t("فتح", "Unlock"), .cyan)
+                }
+            } else {
+                // Physical commands still require the enrolled host app.
+                Link(destination: URL(string: "journeycontrol://widget/lock")!) {
+                    action("lock.fill", t("قفل", "Lock"), .cyan)
+                }
+                Link(destination: URL(string: "journeycontrol://widget/unlock")!) {
+                    action("lock.open.fill", t("فتح", "Unlock"), .cyan)
+                }
             }
             Link(destination: URL(string: "journeycontrol://widget/start")!) {
                 action("faceid", t("تشغيل", "Start"), .orange)
