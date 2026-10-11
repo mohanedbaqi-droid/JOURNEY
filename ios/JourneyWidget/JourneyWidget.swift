@@ -221,4 +221,9 @@ struct JourneyHomeWidget: Widget {
             .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
-@main struct JourneyWidgetBundle: WidgetBundle { var body: some Widget { JourneyHomeWidget() } }
+@main struct JourneyWidgetBundle: WidgetBundle {
+    var body: some Widget {
+        JourneyHomeWidget()
+        JourneyVehicleLiveActivity()
+    }
+}
