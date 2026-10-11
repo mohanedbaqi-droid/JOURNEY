@@ -10,8 +10,8 @@ android {
         applicationId = "com.journey.control"
         minSdk = 21
         targetSdk = 35
-        versionCode = 66
-        versionName = "2.4.34"
+        versionCode = 86
+        versionName = "2.4.54"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -39,6 +39,8 @@ dependencies {
     testImplementation("org.json:json:20240303")
     implementation(platform("androidx.compose:compose-bom:2025.01.00"))
     implementation("androidx.activity:activity-compose:1.10.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
+    implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
