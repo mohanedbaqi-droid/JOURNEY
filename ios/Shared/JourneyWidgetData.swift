@@ -180,7 +180,7 @@ enum JourneyWidgetStore {
                 UserDefaults.standard.set(now, forKey: "journey.widget.lastReload")
             }
             #if canImport(WidgetKit)
-            WidgetCenter.shared.reloadTimelines(ofKind: "JourneyHomeWidget")
+            WidgetCenter.shared.reloadTimelines(ofKind: "JourneyHomeWidgetV2")
             #endif
         }
         return true
@@ -195,7 +195,7 @@ enum JourneyWidgetStore {
         }
         _ = JourneyWidgetKeychainBridge.write(data, account: "command")
         #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadTimelines(ofKind: "JourneyHomeWidget")
+        WidgetCenter.shared.reloadTimelines(ofKind: "JourneyHomeWidgetV2")
         #endif
     }
 
