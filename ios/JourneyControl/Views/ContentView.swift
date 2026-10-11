@@ -207,16 +207,26 @@ struct ContentView: View {
                 }
             }
             .onChange(of: scenePhase, initial: false) { _, phase in
-                guard phase == .active, let device = devices.selectedDevice else { return }
+                guard phase == .active, !demoEnabled, let device = devices.selectedDevice else { return }
                 // Foregrounding an already-created SwiftUI view does not always
                 // trigger onAppear. Wake BLE proactively so no button press is
                 // required to make the ESP connect.
                 mqtt.resumeBluetooth(for: device.deviceID)
             }
             .onChange(of: devices.selectedID, initial: false) { _, _ in
-                guard let device = devices.selectedDevice else { return }
+                guard !demoEnabled, let device = devices.selectedDevice else { return }
                 mqtt.prepareBluetooth(for: device.deviceID)
                 mqtt.syncSelectedWidget(force: true)
+            }
+            .onChange(of: demoEnabled) { _, active in
+                if active {
+                    mqtt.disconnect()
+                } else {
+                    if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
+                    if mqtt.isConfigured { mqtt.connect() }
+                }
+                mqtt.syncSelectedWidget(force: true)
+                WidgetCenter.shared.reloadAllTimelines()
             }
             .onReceive(homeShortcuts.$pendingShortcut) { shortcut in
                 guard let shortcut else { return }
