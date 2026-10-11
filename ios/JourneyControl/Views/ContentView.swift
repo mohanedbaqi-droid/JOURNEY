@@ -2843,13 +2843,15 @@ private struct JourneyIsolatedDemoView: View {
     @AppStorage("journey.demo.enabled") private var enabled = false
     @AppStorage("journey.demo.locked") private var locked = true
     @AppStorage("journey.demo.engine") private var engine = false
-    @State private var doors = [false, false, false, false]
-    @State private var trunk = false
-    @State private var hood = false
-    @State private var leftTurn = false
-    @State private var rightTurn = false
-    @State private var headlights = false
-    private let doorNames = ["باب السائق", "باب الراكب", "خلف السائق", "خلف الراكب"]
+    @AppStorage("journey.demo.driverDoor") private var driverDoor = false
+    @AppStorage("journey.demo.passengerDoor") private var passengerDoor = false
+    @AppStorage("journey.demo.rearDriverDoor") private var rearDriverDoor = false
+    @AppStorage("journey.demo.rearPassengerDoor") private var rearPassengerDoor = false
+    @AppStorage("journey.demo.trunk") private var trunk = false
+    @AppStorage("journey.demo.hood") private var hood = false
+    @AppStorage("journey.demo.leftTurn") private var leftTurn = false
+    @AppStorage("journey.demo.rightTurn") private var rightTurn = false
+    @AppStorage("journey.demo.headlights") private var headlights = false
 
     var body: some View {
         NavigationStack {
@@ -2874,9 +2876,10 @@ private struct JourneyIsolatedDemoView: View {
                     .tint(.cyan)
                     VStack(alignment: .leading, spacing: 12) {
                         Text("الأبواب والصندوق والبنيد").font(.headline)
-                        ForEach(0..<4, id: \.self) { index in
-                            Toggle(doorNames[index], isOn: $doors[index])
-                        }
+                        Toggle("باب السائق", isOn: $driverDoor)
+                        Toggle("باب الراكب", isOn: $passengerDoor)
+                        Toggle("خلف السائق", isOn: $rearDriverDoor)
+                        Toggle("خلف الراكب", isOn: $rearPassengerDoor)
                         Toggle("الصندوق الخلفي", isOn: $trunk)
                         Toggle("البنيد", isOn: $hood)
                     }
