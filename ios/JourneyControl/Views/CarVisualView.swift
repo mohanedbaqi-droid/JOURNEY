@@ -4,6 +4,9 @@ import SwiftUI
 /// Fit the full envelope once; a door or light can never recenter the vehicle.
 struct CarVisualView: View {
     let state: VehicleState
+    // Visual-only demo overrides; real sensor readings remain untouched.
+    var demoDriverRearOpen = false
+    var demoHoodOpen = false
     private let sourceSize = CGSize(width: 1920, height: 1200)
 
     var body: some View {
@@ -14,7 +17,7 @@ struct CarVisualView: View {
             let carHeight = sourceSize.height * scale
             ZStack {
                 layer("Liftgate", visible: state.liftgateOpen)
-                layer("DriverRearDoor", visible: state.driverRearOpen)
+                layer("DriverRearDoor", visible: state.driverRearOpen || demoDriverRearOpen)
                 layer("PassengerRearDoor", visible: state.passengerRearOpen)
                 layer("Body")
                 layer("DriverMirror", visible: !state.driverFrontOpen)
@@ -30,6 +33,16 @@ struct CarVisualView: View {
                     TimelineView(.animation(minimumInterval: 0.05)) { timeline in
                         ledLights(date: timeline.date)
                     }
+                }
+                if demoHoodOpen {
+                    Label(JL("البنيد مفتوح", "Hood open"), systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.85), in: Capsule())
+                        .position(x: carWidth * 0.54, y: carHeight * 0.16)
+                        .accessibilityLabel(JL("البنيد مفتوح في الديمو", "Demo hood open"))
                 }
             }
             .frame(width: carWidth, height: carHeight)
