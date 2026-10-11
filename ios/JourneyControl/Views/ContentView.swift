@@ -198,9 +198,8 @@ struct ContentView: View {
                 mqtt.syncSelectedWidget(force: true)
                 WidgetCenter.shared.reloadAllTimelines()
                 if devices.devices.isEmpty && !demoEnabled { showingDevices = true }
-                if demoEnabled {
-                    mqtt.disconnect()
-                } else {
+                mqtt.setDemoMode(demoEnabled)
+                if !demoEnabled {
                     if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
                     if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
                 }
@@ -221,9 +220,8 @@ struct ContentView: View {
                 mqtt.syncSelectedWidget(force: true)
             }
             .onChange(of: demoEnabled) { _, active in
-                if active {
-                    mqtt.disconnect()
-                } else {
+                mqtt.setDemoMode(active)
+                if !active {
                     if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
                     if mqtt.isConfigured { mqtt.connect() }
                 }
