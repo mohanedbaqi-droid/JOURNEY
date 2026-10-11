@@ -8,9 +8,12 @@ import UIKit
         let devices = DeviceStore()
         let english = UserDefaults.standard.string(forKey: "journey.settings.language") == "en"
         func text(_ ar: String, _ en: String) -> String { english ? en : ar }
-        guard let device = devices.selectedDevice, device.deviceID == deviceID else {
-            JourneyWidgetStore.setStatus(deviceID: deviceID, message: text("تغيّرت السيارة المختارة؛ حدّث الويدجيت", "Selected vehicle changed; refresh the widget"))
-            return
+        let demo = UserDefaults.standard.bool(forKey: "journey.demo.enabled")
+        if !demo {
+            guard let device = devices.selectedDevice, device.deviceID == deviceID else {
+                JourneyWidgetStore.setStatus(deviceID: deviceID, message: text("تغيّرت السيارة المختارة؛ حدّث الويدجيت", "Selected vehicle changed; refresh the widget"))
+                return
+            }
         }
         guard !busy else { return }
         busy = true
@@ -34,6 +37,24 @@ import UIKit
             }
         }
         let mqtt = MQTTService.shared
+        if demo {
+            // App Intent controls the shared demo, never the physical vehicle.
+            // For remote_start the biometric prompt above has already succeeded.
+            switch action {
+            case "lock":
+                UserDefaults.standard.set(true, forKey: "journey.demo.locked")
+            case "unlock":
+                UserDefaults.standard.set(false, forKey: "journey.demo.locked")
+            case "remote_start":
+                let running = UserDefaults.standard.bool(forKey: "journey.demo.engine")
+                UserDefaults.standard.set(!running, forKey: "journey.demo.engine")
+            case "refresh": break
+            default: return
+            }
+            mqtt.syncSelectedWidget(force: true)
+            JourneyWidgetStore.setStatus(deviceID: "journey-demo", message: text("تحديث تجريبي — لم يُرسل أمر للسيارة", "Demo updated — no vehicle command sent"))
+            return
+        }
         let baseline = mqtt.lastStateAt[deviceID]
         mqtt.prepareBluetooth(for: deviceID)
         if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
