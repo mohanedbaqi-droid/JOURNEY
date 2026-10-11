@@ -73,6 +73,10 @@ final class DeviceStore: ObservableObject {
 
     private func saveSelection() {
         UserDefaults.standard.set(selectedID?.uuidString, forKey: selectionKey)
+        // DeviceStore is constructed when a widget deep link opens JOURNEY.
+        // Never let its live-device placeholder overwrite the active demo
+        // snapshot and temporarily make the Home Screen widget look offline.
+        guard !UserDefaults.standard.bool(forKey: "journey.demo.enabled") else { return }
         var snapshot = JourneyWidgetSnapshot()
         if let device = selectedDevice { snapshot.deviceID = device.deviceID; snapshot.name = device.name }
         _ = JourneyWidgetStore.write(snapshot, force: true)
