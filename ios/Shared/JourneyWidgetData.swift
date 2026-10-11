@@ -75,6 +75,12 @@ private struct JourneyWidgetBridgeAcknowledgement: Codable {
     var at: Date
 }
 
+private struct JourneyWidgetPendingDemoLock: Codable {
+    let locked: Bool
+    let token: String
+    let at: Date
+}
+
 /// No credentials or owner keys are copied into the widget container.
 /// Storage priority: shared App Group file, then a signed shared Keychain
 /// access group. Both routes keep the data on-device and require entitlements.
@@ -144,11 +150,37 @@ enum JourneyWidgetStore {
         // Store a pending state acknowledgement for the host app: iOS app
         // UserDefaults are isolated from the widget extension.
         guard write(snapshot, force: true) else { return false }
+        if let data = try? JSONEncoder().encode(
+            JourneyWidgetPendingDemoLock(
+                locked: locked, token: UUID().uuidString, at: Date()
+            )
+        ) {
+            _ = JourneyWidgetKeychainBridge.write(data, account: "demo-lock-command")
+        }
         setStatus(
             deviceID: "journey-demo",
             message: locked ? "DEMO — انقفل تجريبياً" : "DEMO — انفتح تجريبياً"
         )
         return true
+    }
+
+    /// When the containing app is opened after an AppIntent action, replay
+    /// exactly once into its isolated @AppStorage demo state. This avoids the
+    /// next app-launch sync undoing a widget lock/unlock command.
+    static func reconcilePendingDemoLock() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "journey.demo.enabled"),
+              let data = JourneyWidgetKeychainBridge.read("demo-lock-command"),
+              let command = try? JSONDecoder().decode(
+                  JourneyWidgetPendingDemoLock.self, from: data
+              ),
+              command.token != defaults.string(forKey: "journey.demo.widgetLastToken"),
+              Date().timeIntervalSince(command.at) >= 0,
+              Date().timeIntervalSince(command.at) <= 86400
+        else { return }
+
+        defaults.set(command.locked, forKey: "journey.demo.locked")
+        defaults.set(command.token, forKey: "journey.demo.widgetLastToken")
     }
 
     static func read() -> JourneyWidgetSnapshot? {
