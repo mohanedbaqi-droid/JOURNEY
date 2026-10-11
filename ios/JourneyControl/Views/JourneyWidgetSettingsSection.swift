@@ -9,6 +9,7 @@ struct JourneyWidgetSettingsSection: View {
     @State private var signingMessage = ""
     @State private var refreshed = false
     @AppStorage("journey.liveActivity.enabled") private var liveActivityEnabled = false
+    @AppStorage("journey.liveActivity.layout") private var liveActivityLayout = "detailed"
 
     var body: some View {
         Section {
@@ -18,6 +19,18 @@ struct JourneyWidgetSettingsSection: View {
             .onChange(of: liveActivityEnabled) { _, _ in
                 mqtt.syncSelectedWidget(force: true)
             }
+            Picker(JL("حجم حالة شاشة القفل", "Lock Screen layout"), selection: $liveActivityLayout) {
+                Text(JL("مختصر", "Compact")).tag("compact")
+                Text(JL("مفصّل", "Detailed")).tag("detailed")
+            }
+            .pickerStyle(.segmented)
+            .disabled(!liveActivityEnabled)
+            .onChange(of: liveActivityLayout) { _, _ in
+                mqtt.syncSelectedWidget(force: true)
+            }
+            Text(JL("المختصر يعرض أهم الحالات والفتح والقفل. المفصّل يعرض RPM والأبواب والإنارة أيضاً. iOS يحدد الحد الأقصى للارتفاع، والتبديل ما يحتاج ويدجت ثاني.", "Compact shows essentials and lock/unlock. Detailed adds RPM, doors and lights. iOS limits the maximum height; no second widget is required."))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             if !ActivityAuthorizationInfo().areActivitiesEnabled {
                 Label(JL("فعّل Live Activities من إعدادات iPhone حتى تظهر حالة السيارة على شاشة القفل.", "Enable Live Activities in iPhone Settings to show vehicle status on the Lock Screen."), systemImage: "exclamationmark.triangle")
                     .font(.footnote)
