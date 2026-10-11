@@ -28,10 +28,33 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
  val demoEnabled=MutableStateFlow(prefs.getBoolean(JourneyDemoStore.ENABLED,false))
  val demoState=MutableStateFlow(JourneyDemoStore.read(prefs))
  val lockStatusEnabled=MutableStateFlow(prefs.getBoolean("lockStatus.enabled",false))
+ val mqttHost=MutableStateFlow(prefs.getString("mqtt.host","")?:"")
+ val mqttPort=MutableStateFlow(prefs.getInt("mqtt.port",8883))
+ val mqttUsername=MutableStateFlow(prefs.getString("mqtt.username","")?:"")
+ val selectedDeviceID=MutableStateFlow(prefs.getString("mqtt.deviceID","")?:"")
+ val mqttStatus=MutableStateFlow("MQTT_DISCONNECTED")
+ private var lastCloudPacketAt=0L
+ private val mqtt=JourneyMqttManager({device,packet->
+  viewModelScope.launch {
+   if(!demoEnabled.value && device==selectedDeviceID.value && device.isNotBlank()){
+    val j=runCatching{JSONObject(packet)}.getOrNull()
+    if(j!=null && j.optBoolean("cloudConnected",true)){
+     lastCloudPacketAt=SystemClock.elapsedRealtime()
+     mergeState(packet,"MQTT")
+    }
+   }
+  }
+ },{connected,message->
+  viewModelScope.launch{
+   mqttStatus.value=message
+   if(connected)_status.value="MQTT_CONNECTED"
+   else if(!demoEnabled.value && _status.value=="MQTT_CONNECTED")_status.value="DISCONNECTED"
+  }
+ })
  val ble=JourneyBleManager(app,{json->mergeState(json)},{connected,message->
   if(!demoEnabled.value){
    _status.value=message
-   if(!connected){
+   if(!connected && !cloudFresh()){
     _realState.value=_realState.value.copy(
      online=false,feedbackLock=false,feedbackUnlock=false,
      feedbackStart=false,feedbackAlarm=false
@@ -45,6 +68,8 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
   if(demoEnabled.value){
    _state.value=demoState.value.toVehicleState()
    _status.value="DEMO"
+  } else if(mqttHost.value.isNotBlank() && selectedDeviceID.value.isNotBlank()){
+   connectMqtt()
   }
   viewModelScope.launch {
    while(true){
@@ -96,6 +121,8 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
    // Stop scanning, disconnect GATT and drop the write queue before we
    // render or accept simulated commands.
    ble.stop()
+   mqtt.stop()
+   lastCloudPacketAt=0L
    demoState.value=JourneyDemoStore.read(prefs)
    _status.value="DEMO"
    publish(demoState.value.toVehicleState())
@@ -105,6 +132,7 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
    _realState.value=VehicleState()
    publish(_realState.value)
    connect()
+   connectMqtt()
   }
  }
  fun toggleDemo(key:String){
@@ -129,21 +157,77 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
   ble.start(phoneId)
  }
 
- /** All normal app commands are forbidden in demo, and remote start must go
-  * through Android BiometricPrompt (see MainActivity). */
- fun send(action:String,extras:JSONObject=JSONObject()):Boolean {
-  if(demoEnabled.value || action=="remote_start")return false
+ private fun cloudFresh()=mqtt.isConnected() &&
+   SystemClock.elapsedRealtime()-lastCloudPacketAt in 0..8000 &&
+   selectedDeviceID.value.isNotBlank()
+
+ fun configureMqtt(host:String,port:Int,user:String,password:String,deviceID:String){
+  val safeHost=host.trim()
+  val safeDevice=deviceID.trim()
+  if(port !in 1..65535 || safeHost.length>200 || safeDevice.length>120 ||
+     safeDevice.any{it=='/'||it=='#'||it=='+'}){
+   mqttStatus.value="MQTT_CONFIG_INVALID"
+   return
+  }
+  mqttHost.value=safeHost
+  mqttPort.value=port
+  mqttUsername.value=user.trim()
+  selectedDeviceID.value=safeDevice
+  prefs.edit().putString("mqtt.host",safeHost).putInt("mqtt.port",port)
+   .putString("mqtt.username",user.trim()).putString("mqtt.deviceID",safeDevice).apply()
+  if(password.isNotEmpty())JourneyMqttSecrets.save(getApplication(),password)
+  connectMqtt(password)
+ }
+
+ fun connectMqtt(password:String?=null){
+  if(demoEnabled.value)return
+  if(mqttHost.value.isBlank() || selectedDeviceID.value.isBlank()){
+   mqttStatus.value="MQTT_NOT_CONFIGURED"
+   return
+  }
+  mqtt.connect(mqttHost.value,mqttPort.value,mqttUsername.value,
+   password?:JourneyMqttSecrets.read(getApplication()))
+ }
+ fun disconnectMqtt(){
+  mqtt.stop()
+  lastCloudPacketAt=0L
+  mqttStatus.value="MQTT_DISCONNECTED"
+ }
+
+ fun setLocalPriority(order:List<String>){
+  if(order.size==3 && order.toSet()==setOf("BLE","WIFI","CELLULAR")){
+   prefs.edit().putString("connectionPriority.local",order.joinToString(",")).apply()
+  }
+ }
+
+ private fun dispatch(action:String,extras:JSONObject,allowStart:Boolean):Boolean {
+  if(demoEnabled.value || (action=="remote_start"&&!allowStart))return false
   if(!_realState.value.online){
    _status.value="NO_CONNECTION"
    return false
   }
-  if(!ble.send(JourneyProtocol.command(phoneId,action,extras))){
-   _status.value="NO_CONNECTION"
-   return false
+  val payload=JourneyProtocol.command(phoneId,action,extras)
+  val order=(prefs.getString("connectionPriority.local","CELLULAR,WIFI,BLE")
+   ?:"CELLULAR,WIFI,BLE").split(",")
+  val bleFirst=action in listOf("keyless_lock","keyless_unlock","remote_power_on","remote_power_off")
+  val sent=if(bleFirst)ble.send(payload) ||
+   (cloudFresh() && mqtt.publish(selectedDeviceID.value,payload))
+  else{
+   var done=false
+   for(route in order){
+    if(!done)done=if(route=="BLE")ble.send(payload)
+      else cloudFresh() && mqtt.publish(selectedDeviceID.value,payload)
+   }
+   done || (cloudFresh() && mqtt.publish(selectedDeviceID.value,payload)) || ble.send(payload)
   }
-  _status.value="SENT_WAITING_ESP"
-  return true
+  _status.value=if(sent)"SENT_WAITING_ESP"else "NO_CONNECTION"
+  return sent
  }
+
+ /** All normal app commands are forbidden in demo, and remote start must go
+  * through Android BiometricPrompt (see MainActivity). */
+ fun send(action:String,extras:JSONObject=JSONObject()):Boolean =
+  dispatch(action,extras,false)
 
  /** Called only after Android's BiometricPrompt reports success. */
  fun authorizedStart():Boolean {
@@ -151,16 +235,10 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
    toggleDemo("engine")
    return true
   }
-  if(!_realState.value.online){
-   _status.value="NO_CONNECTION"
-   return false
-  }
-  val sent=ble.send(JourneyProtocol.command(phoneId,"remote_start"))
-  _status.value=if(sent)"SENT_WAITING_ESP" else "NO_CONNECTION"
-  return sent
+  return dispatch("remote_start",JSONObject(),true)
  }
 
- private fun mergeState(packet:String){
+ private fun mergeState(packet:String,source:String="BLE"){
   if(demoEnabled.value)return
   runCatching {
    val old=_realState.value
@@ -169,12 +247,13 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
     EspHealthNotifications.show(getApplication(),next,english.value)
    _realState.value=next
    publish(next)
-   _status.value="CONNECTED"
+   _status.value=if(source=="MQTT")"MQTT_CONNECTED"else "CONNECTED"
   }.onFailure{_status.value="INVALID_PACKET"}
  }
 
  override fun onCleared(){
   ble.stop()
+  mqtt.stop()
   super.onCleared()
  }
 }
