@@ -2817,6 +2817,7 @@ private struct SettingsAboutView: View {
 
 // Completely local simulation. No MQTT, BLE, vehicle store or hardware access.
 private struct JourneyIsolatedDemoView: View {
+    @State private var showingSettings = false
     @AppStorage("journey.demo.enabled") private var enabled = false
     @State private var doors = [false, false, false, false]
     @State private var trunk = false
@@ -2878,6 +2879,16 @@ private struct JourneyIsolatedDemoView: View {
                 .padding()
             }
             .navigationTitle("JOURNEY DEMO")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingSettings = true } label: { Image(systemName: "gearshape.fill") }
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                MQTTSettingsView()
+                    .environmentObject(MQTTService.shared)
+                    .environmentObject(DeviceStore())
+            }
         }
     }
 }
