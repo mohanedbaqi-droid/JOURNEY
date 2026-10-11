@@ -71,6 +71,25 @@ jobs:
           test "$APP_VERSION" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$WIDGET_INFO")"
           test "$APP_BUILD" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$WIDGET_INFO")"
           test -f "$APP/PlugIns/JourneyWidget.appex/JourneyWidget"
+
+          # Verify that the native watchOS companion is truly embedded,
+          # not merely present as Xcode source files. Xcode 16 stores it
+          # in Watch/; newer Xcode builds may embed it in PlugIns/.
+          if [ -d "$APP/Watch/JourneyWatch.app" ]; then
+            WATCH_APP="$APP/Watch/JourneyWatch.app"
+          elif [ -d "$APP/PlugIns/JourneyWatch.app" ]; then
+            WATCH_APP="$APP/PlugIns/JourneyWatch.app"
+          else
+            echo "The watchOS companion is missing from the iPhone app"
+            exit 1
+          fi
+          test -f "$WATCH_APP/Info.plist"
+          test -f "$WATCH_APP/JourneyWatch"
+          test "$APP_VERSION" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$WATCH_APP/Info.plist")"
+          test "$APP_BUILD" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$WATCH_APP/Info.plist")"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_APP/Info.plist")" = "com.abuseif.journey.watchkitapp"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH_APP/Info.plist")" = "com.abuseif.journey"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :DTPlatformName' "$WATCH_APP/Info.plist")" = "watchos"
           python3 ios/Tests/verify_widget_binary.py "$APP"
 
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_INFO")" = "com.abuseif.journey"
@@ -83,6 +102,10 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
 
+          # Sign nested binaries inside-out for this unsigned IPA staging.
+          # A real watch installation requires the watch provisioning profile
+          # to be re-signed by Xcode or a watch-aware installation tool.
+          codesign --force --sign - "$WATCH_APP"
           # Preserve desired App Group entitlements for the installation signing tool.
           codesign --force --sign - --entitlements ios/JourneyWidget/JourneyWidget.entitlements "$APP/PlugIns/JourneyWidget.appex"
           codesign --force --sign - --entitlements ios/JourneyControl/JourneyControl.entitlements "$APP"
