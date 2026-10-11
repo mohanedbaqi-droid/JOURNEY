@@ -162,8 +162,60 @@ final class MQTTService: ObservableObject {
     }
 
     func syncSelectedWidget(force: Bool = false) {
-        if UserDefaults.standard.bool(forKey: "journey.demo.enabled") {
-            _ = JourneyWidgetStore.write(JourneyWidgetSnapshot(), force: true)
+        if defaults.bool(forKey: "journey.demo.enabled") {
+            let d = defaults
+            var snapshot = JourneyWidgetSnapshot()
+            snapshot.demoMode = true
+            snapshot.name = "JOURNEY DEMO"
+            snapshot.deviceID = "journey-demo"
+            snapshot.english = d.string(forKey: "journey.settings.language") == "en"
+            snapshot.speedUnit = d.string(forKey: "journey.settings.speedUnit") ?? "kmh"
+            snapshot.temperatureUnit = d.string(forKey: "journey.settings.temperatureUnit") ?? "c"
+            snapshot.online = true
+            snapshot.locked = (d.object(forKey: "journey.demo.locked") as? Bool) ?? true
+            snapshot.rpm = d.bool(forKey: "journey.demo.engine") ? 850 : 0
+            snapshot.speed = 0
+            snapshot.coolant = 86
+            snapshot.fuel = 65
+            snapshot.battery = 12.6
+            snapshot.espTemperature = 36
+            snapshot.espBattery = 85
+            snapshot.doorKnownMask = 2 | 4 | 8 | 16 | 32 | 64
+            for (key, bit) in [
+                ("journey.demo.driverDoor", 2),
+                ("journey.demo.passengerDoor", 4),
+                ("journey.demo.rearDriverDoor", 8),
+                ("journey.demo.rearPassengerDoor", 16),
+                ("journey.demo.hood", 32),
+                ("journey.demo.trunk", 64)
+            ] where d.bool(forKey: key) {
+                snapshot.doorOpenMask |= bit
+            }
+            snapshot.lowBeam = d.bool(forKey: "journey.demo.headlights")
+            snapshot.parking = snapshot.lowBeam
+            snapshot.leftTurn = d.bool(forKey: "journey.demo.leftTurn")
+            snapshot.rightTurn = d.bool(forKey: "journey.demo.rightTurn")
+            snapshot.remotePowered = true
+            snapshot.firmware = "DEMO"
+            // Demo data must never expire as if it were live vehicle telemetry.
+            // Update the timestamp only when the simulated values change.
+            let previous = JourneyWidgetStore.read()
+            if let previous, previous.demoMode {
+                var comparison = snapshot
+                comparison.stateAt = previous.stateAt
+                comparison.obdAt = previous.obdAt
+                comparison.bodyAt = previous.bodyAt
+                comparison.healthAt = previous.healthAt
+                if comparison == previous {
+                    _ = JourneyWidgetStore.write(previous, force: force)
+                    return
+                }
+            }
+            snapshot.stateAt = Date()
+            snapshot.obdAt = snapshot.stateAt
+            snapshot.bodyAt = snapshot.stateAt
+            snapshot.healthAt = snapshot.stateAt
+            _ = JourneyWidgetStore.write(snapshot, force: force)
             return
         }
         let devices = DeviceStore()
