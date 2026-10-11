@@ -211,6 +211,7 @@ final class MQTTService: ObservableObject {
                 comparison.healthAt = previous.healthAt
                 if comparison == previous {
                     JourneyLiveActivityService.shared.refresh(previous)
+                    JourneyWatchBridge.shared.publish(previous)
                     _ = JourneyWidgetStore.write(previous, force: force)
                     return
                 }
@@ -220,12 +221,14 @@ final class MQTTService: ObservableObject {
             snapshot.bodyAt = snapshot.stateAt
             snapshot.healthAt = snapshot.stateAt
             JourneyLiveActivityService.shared.refresh(snapshot)
+            JourneyWatchBridge.shared.publish(snapshot)
             _ = JourneyWidgetStore.write(snapshot, force: force)
             return
         }
         let devices = DeviceStore()
         guard let device = devices.selectedDevice else {
             JourneyLiveActivityService.shared.refresh(JourneyWidgetSnapshot())
+            JourneyWatchBridge.shared.publish(JourneyWidgetSnapshot())
             _ = JourneyWidgetStore.write(JourneyWidgetSnapshot(), force: true)
             return
         }
@@ -257,6 +260,7 @@ final class MQTTService: ObservableObject {
         snapshot.firmware = state.firmwareVersion
         snapshot.latitude = state.gpsValid ? state.latitude : nil; snapshot.longitude = state.gpsValid ? state.longitude : nil
         JourneyLiveActivityService.shared.refresh(snapshot)
+        JourneyWatchBridge.shared.publish(snapshot)
         _ = JourneyWidgetStore.write(snapshot, force: force)
     }
 
