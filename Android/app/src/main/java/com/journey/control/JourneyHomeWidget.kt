@@ -53,6 +53,12 @@ open class JourneyHomeWidget : AppWidgetProvider() {
             v.put("coolant",if(s.coolantValid)s.coolant else JSONObject.NULL)
             v.put("battery",if(s.battery>0)s.battery else JSONObject.NULL)
             v.put("doors",if(s.doorsValid)s.doorOpenMask else JSONObject.NULL)
+            v.put("doorKnown",if(s.doorsValid)s.doorKnownMask else JSONObject.NULL)
+            v.put("parking",if(s.parkingLightsValid)s.parkingLightsOn else JSONObject.NULL)
+            v.put("remotePower",s.remotePowered)
+            v.put("fuel",if(s.fuelValid)s.fuel else JSONObject.NULL)
+            v.put("espTemperature",s.espTemperature?:JSONObject.NULL)
+            v.put("espBattery",s.espBatteryPercent?:JSONObject.NULL)
             v.put("lowBeam",if(s.lightsValid)s.headlightsOn else JSONObject.NULL)
             v.put("leftTurn",if(s.turnsValid)s.leftSignal else JSONObject.NULL)
             v.put("rightTurn",if(s.turnsValid)s.rightSignal else JSONObject.NULL)
@@ -94,18 +100,27 @@ open class JourneyHomeWidget : AppWidgetProvider() {
                     coolant=j.optInt("coolant",0),
                     coolantValid=fresh && !j.isNull("coolant") && j.has("coolant"),
                     battery=if(fresh)j.optDouble("battery",0.0)else 0.0,
-                    doorOpenMask=j.optInt("doors",0),doorKnownMask=0x7E,
+                    doorOpenMask=j.optInt("doors",0),
+                    doorKnownMask=j.optInt("doorKnown",0),
                     doorsValid=fresh && !j.isNull("doors") && j.has("doors"),
                     headlightsOn=j.optBoolean("lowBeam"),
                     lightsValid=fresh && !j.isNull("lowBeam") && j.has("lowBeam"),
+                    parkingLightsOn=j.optBoolean("parking"),
+                    parkingLightsValid=fresh && !j.isNull("parking") && j.has("parking"),
+                    remotePowered=j.optBoolean("remotePower"),
                     turnsValid=fresh && !j.isNull("leftTurn") && j.has("leftTurn"),
                     leftSignal=j.optBoolean("leftTurn"),
-                    rightSignal=j.optBoolean("rightTurn")
+                    rightSignal=j.optBoolean("rightTurn"),
+                    fuel=j.optInt("fuel",0),
+                    fuelValid=fresh && !j.isNull("fuel") && j.has("fuel"),
+                    espTemperature=if(fresh)j.optDouble("espTemperature").takeIf{it.isFinite()}else null,
+                    espBatteryPercent=if(fresh)j.optDouble("espBattery").takeIf{it.isFinite()}else null
                 )
             }
             val remote=RemoteViews(ctx.packageName,
                 if(large)R.layout.journey_widget_large else R.layout.journey_widget_small)
             remote.setTextViewText(R.id.widget_title,"JOURNEY")
+            remote.setImageViewBitmap(R.id.widget_car,JourneyCarBitmap.render(ctx,status,if(large)480 else 360))
             remote.setTextViewText(R.id.widget_status,if(demo)"DEMO" else if(status.online)"● LIVE" else "OFFLINE")
             val rpm=if(status.online&&status.rpmValid) status.rpm.toString() else "—"
             val coolant=if(status.online&&status.coolantValid)"${status.coolant}°C" else "—"
@@ -117,8 +132,13 @@ open class JourneyHomeWidget : AppWidgetProvider() {
                 val motor=if(status.online&&status.rpmValid)if(status.engineRunning)"شغال" else "مطفأ" else "—"
                 val beam=if(status.online&&status.lightsValid && status.headlightsOn)"💡" else ""
                 val turn=if(status.online&&status.turnsValid && (status.leftSignal||status.rightSignal))"↔" else ""
+                val doorCount=if(status.doorsValid && status.doorKnownMask!=0)openCount.toString()else "—"
+                val signals=if(status.online&&status.turnsValid) {
+                    "${if(status.leftSignal)"◀"else "—"} / ${if(status.rightSignal)"▶"else "—"}"
+                }else "—"
+                val battery=if(status.online&&status.battery>0)"%.1fV".format(java.util.Locale.US,status.battery) else "—"
                 remote.setTextViewText(R.id.widget_details,
-                    "القفل: $lock  •  المحرك: $motor  •  الأبواب: ${if(status.doorsValid)openCount else "—"} $beam $turn")
+                    "قفل: $lock • محرك: $motor • أبواب: $doorCount\nفولت: $battery • إشارة: $signals • أيت: ${if(beam.isNotBlank())"ON" else "—"}")
             }
             remote.setOnClickPendingIntent(R.id.widget_car,open(ctx,id,"open"))
             remote.setOnClickPendingIntent(R.id.widget_title,open(ctx,id,"open"))
