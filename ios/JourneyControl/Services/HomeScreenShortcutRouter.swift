@@ -106,6 +106,26 @@ final class JourneyControlAppDelegate: NSObject, UIApplicationDelegate, UNUserNo
         completionHandler([.banner, .sound, .badge])
     }
 
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let watchStart = response.notification.request.content.userInfo[
+            "journey.watch.startRequest"
+        ] as? Bool == true
+        if watchStart {
+            DispatchQueue.main.async {
+                if let url = URL(string: "journeycontrol://widget/start") {
+                    _ = HomeScreenShortcutRouter.shared.route(url)
+                }
+                completionHandler()
+            }
+        } else {
+            completionHandler()
+        }
+    }
+
     func application(
         _ application: UIApplication,
         performActionFor shortcutItem: UIApplicationShortcutItem,
