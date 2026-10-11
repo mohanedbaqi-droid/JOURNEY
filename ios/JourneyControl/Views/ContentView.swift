@@ -2837,8 +2837,11 @@ private struct SettingsAboutView: View {
 }
 
 
-// Completely local simulation. No MQTT, BLE, vehicle store or hardware access.
+// This home-screen simulator deliberately owns only local AppStorage values.
+// No live ESP, MQTT, NFC or vehicle commands are triggered by these controls.
 private struct JourneyIsolatedDemoView: View {
+    @EnvironmentObject private var mqtt: MQTTService
+    @EnvironmentObject private var devices: DeviceStore
     @State private var showingSettings = false
     @AppStorage("journey.demo.enabled") private var enabled = false
     @AppStorage("journey.demo.locked") private var locked = true
@@ -2853,67 +2856,221 @@ private struct JourneyIsolatedDemoView: View {
     @AppStorage("journey.demo.rightTurn") private var rightTurn = false
     @AppStorage("journey.demo.headlights") private var headlights = false
 
+    private let columns = [
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8)
+    ]
+
+    // Existing full-front car artwork is driven by these synthetic readings.
+    // The normal vehicle state never participates in the demo visualisation.
+    private var visualState: VehicleState {
+        var state = VehicleState()
+        state.online = true
+        state.simulatedLocked = locked
+        state.simulatedEngineRunning = engine
+        state.rpmValid = true
+        state.rpm = engine ? 850 : 0
+        state.doorsValid = true
+        state.doorKnownMask = 0x7E
+        if driverDoor { state.doorOpenMask |= 0x02 }
+        if passengerDoor { state.doorOpenMask |= 0x04 }
+        if rearDriverDoor { state.doorOpenMask |= 0x08 }
+        if rearPassengerDoor { state.doorOpenMask |= 0x10 }
+        if hood { state.doorOpenMask |= 0x20 }
+        if trunk { state.doorOpenMask |= 0x40 }
+        state.lightsValid = true
+        state.headlightsOn = headlights
+        state.parkingLightsValid = true
+        state.parkingLightsOn = headlights
+        state.turnsValid = true
+        state.leftSignalOn = leftTurn
+        state.rightSignalOn = rightTurn
+        return state
+    }
+
+    // A single change observer refreshes the widget for all demo controls.
+    private var visualKey: String {
+        [locked, engine, driverDoor, passengerDoor, rearDriverDoor,
+         rearPassengerDoor, trunk, hood, leftTurn, rightTurn, headlights]
+            .map { $0 ? "1" : "0" }.joined()
+    }
+
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("JOURNEY")
+                        .font(.system(size: 23, weight: .black, design: .rounded))
+                        .tracking(3)
+                    Text(JL("المحاكاة على الشاشة الرئيسية", "Home screen simulator"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Label("DEMO", systemImage: "testtube.2")
+                    .font(.caption.bold())
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(.orange.opacity(0.12), in: Capsule())
+                Button { showingSettings = true } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                        .frame(width: 40, height: 40)
+                }
+                .accessibilityLabel(JL("إعدادات JOURNEY", "JOURNEY settings"))
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(JourneyTheme.surface.opacity(0.95))
+
             ScrollView {
-                VStack(spacing: 18) {
-                    Label("DEMO — محاكاة فقط", systemImage: "testtube.2")
-                        .font(.headline).foregroundStyle(.orange)
-                    Text("كل الأزرار هنا للتجربة فقط، وماكو أي اتصال أو أمر يروح للسيارة.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    HStack {
-                        Label(locked ? "مقفلة" : "مفتوحة", systemImage: locked ? "lock.fill" : "lock.open.fill")
-                        Spacer()
-                        Label(engine ? "المحرك يعمل" : "المحرك مطفأ", systemImage: "engine.combustion")
+                VStack(spacing: 14) {
+                    VStack(spacing: 6) {
+                        CarVisualView(
+                            state: visualState,
+                            demoDriverRearOpen: rearDriverDoor,
+                            demoHoodOpen: hood
+                        )
+                        .padding(.horizontal, -9)
+                        .animation(.easeInOut(duration: 0.18), value: visualKey)
+
+                        HStack(spacing: 8) {
+                            stateChip(
+                                locked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"),
+                                icon: locked ? "lock.fill" : "lock.open.fill",
+                                active: !locked
+                            )
+                            stateChip(
+                                engine ? JL("المحرك يعمل", "Engine running") : JL("المحرك مطفأ", "Engine off"),
+                                icon: "engine.combustion.fill",
+                                active: engine
+                            )
+                        }
                     }
-                    .font(.subheadline.bold())
-                    HStack {
-                        Button("فتح القفل") { locked = false }
-                        Button("قفل") { locked = true }
-                        Button(engine ? "إطفاء" : "تشغيل") { engine.toggle() }
+
+                    VStack(spacing: 10) {
+                        Text(JL("التحكم التجريبي", "Demo controls"))
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 8) {
+                            actionButton(JL("فتح القفل", "Unlock"), icon: "lock.open.fill", active: !locked) {
+                                locked = false
+                            }
+                            actionButton(JL("قفل", "Lock"), icon: "lock.fill", active: locked) {
+                                locked = true
+                            }
+                            actionButton(engine ? JL("إطفاء", "Stop") : JL("تشغيل", "Start"),
+                                         icon: "engine.combustion.fill", active: engine) {
+                                engine.toggle()
+                            }
+                        }
+
+                        Text(JL("الأبواب والصندوق", "Doors and liftgate"))
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        LazyVGrid(columns: columns, spacing: 8) {
+                            toggleButton(JL("باب السائق", "Driver"), icon: "car.side", value: $driverDoor)
+                            toggleButton(JL("باب الراكب", "Passenger"), icon: "car.side", value: $passengerDoor)
+                            toggleButton(JL("خلف السائق", "Rear driver"), icon: "car.side", value: $rearDriverDoor)
+                            toggleButton(JL("خلف الراكب", "Rear passenger"), icon: "car.side", value: $rearPassengerDoor)
+                            toggleButton(JL("الصندوق", "Liftgate"), icon: "shippingbox", value: $trunk)
+                            toggleButton(JL("البنيد", "Hood"), icon: "wrench.adjustable", value: $hood)
+                        }
+
+                        Text(JL("الإضاءة والإشارات", "Lights and signals"))
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        LazyVGrid(columns: columns, spacing: 8) {
+                            toggleButton(JL("الأيت والبروجكتر", "Lights"), icon: "lightbulb.fill", value: $headlights)
+                            toggleButton(JL("إشارة يسار", "Left turn"), icon: "arrow.turn.up.left", value: $leftTurn)
+                            toggleButton(JL("إشارة يمين", "Right turn"), icon: "arrow.turn.up.right", value: $rightTurn)
+                            actionButton(JL("فلشر", "Hazards"), icon: "hazardsign.fill",
+                                         active: leftTurn && rightTurn) {
+                                let newValue = !(leftTurn && rightTurn)
+                                leftTurn = newValue
+                                rightTurn = newValue
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+
+                    Label(
+                        JL("وضع تجربة فقط: صورة السيارة تتغير، ولا تنرسل أي أوامر للـ ESP.", "Simulation only: the car image reacts without sending commands to the ESP."),
+                        systemImage: "checkmark.shield.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+
+                    Button {
+                        enabled = false
+                    } label: {
+                        Label(JL("رجوع للوضع الرسمي", "Return to live mode"), systemImage: "arrow.uturn.backward.circle.fill")
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.cyan)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("الأبواب والصندوق والبنيد").font(.headline)
-                        Toggle("باب السائق", isOn: $driverDoor)
-                        Toggle("باب الراكب", isOn: $passengerDoor)
-                        Toggle("خلف السائق", isOn: $rearDriverDoor)
-                        Toggle("خلف الراكب", isOn: $rearPassengerDoor)
-                        Toggle("الصندوق الخلفي", isOn: $trunk)
-                        Toggle("البنيد", isOn: $hood)
-                    }
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("الإنارة والإشارات").font(.headline)
-                        Toggle("الايت والبروجكتر", isOn: $headlights)
-                        Toggle("الإشارة اليسرى", isOn: $leftTurn)
-                        Toggle("الإشارة اليمنى", isOn: $rightTurn)
-                        Button("فلشر") {
-                            let newValue = !(leftTurn && rightTurn)
-                            leftTurn = newValue
-                            rightTurn = newValue
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    Button("رجوع للوضع الرسمي") { enabled = false }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
+                    .tint(.green)
                 }
-                .padding(18)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
-                .padding()
-            }
-            .navigationTitle("JOURNEY DEMO")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showingSettings = true } label: { Image(systemName: "gearshape.fill") }
-                }
-            }
-            .sheet(isPresented: $showingSettings) {
-                MQTTSettingsView()
-                    .environmentObject(MQTTService.shared)
-                    .environmentObject(DeviceStore())
+                .padding(.horizontal, 14)
+                .padding(.top, 7)
+                .padding(.bottom, 20)
             }
         }
+        .onAppear { mqtt.syncSelectedWidget(force: true) }
+        .onChange(of: visualKey) { _, _ in
+            mqtt.syncSelectedWidget(force: true)
+        }
+        .sheet(isPresented: $showingSettings) {
+            MQTTSettingsView()
+                .environmentObject(mqtt)
+                .environmentObject(devices)
+        }
+    }
+
+    private func stateChip(_ title: String, icon: String, active: Bool) -> some View {
+        Label(title, systemImage: icon)
+            .font(.caption.bold())
+            .foregroundStyle(active ? .cyan : JourneyTheme.ink)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(JourneyTheme.surface.opacity(0.85), in: Capsule())
+    }
+
+    private func toggleButton(_ title: String, icon: String, value: Binding<Bool>) -> some View {
+        actionButton(title, icon: icon, active: value.wrappedValue) {
+            value.wrappedValue.toggle()
+        }
+    }
+
+    private func actionButton(_ title: String, icon: String, active: Bool,
+                              action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) { action() }
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                Text(active ? JL("شغّال", "ON") : JL("مطفأ", "OFF"))
+                    .font(.system(size: 9, weight: .bold))
+                    .opacity(0.7)
+            }
+            .foregroundStyle(active ? Color.cyan : JourneyTheme.ink)
+            .frame(maxWidth: .infinity, minHeight: 69)
+            .padding(.horizontal, 4)
+            .background(active ? Color.cyan.opacity(0.18) : JourneyTheme.surface.opacity(0.85),
+                        in: RoundedRectangle(cornerRadius: 13))
+            .overlay(RoundedRectangle(cornerRadius: 13)
+                .stroke(active ? Color.cyan.opacity(0.6) : JourneyTheme.ink.opacity(0.12), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
