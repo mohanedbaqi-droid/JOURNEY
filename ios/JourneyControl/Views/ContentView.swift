@@ -28,6 +28,7 @@ struct ContentView: View {
     @State private var showingKeylessEntry = false
     @State private var faceIDError: String?
     @State private var selectedTab = 0
+    @AppStorage("journey.demo.enabled") private var demoEnabled = false
     @AppStorage("journey.settings.appearance") private var appAppearance = "dark"
     @AppStorage("journey.settings.textSize") private var appTextSize = "normal"
     @AppStorage("journey.settings.language") private var appLanguage = "ar"
@@ -60,7 +61,9 @@ struct ContentView: View {
             ZStack {
                 JourneyWallpaperView()
 
-                if let device = devices.selectedDevice {
+                if demoEnabled {
+                    JourneyIsolatedDemoView()
+                } else if let device = devices.selectedDevice {
                     let vehicle = mqtt.state(for: device.deviceID)
                     Group {
                         switch selectedTab {
@@ -192,9 +195,11 @@ struct ContentView: View {
             .onAppear {
                 mqtt.syncSelectedWidget(force: true)
                 WidgetCenter.shared.reloadAllTimelines()
-                if devices.devices.isEmpty { showingDevices = true }
-                if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
-                if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
+                if devices.devices.isEmpty && !demoEnabled { showingDevices = true }
+                if !demoEnabled {
+                    if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
+                    if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
+                }
                 if let shortcut = homeShortcuts.consume() {
                     authenticateHomeScreenShortcut(shortcut)
                 }
@@ -392,6 +397,10 @@ struct ContentView: View {
     }
 
     private func authenticateHomeScreenShortcut(_ shortcut: HomeScreenShortcut) {
+        guard !demoEnabled else {
+            faceIDError = JL("وضع الديمو مفعل. اختبر الأزرار من لوحة الديمو بدون إرسال أوامر للسيارة.", "Demo mode is active. Test controls on the demo panel; no vehicle commands are sent.")
+            return
+        }
         guard let device = devices.selectedDevice else {
             faceIDError = JL("أضف جهاز السيارة أولاً حتى يعمل الاختصار.", "Add a vehicle device first to use this shortcut.")
             return
@@ -2211,6 +2220,7 @@ private struct MQTTSettingsView: View {
     @AppStorage("journey.settings.notifyLocks") private var notifyLocks = true
     @AppStorage("journey.settings.notifyOBD") private var notifyOBD = false
     @AppStorage("journey.settings.developerMode") private var developerMode = false
+    @AppStorage("journey.demo.enabled") private var demoEnabled = false
 
     private func tr(_ ar: String, _ en: String) -> String { language == "en" ? en : ar }
 
@@ -2249,6 +2259,15 @@ private struct MQTTSettingsView: View {
                     Label(tr(JL("المظهر واللغة", "Appearance and language"), "Appearance & Language"), systemImage: "paintbrush.pointed.fill")
                 }
 
+                Section {
+                    Toggle(JL("وضع الديمو (بدون أوامر حقيقية)", "Demo mode (no real commands)"), isOn: $demoEnabled)
+                        .tint(.orange)
+                    Text(JL("يعرض لوحة فحص منفصلة للأبواب والإنارة والمحرك. ما يرسل أي أمر للـESP أو السيارة.", "Shows an isolated test panel for doors, lights and engine. Never sends commands to ESP or vehicle."))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Label(JL("فحص الديمو", "Demo testing"), systemImage: "testtube.2")
+                }
                 JourneyCarAppearanceSettingsSection()
                 JourneyWallpaperSettingsSection()
                 JourneyWidgetSettingsSection()
@@ -2793,4 +2812,72 @@ private struct SettingsAboutView: View {
         .environmentObject(MQTTService())
         .environmentObject(ProximityMonitor())
         .environmentObject(DeviceStore())
+}
+
+
+// Completely local simulation. No MQTT, BLE, vehicle store or hardware access.
+private struct JourneyIsolatedDemoView: View {
+    @AppStorage("journey.demo.enabled") private var enabled = false
+    @State private var doors = [false, false, false, false]
+    @State private var trunk = false
+    @State private var hood = false
+    @State private var leftTurn = false
+    @State private var rightTurn = false
+    @State private var headlights = false
+    @State private var locked = true
+    @State private var engine = false
+    private let doorNames = ["باب السائق", "باب الراكب", "خلف السائق", "خلف الراكب"]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 18) {
+                    Label("DEMO — محاكاة فقط", systemImage: "testtube.2")
+                        .font(.headline).foregroundStyle(.orange)
+                    Text("كل الأزرار هنا للتجربة فقط، وماكو أي اتصال أو أمر يروح للسيارة.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                    HStack {
+                        Label(locked ? "مقفلة" : "مفتوحة", systemImage: locked ? "lock.fill" : "lock.open.fill")
+                        Spacer()
+                        Label(engine ? "المحرك يعمل" : "المحرك مطفأ", systemImage: "engine.combustion")
+                    }
+                    .font(.subheadline.bold())
+                    HStack {
+                        Button("فتح القفل") { locked = false }
+                        Button("قفل") { locked = true }
+                        Button(engine ? "إطفاء" : "تشغيل") { engine.toggle() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.cyan)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("الأبواب والصندوق والبنيد").font(.headline)
+                        ForEach(0..<4, id: \.self) { index in
+                            Toggle(doorNames[index], isOn: $doors[index])
+                        }
+                        Toggle("الصندوق الخلفي", isOn: $trunk)
+                        Toggle("البنيد", isOn: $hood)
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("الإنارة والإشارات").font(.headline)
+                        Toggle("الايت والبروجكتر", isOn: $headlights)
+                        Toggle("الإشارة اليسرى", isOn: $leftTurn)
+                        Toggle("الإشارة اليمنى", isOn: $rightTurn)
+                        Button("فلشر") {
+                            let newValue = !(leftTurn && rightTurn)
+                            leftTurn = newValue
+                            rightTurn = newValue
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    Button("رجوع للوضع الرسمي") { enabled = false }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                }
+                .padding(18)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22))
+                .padding()
+            }
+            .navigationTitle("JOURNEY DEMO")
+        }
+    }
 }
