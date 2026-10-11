@@ -8,29 +8,57 @@ private struct JourneyWidgetEntry: TimelineEntry {
     let sharingAvailable: Bool
 }
 private struct JourneyWidgetProvider: TimelineProvider {
-    func entry(_ date: Date, _ snapshot: JourneyWidgetSnapshot) -> JourneyWidgetEntry {
-        JourneyWidgetEntry(date: date, vehicle: snapshot.expired(at: date), message: JourneyWidgetStore.status(deviceID: snapshot.deviceID, at: date), sharingAvailable: JourneyWidgetStore.available)
+    // Capture whether storage was readable alongside the exact snapshot used
+    // for the timeline. Do not recompute access in each future entry.
+    func entry(_ date: Date, _ snapshot: JourneyWidgetSnapshot, shared: Bool) -> JourneyWidgetEntry {
+        JourneyWidgetEntry(
+            date: date,
+            vehicle: snapshot.expired(at: date),
+            message: JourneyWidgetStore.status(deviceID: snapshot.deviceID, at: date),
+            sharingAvailable: shared
+        )
     }
-    func placeholder(in context: Context) -> JourneyWidgetEntry { entry(Date(), JourneyWidgetSnapshot()) }
+
+    func placeholder(in context: Context) -> JourneyWidgetEntry {
+        entry(Date(), JourneyWidgetSnapshot(), shared: false)
+    }
+
     func getSnapshot(in context: Context, completion: @escaping (JourneyWidgetEntry) -> Void) {
-        let snapshot = JourneyWidgetStore.read()
-        if let snapshot { JourneyWidgetStore.acknowledgeExtensionRead(snapshot) }
-        completion(entry(Date(), snapshot ?? JourneyWidgetSnapshot()))
+        let stored = JourneyWidgetStore.read()
+        if let stored { JourneyWidgetStore.acknowledgeExtensionRead(stored) }
+        completion(entry(Date(), stored ?? JourneyWidgetSnapshot(), shared: stored != nil))
     }
+
     func getTimeline(in context: Context, completion: @escaping (Timeline<JourneyWidgetEntry>) -> Void) {
-        let now = Date(), stored = JourneyWidgetStore.read()
+        let now = Date()
+        // Each WidgetKit refresh reads the current Keychain/App Group data.
+        // WidgetKit may postpone refreshes; reloadTimelines is a hint, not
+        // a real-time channel. ActivityKit provides faster Lock Screen updates.
+        let stored = JourneyWidgetStore.read()
         if let stored { JourneyWidgetStore.acknowledgeExtensionRead(stored) }
         let snapshot = stored ?? JourneyWidgetSnapshot()
-        let deadlines = [(snapshot.obdAt, 5.1), (snapshot.bodyAt, 5.1), (snapshot.healthAt, 10.1), (snapshot.gpsAt, 12.1), (snapshot.stateAt, 12.1)]
+        let deadlines = snapshot.demoMode
+            ? [(Date?, Double)]()
+            : [(snapshot.obdAt, 5.1), (snapshot.bodyAt, 5.1),
+               (snapshot.healthAt, 10.1), (snapshot.gpsAt, 12.1),
+               (snapshot.stateAt, 12.1)]
         let candidates = [now] + deadlines.compactMap { date, lifetime -> Date? in
-            guard let date, date <= now else { return nil }; let expiry = date.addingTimeInterval(lifetime)
+            guard let date, date <= now else { return nil }
+            let expiry = date.addingTimeInterval(lifetime)
             return expiry > now ? expiry : nil
-        } + [now.addingTimeInterval(30.1)]
-        // WidgetKit expects a strictly ordered timeline. Several data sources
-        // can share one packet timestamp, so collapse duplicate deadlines.
+        }
+        // Always include a second entry to expire real telemetry even when
+        // an iOS refresh is delayed, but keep demo snapshots unchanged.
+        let refreshIn = 300.0
+        let datesToShow = candidates + [now.addingTimeInterval(30.1)]
         var seen = Set<Int64>()
-        let dates = candidates.sorted().filter { seen.insert(Int64($0.timeIntervalSince1970 * 1_000)).inserted }
-        completion(Timeline(entries: dates.map { entry($0, snapshot) }, policy: .after(now.addingTimeInterval(900))))
+        let dates = datesToShow.sorted().filter {
+            seen.insert(Int64($0.timeIntervalSince1970 * 1_000)).inserted
+        }
+        completion(Timeline(
+            entries: dates.map { entry($0, snapshot, shared: stored != nil) },
+            policy: .after(now.addingTimeInterval(refreshIn))
+        ))
     }
 }
 private struct JourneyWidgetView: View {
