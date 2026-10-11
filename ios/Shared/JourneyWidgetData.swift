@@ -99,13 +99,29 @@ enum JourneyWidgetStore {
         return true
     }
 
-    static func acknowledgeExtensionRead(_ snapshot: JourneyWidgetSnapshot) {
+    /// The provider's timeline read is more specific than a gallery preview
+    /// read; still, iOS chooses when to display that timeline on the Home Screen.
+    static var extensionLastTimelineReadAt: Date? {
+        guard let snapshot = read(),
+              let data = JourneyWidgetKeychainBridge.read("extension-timeline-ack"),
+              let acknowledgement = try? JSONDecoder().decode(
+                  JourneyWidgetBridgeAcknowledgement.self, from: data
+              ),
+              acknowledgement.snapshotKey == snapshot.importantKey,
+              Date().timeIntervalSince(acknowledgement.at) >= 0,
+              Date().timeIntervalSince(acknowledgement.at) < 3600 else { return nil }
+        return acknowledgement.at
+    }
+
+    static func acknowledgeExtensionRead(_ snapshot: JourneyWidgetSnapshot, timeline: Bool = false) {
         let acknowledgement = JourneyWidgetBridgeAcknowledgement(
             snapshotKey: snapshot.importantKey,
             at: Date()
         )
         if let data = try? JSONEncoder().encode(acknowledgement) {
-            _ = JourneyWidgetKeychainBridge.write(data, account: "extension-ack")
+            _ = JourneyWidgetKeychainBridge.write(
+                data, account: timeline ? "extension-timeline-ack" : "extension-ack"
+            )
         }
     }
 
