@@ -13,10 +13,14 @@ private struct JourneyWidgetProvider: TimelineProvider {
     }
     func placeholder(in context: Context) -> JourneyWidgetEntry { entry(Date(), JourneyWidgetSnapshot()) }
     func getSnapshot(in context: Context, completion: @escaping (JourneyWidgetEntry) -> Void) {
-        completion(entry(Date(), JourneyWidgetStore.read() ?? JourneyWidgetSnapshot()))
+        let snapshot = JourneyWidgetStore.read()
+        if let snapshot { JourneyWidgetStore.acknowledgeExtensionRead(snapshot) }
+        completion(entry(Date(), snapshot ?? JourneyWidgetSnapshot()))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<JourneyWidgetEntry>) -> Void) {
-        let now = Date(), snapshot = JourneyWidgetStore.read() ?? JourneyWidgetSnapshot()
+        let now = Date(), stored = JourneyWidgetStore.read()
+        if let stored { JourneyWidgetStore.acknowledgeExtensionRead(stored) }
+        let snapshot = stored ?? JourneyWidgetSnapshot()
         let deadlines = [(snapshot.obdAt, 5.1), (snapshot.bodyAt, 5.1), (snapshot.healthAt, 10.1), (snapshot.gpsAt, 12.1), (snapshot.stateAt, 12.1)]
         let candidates = [now] + deadlines.compactMap { date, lifetime -> Date? in
             guard let date, date <= now else { return nil }; let expiry = date.addingTimeInterval(lifetime)
