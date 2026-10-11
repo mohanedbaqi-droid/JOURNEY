@@ -18,6 +18,23 @@ import Foundation
         assert(!s.fresh(now.addingTimeInterval(1), at: now, seconds: 5), "Reject future timestamps")
         let restored = try! JSONDecoder().decode(JourneyWidgetSnapshot.self, from: JSONEncoder().encode(s))
         assert(restored == s)
+        var demo = JourneyWidgetSnapshot()
+        demo.demoMode = true
+        demo.online = true
+        demo.deviceID = "journey-demo"
+        demo.name = "JOURNEY DEMO"
+        demo.rpm = 850
+        demo.doorKnownMask = 2 | 4 | 8 | 16 | 32 | 64
+        demo.doorOpenMask = 2 | 64
+        demo.leftTurn = true
+        demo.locked = false
+        let futureDemo = demo.expired(at: now.addingTimeInterval(3600))
+        assert(futureDemo == demo, "Demo must not expire as real vehicle telemetry")
+        assert(futureDemo.door(2) == true && futureDemo.door(4) == false)
+        assert(try! JSONDecoder().decode(JourneyWidgetSnapshot.self, from: JSONEncoder().encode(demo)) == demo)
+        var changed = demo
+        changed.leftTurn = false
+        assert(changed.importantKey != demo.importantKey, "Demo indicator updates must refresh widgets")
         print("Widget snapshot checks passed")
     }
 }
