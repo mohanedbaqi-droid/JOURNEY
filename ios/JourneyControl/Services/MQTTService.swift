@@ -290,6 +290,16 @@ final class MQTTService: ObservableObject {
         _ = mqtt.connect()
     }
 
+    /// Demo must suspend the underlying CoreBluetooth session, not just UI commands.
+    func setDemoMode(_ enabled: Bool) {
+        if enabled {
+            bluetooth.suspendForDemo()
+            disconnect()
+        } else {
+            bluetooth.resumeFromDemo()
+        }
+    }
+
     func disconnect() {
         client?.disconnect()
         client = nil
