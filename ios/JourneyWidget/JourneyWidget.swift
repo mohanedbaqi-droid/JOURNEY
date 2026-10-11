@@ -140,7 +140,11 @@ private struct JourneyWidgetView: View {
             VStack(alignment: .leading, spacing: 1) { Text("JOURNEY").font(.system(size: 14, weight: .bold)); Text(s.name).font(.system(size: 10)).lineLimit(1) }
             Spacer(minLength: 2)
             Text(s.demoMode ? "DEMO" : (s.online ? t("متصل", "Live") : t("غير متصل", "Offline"))).font(.system(size: 9, weight: .bold)).foregroundStyle(s.demoMode ? .orange : (s.online ? .cyan : .gray))
-            Button(intent: JourneyRefreshIntent(deviceID: s.deviceID)) { Image(systemName: "arrow.clockwise").font(.system(size: 13)).foregroundStyle(.cyan) }.buttonStyle(.plain)
+            Link(destination: URL(string: "journeycontrol://widget/open")!) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.cyan)
+            }
         }
     }
     private var footer: some View {
@@ -225,36 +229,55 @@ private struct JourneyWidgetView: View {
 }
 private struct JourneyWidgetCar: View {
     let s: JourneyWidgetSnapshot
-    private func layer(_ name: String, _ visible: Bool = true) -> some View {
-        Image("JourneyLayer" + name).resizable().aspectRatio(1920.0 / 1200.0, contentMode: .fit).opacity(visible ? 1 : 0)
+    private var openCount: Int {
+        [2, 4, 8, 16, 32, 64].filter { s.door($0) == true }.count
     }
+
     var body: some View {
-        GeometryReader { proxy in
-            let scale = max(0, proxy.size.width - 8) / 1794
-            ZStack {
-                layer("Liftgate", s.door(64) == true)
-                layer("DriverRearDoor", s.door(8) == true)
-                layer("PassengerRearDoor", s.door(16) == true)
-                layer("Body")
-                layer("DriverMirror", s.door(2) != true)
-                layer("PassengerMirror", s.door(4) != true)
-                layer("DriverDoor", s.door(2) == true)
-                layer("PassengerDoor", s.door(4) == true)
-                layer("RedDRL", (s.rpm ?? 0) > 0 && s.lowBeam == false)
-                layer("LowBeam", s.lowBeam == true)
-                layer("Projectors", s.lowBeam == true || s.parking == true)
-                layer("PassengerDRL", (s.rpm ?? 0) > 0 && s.rightTurn == false)
-                layer("DriverDRL", (s.rpm ?? 0) > 0 && s.leftTurn == false)
-            }.frame(width: 1920 * scale, height: 1200 * scale)
-                .position(x: proxy.size.width / 2, y: 600 * scale - 46 * scale)
-        }.aspectRatio(1794.0 / 1165.0, contentMode: .fit)
+        // The old widget decoded thirteen 1920x1200 transparent PNGs at once.
+        // Decompressed, those layers can exceed WidgetKit's memory budget and
+        // leave large widgets stuck at their generic placeholder.
+        // Render the already-approved JOURNEY body art once; use tiny vector
+        // badges for dynamic door/light states rather than more full-res PNGs.
+        Image("JourneyLayerBody")
+            .resizable()
+            .scaledToFit()
+            .overlay(alignment: .topTrailing) {
+                if openCount > 0 {
+                    Label("\(openCount)", systemImage: "door.left.hand.open")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.orange)
+                        .padding(4)
+                        .background(.black.opacity(0.88), in: Capsule())
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                HStack(spacing: 4) {
+                    if s.lowBeam == true {
+                        Image(systemName: "light.beacon.max.fill")
+                            .foregroundStyle(.cyan)
+                    }
+                    if s.leftTurn == true {
+                        Image(systemName: "arrow.turn.up.left")
+                            .foregroundStyle(.orange)
+                    }
+                    if s.rightTurn == true {
+                        Image(systemName: "arrow.turn.up.right")
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .font(.system(size: 10, weight: .bold))
+                .padding(3)
+                .background(.black.opacity(0.75), in: Capsule())
+            }
+            .accessibilityLabel(s.demoMode ? "JOURNEY DEMO" : "JOURNEY")
     }
 }
 struct JourneyHomeWidget: Widget {
-    let kind = "JourneyHomeWidget"
+    let kind = "JourneyHomeWidgetV2"
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: JourneyWidgetProvider()) { JourneyWidgetView(entry: $0) }
-            .configurationDisplayName("JOURNEY")
+            .configurationDisplayName("JOURNEY — Updated")
             .description("بيانات السيارة وأزرار الفتح والقفل والتشغيل مع Face ID.")
             .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
