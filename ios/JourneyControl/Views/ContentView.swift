@@ -29,6 +29,8 @@ struct ContentView: View {
     @State private var faceIDError: String?
     @State private var selectedTab = 0
     @AppStorage("journey.demo.enabled") private var demoEnabled = false
+    @AppStorage("journey.demo.locked") private var demoLocked = true
+    @AppStorage("journey.demo.engine") private var demoEngine = false
     @AppStorage("journey.settings.appearance") private var appAppearance = "dark"
     @AppStorage("journey.settings.textSize") private var appTextSize = "normal"
     @AppStorage("journey.settings.language") private var appLanguage = "ar"
@@ -397,8 +399,17 @@ struct ContentView: View {
     }
 
     private func authenticateHomeScreenShortcut(_ shortcut: HomeScreenShortcut) {
-        guard !demoEnabled else {
-            faceIDError = JL("وضع الديمو مفعل. اختبر الأزرار من لوحة الديمو بدون إرسال أوامر للسيارة.", "Demo mode is active. Test controls on the demo panel; no vehicle commands are sent.")
+        if demoEnabled {
+            Task {
+                let allowed = await faceID.authenticate(reason: JL("تأكيد أمر الويدجت في وضع الديمو", "Confirm widget action in demo mode"))
+                guard allowed else { faceIDError = faceID.lastError; return }
+                switch shortcut.action {
+                case .lock: demoLocked = true
+                case .unlock: demoLocked = false
+                case .start: demoEngine.toggle()
+                default: break
+                }
+            }
             return
         }
         guard let device = devices.selectedDevice else {
@@ -2819,14 +2830,14 @@ private struct SettingsAboutView: View {
 private struct JourneyIsolatedDemoView: View {
     @State private var showingSettings = false
     @AppStorage("journey.demo.enabled") private var enabled = false
+    @AppStorage("journey.demo.locked") private var locked = true
+    @AppStorage("journey.demo.engine") private var engine = false
     @State private var doors = [false, false, false, false]
     @State private var trunk = false
     @State private var hood = false
     @State private var leftTurn = false
     @State private var rightTurn = false
     @State private var headlights = false
-    @State private var locked = true
-    @State private var engine = false
     private let doorNames = ["باب السائق", "باب الراكب", "خلف السائق", "خلف الراكب"]
 
     var body: some View {
