@@ -116,6 +116,14 @@ class JourneyViewModel(app:Application):AndroidViewModel(app){
   publish(changed.toVehicleState())
  }
 
+ fun setDemoLocked(value:Boolean){
+  if(!demoEnabled.value)return
+  val next=demoState.value.copy(locked=value)
+  JourneyDemoStore.save(prefs,next)
+  demoState.value=next
+  publish(next.toVehicleState())
+ }
+
  fun connect(){
   if(demoEnabled.value)return
   ble.start(phoneId)
