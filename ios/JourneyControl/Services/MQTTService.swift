@@ -226,6 +226,10 @@ final class MQTTService: ObservableObject {
     }
 
     func connect() {
+        guard !UserDefaults.standard.bool(forKey: "journey.demo.enabled") else {
+            disconnect()
+            return
+        }
         let config = settings
         guard isConfigured else {
             connection = .notConfigured
