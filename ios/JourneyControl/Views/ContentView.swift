@@ -198,7 +198,9 @@ struct ContentView: View {
                 mqtt.syncSelectedWidget(force: true)
                 WidgetCenter.shared.reloadAllTimelines()
                 if devices.devices.isEmpty && !demoEnabled { showingDevices = true }
-                if !demoEnabled {
+                if demoEnabled {
+                    mqtt.disconnect()
+                } else {
                     if let device = devices.selectedDevice { mqtt.prepareBluetooth(for: device.deviceID) }
                     if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
                 }
