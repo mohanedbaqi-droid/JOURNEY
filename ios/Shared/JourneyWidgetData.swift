@@ -131,6 +131,26 @@ enum JourneyWidgetStore {
         return "Unavailable"
     }
 
+    /// Run only simulated lock/unlock from a WidgetKit AppIntent, without
+    /// launching the app or contacting the ESP. The latest snapshot is read
+    /// from the shared Keychain so rapid consecutive taps stay consistent.
+    @discardableResult
+    static func applyDemoLock(_ locked: Bool) -> Bool {
+        guard var snapshot = read(), snapshot.demoMode,
+              snapshot.deviceID == "journey-demo" else { return false }
+        snapshot.locked = locked
+        snapshot.stateAt = Date()
+        snapshot.bodyAt = snapshot.stateAt
+        // Store a pending state acknowledgement for the host app: iOS app
+        // UserDefaults are isolated from the widget extension.
+        guard write(snapshot, force: true) else { return false }
+        setStatus(
+            deviceID: "journey-demo",
+            message: locked ? "DEMO — انقفل تجريبياً" : "DEMO — انفتح تجريبياً"
+        )
+        return true
+    }
+
     static func read() -> JourneyWidgetSnapshot? {
         if let url = groupURL?.appendingPathComponent("vehicle.json"),
            let data = try? Data(contentsOf: url),
