@@ -40,18 +40,41 @@ struct JourneyWidgetSettingsSection: View {
                     .foregroundStyle(identityMatches ? Color.green : Color.orange)
                 Text(signingMessage).font(.footnote).foregroundStyle(.secondary)
             }
-            Label(JourneyWidgetStore.available ? JL("مشاركة بيانات الويدجيت متاحة", "Widget data sharing available") : JL("مشاركة بيانات الويدجيت غير متاحة بالتوقيع الحالي", "Widget data sharing unavailable with this signing profile"), systemImage: JourneyWidgetStore.available ? "checkmark.circle" : "exclamationmark.triangle")
-                .foregroundStyle(JourneyWidgetStore.available ? Color.green : Color.orange)
-            if !JourneyWidgetStore.available {
-                Text(JL("وقّع التطبيق والويدجيت مع مجموعة App Group المشتركة حتى تظهر القراءات. احتفظ بالإضافات عند التثبيت.", "Sign the app and widget with their shared App Group to display readings. Keep app extensions when installing.")).font(.footnote)
+            if JourneyWidgetStore.groupURL != nil {
+                Label(JL("مشاركة App Group متاحة", "App Group sharing available"),
+                      systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else {
+                Label(JL("صلاحية App Group غير متاحة بالتوقيع الحالي", "App Group entitlement unavailable"),
+                      systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
             }
-            Text(JL("الفتح والقفل من الويدجيت بالخلفية. التشغيل يفتح تأكيد Face ID؛ الإلغاء لا يرسل أمراً.", "Widget lock and unlock run in the background. Start opens Face ID authorization; cancelling sends no command.")).font(.footnote)
+            if JourneyWidgetStore.keychainSnapshotPresent {
+                Label(JL("نسخة Keychain البديلة محفوظة — جرّب الويدجت", "Keychain backup stored — test the widget"),
+                      systemImage: "key.fill")
+                    .foregroundStyle(.cyan)
+                Text(JL("الحفظ داخل التطبيق ما يثبت وصول الويدجت. إذا ظهرت القراءات على ويدجت الشاشة الرئيسية فالمشاركة نجحت.",
+                        "App-side storage alone does not prove extension access. If readings appear on the Home Screen widget, sharing is confirmed."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Label(JL("نسخة Keychain البديلة غير جاهزة", "Keychain fallback not ready"),
+                      systemImage: "key")
+                    .foregroundStyle(.orange)
+            }
+            if JourneyWidgetStore.groupURL == nil {
+                Text(JL("تگدر تجرب توقيع الويدجت بهوية مستقلة من SideStore: Keep App Extensions (Register App ID for Each Extension). هذا قد يستهلك App ID إضافي وما يضمن مشاركة البيانات.",
+                        "Try separate extension provisioning with SideStore: Keep App Extensions (Register App ID for Each Extension). This may use an additional App ID and does not guarantee sharing."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Text(JL("الفتح والقفل بالويدجت يفتحون JOURNEY ليرسل الأمر عبر اتصال المالك. التشغيل يتطلب تأكيد وFace ID.", "Widget lock/unlock open JOURNEY to send through the owner's connection. Engine start requires confirmation and Face ID.")).font(.footnote)
             Text(JL("الويدجيت الكبير يعرض كل القراءات المتاحة ووقت آخر تحديث. توقيت التحديث بالخلفية يحدده iOS.", "The large widget shows all available readings and the last update time. iOS schedules background widget refreshes.")).font(.footnote)
             Text(JL("ابحث عن JOURNEY بقائمة ويدجيت الشاشة الرئيسية أو شاشة القفل.", "Look for JOURNEY in the Home Screen or Lock Screen widget gallery."))
                 .font(.footnote)
             Button(JL("تحديث الويدجيت", "Refresh widgets")) {
-                checkExtension()
                 mqtt.syncSelectedWidget(force: true)
+                checkExtension()
                 WidgetCenter.shared.reloadAllTimelines()
                 refreshed = true
             }
