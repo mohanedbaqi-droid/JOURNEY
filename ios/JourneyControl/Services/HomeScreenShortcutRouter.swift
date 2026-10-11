@@ -84,6 +84,9 @@ final class JourneyControlAppDelegate: NSObject, UIApplicationDelegate, UNUserNo
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // Activate the paired-watch transport on every iPhone launch,
+        // including launches initiated in the background by WatchConnectivity.
+        Task { @MainActor in JourneyWatchBridge.shared.activate() }
         let notificationCenter = UNUserNotificationCenter.current()
         notificationCenter.delegate = self
         notificationCenter.requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in }
