@@ -9,6 +9,15 @@ import UIKit
         let english = UserDefaults.standard.string(forKey: "journey.settings.language") == "en"
         func text(_ ar: String, _ en: String) -> String { english ? en : ar }
         let demo = UserDefaults.standard.bool(forKey: "journey.demo.enabled")
+        // Never let a stale Live Activity for a real car control the simulator,
+        // or a stale demo activity dispatch a physical vehicle command.
+        if demo && deviceID != "journey-demo" {
+            JourneyWidgetStore.setStatus(
+                deviceID: deviceID,
+                message: text("تغيّر وضع التشغيل؛ افتح JOURNEY للتحديث", "Mode changed; open JOURNEY to refresh")
+            )
+            return
+        }
         if !demo {
             guard let device = devices.selectedDevice, device.deviceID == deviceID else {
                 JourneyWidgetStore.setStatus(deviceID: deviceID, message: text("تغيّرت السيارة المختارة؛ حدّث الويدجيت", "Selected vehicle changed; refresh the widget"))
