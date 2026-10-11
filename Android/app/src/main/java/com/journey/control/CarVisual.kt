@@ -4,6 +4,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,6 +30,7 @@ import kotlinx.coroutines.delay
    @Composable fun layer(id:Int,show:Boolean=true){if(show)Image(painterResource(id),null,Modifier.fillMaxSize(),contentScale=ContentScale.Fit)}
    layer(R.drawable.journey_layer_liftgate,s.doorOpen(0x40))
    layer(R.drawable.journey_layer_passenger_rear_door,s.doorOpen(0x10))
+   layer(R.drawable.journey_layer_driver_rear_door,s.doorOpen(0x08))
    layer(R.drawable.journey_layer_body)
    layer(R.drawable.journey_layer_driver_mirror,!s.doorOpen(0x02))
    layer(R.drawable.journey_layer_passenger_mirror,!s.doorOpen(0x04))
@@ -34,6 +41,11 @@ import kotlinx.coroutines.delay
    layer(R.drawable.journey_layer_projectors,s.projectors)
    layer(R.drawable.journey_layer_driver_d_r_l,s.drl&&!s.leftTurn)
    layer(R.drawable.journey_layer_passenger_d_r_l,s.drl&&!s.rightTurn)
+   if(s.doorOpen(0x20))Text(
+    "HOOD OPEN • البنيد مفتوح",
+    Modifier.align(Alignment.TopCenter).background(Color.Black.copy(alpha=.78f)),
+    color=Color(0xFFFFB15D),fontWeight=FontWeight.Bold,fontSize=11.sp
+   )
    if(s.leftTurn||s.rightTurn)Canvas(Modifier.fillMaxSize()){
     val phase=(tick%1150)/1000f
     val count=if(phase<0.72f)(phase/0.72f*18).toInt()+1 else if(phase<0.9f)18 else 0
