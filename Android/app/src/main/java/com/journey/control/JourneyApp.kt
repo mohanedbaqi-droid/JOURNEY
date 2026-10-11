@@ -56,7 +56,7 @@ private val English=staticCompositionLocalOf{false}
   }
  }
 }
-@Composable private fun statusText(s:String):String=when(s){"DEMO"->"DEMO • "+L("محاكاة آمنة","Safe simulation");"CONNECTED"->L("BLE متصل","BLE connected");"SEARCHING"->L("جاري البحث عن ESP","Searching for ESP");"CONNECTING"->L("جاري الربط","Connecting");"SENT_WAITING_ESP"->L("تم الإرسال؛ بانتظار رد ESP","Sent; waiting for ESP");"BLE_PERMISSION"->L("اسمح بالبلوتوث من إعدادات التطبيق","Allow Bluetooth in app settings");"BLE_DISABLED"->L("فعّل البلوتوث","Enable Bluetooth");"NOT_FOUND"->L("لم نجد ESP؛ أعد البحث","ESP not found; search again");"NO_CONNECTION","DISCONNECTED"->L("غير متصل","Disconnected");else->s}
+@Composable private fun statusText(s:String):String=when(s){"MQTT_CONNECTED"->L("إنترنت متصل عبر MQTT","Internet MQTT connected");"MQTT_CONNECTING"->L("جاري ربط MQTT","Connecting MQTT");"DEMO"->"DEMO • "+L("محاكاة آمنة","Safe simulation");"CONNECTED"->L("BLE متصل","BLE connected");"SEARCHING"->L("جاري البحث عن ESP","Searching for ESP");"CONNECTING"->L("جاري الربط","Connecting");"SENT_WAITING_ESP"->L("تم الإرسال؛ بانتظار رد ESP","Sent; waiting for ESP");"BLE_PERMISSION"->L("اسمح بالبلوتوث من إعدادات التطبيق","Allow Bluetooth in app settings");"BLE_DISABLED"->L("فعّل البلوتوث","Enable Bluetooth");"NOT_FOUND"->L("لم نجد ESP؛ أعد البحث","ESP not found; search again");"NO_CONNECTION","DISCONNECTED"->L("غير متصل","Disconnected");else->s}
 @Composable private fun Nav(sel:Int,set:(Int)->Unit){
  val labels=listOf(L("معلومات","About"),"OBD",L("الرئيسية","Home"),L("السيارة","Car"),L("الخريطة","Map"))
  val icons=listOf(Icons.Default.Info,Icons.Default.Build,Icons.Default.Home,Icons.Default.DirectionsCar,Icons.Default.Map)
@@ -247,6 +247,7 @@ private val English=staticCompositionLocalOf{false}
   Button({vm.send("owner_register")},enabled=s.online){Text(L("تسجيل / طلب موافقة المالك","Enroll / request owner approval"))}
   if(s.pendingPhone.isNotBlank()&&s.adminPhone==vm.phoneId){Text(s.pendingPhone);Button({vm.send("owner_approve",JSONObject().put("ownerTarget",s.pendingPhone))}){Text(L("موافقة","Approve"))}}
  }
+ MqttSettings(vm,s)
  EspHealth(vm,s)
  Priority(vm,s)
  WifiSettings(vm,s)
@@ -288,11 +289,34 @@ private val English=staticCompositionLocalOf{false}
  Text(L("الافتراضي 50°C؛ التصعيد عند 80°C. حرارة الشريحة لا تقيس حرارة البطارية أو المقصورة.","Default 50°C; escalation at 80°C. Chip temperature does not measure battery or cabin temperature."),style=MaterialTheme.typography.bodySmall)
  if(s.online&&s.espResetReason==9)Text(L("آخر إعادة تشغيل: هبوط تغذية (Brownout)، وليس إثباتاً لعطل حراري.","Last reset: brownout; this does not prove a thermal fault."),color=Color(0xFFFF9C51))
 }
+
+@Composable private fun MqttSettings(vm:JourneyViewModel,s:VehicleState)=CardX(L("التحكم بالإنترنت MQTT / 4G / Wi-Fi","Internet control: MQTT / 4G / Wi-Fi")){
+ val demo by vm.demoEnabled.collectAsState()
+ val mqttStatus by vm.mqttStatus.collectAsState()
+ var host by rememberSaveable{mutableStateOf(vm.mqttHost.value)}
+ var port by rememberSaveable{mutableStateOf(vm.mqttPort.value.toString())}
+ var user by rememberSaveable{mutableStateOf(vm.mqttUsername.value)}
+ var device by rememberSaveable{mutableStateOf(vm.selectedDeviceID.value)}
+ var password by remember{mutableStateOf("")}
+ Text(L("الخادم يستخدم TLS؛ نفس مواضيع الآيفون: journey/DEVICE/state و journey/DEVICE/cmd. اكتب Device ID الحقيقي للـESP.","The broker uses TLS and the same iPhone MQTT topics. Enter the exact ESP Device ID."),style=MaterialTheme.typography.bodySmall)
+ InfoRow(L("الحالة","Status"),mqttStatus)
+ Field(L("خادم MQTT","MQTT broker hostname"),host){host=it}
+ Field(L("منفذ TLS","TLS port"),port){port=it.filter{ch->ch.isDigit()}.take(5)}
+ Field(L("اسم المستخدم","Username"),user){user=it}
+ SecretField(L("كلمة مرور الخادم","Broker password"),password){password=it}
+ Field(L("هوية الجهاز Device ID","ESP Device ID"),device){device=it}
+ Button({vm.configureMqtt(host,port.toIntOrNull()?:8883,user,password,device);password=""},enabled=!demo&&host.isNotBlank()&&device.isNotBlank()&&(port.toIntOrNull()?:0) in 1..65535){
+  Text(L("حفظ والاتصال بالإنترنت","Save and connect via Internet"))
+ }
+ OutlinedButton({vm.disconnectMqtt()},enabled=!demo){Text(L("قطع اتصال MQTT","Disconnect MQTT"))}
+ Text(L("كلمة المرور تُخزن مشفّرة في Android Keystore على Android 6+، ولا تُعرض بالويدجت. Android 5 يحتاج إدخالها مجدداً بعد إعادة التشغيل.","Broker password is encrypted using Android Keystore on Android 6+. Android 5 requires re-entry after restart."),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+ if(demo)Text(L("MQTT متوقف أثناء الديمو لحماية السيارة.","MQTT is disconnected in Demo Mode."),color=Color(0xFFFFB05C))
+}
 @Composable private fun Priority(vm:JourneyViewModel,s:VehicleState)=CardX(L("أولوية الاتصال داخل ESP","ESP route priority")){
  var order by remember(s.connectionPriority){mutableStateOf(s.connectionPriority.split(',').filter{it in listOf("BLE","WIFI","CELLULAR")}.ifEmpty{listOf("CELLULAR","WIFI","BLE")})}
  for(i in order.indices)Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("${i+1}. ${order[i]}");Row{IconButton({order=order.toMutableList().also{java.util.Collections.swap(it,i,i-1)}},enabled=i>0){Icon(Icons.Default.KeyboardArrowUp,null)};IconButton({order=order.toMutableList().also{java.util.Collections.swap(it,i,i+1)}},enabled=i<order.lastIndex){Icon(Icons.Default.KeyboardArrowDown,null)}}}
- Button({vm.send("connection_priority",JSONObject().put("connectionPriority",JSONObject().put("order",JSONArray(order))))},enabled=s.online&&order.size==3){Text(L("حفظ الأولوية","Save priority"))}
- Text(L("خلي BLE أولاً للفحص المحلي إذا ESP متصل بالسيرفر.","Put BLE first for local testing when the ESP is connected to the server."),style=MaterialTheme.typography.bodySmall)
+ Button({vm.setLocalPriority(order);vm.send("connection_priority",JSONObject().put("connectionPriority",JSONObject().put("order",JSONArray(order))))},enabled=s.online&&order.size==3){Text(L("حفظ الأولوية","Save priority"))}
+ Text(L("هذه الأولوية يستخدمها تطبيق الأندرويد أيضاً: الإنترنت عبر MQTT مع TLS، وBLE اتصال محلي بديل.","Android uses this priority too: secure TLS MQTT over internet, with BLE as a local fallback."),style=MaterialTheme.typography.bodySmall)
 }
 @Composable private fun WifiSettings(vm:JourneyViewModel,s:VehicleState)=CardX(L("Wi-Fi في ESP","ESP Wi-Fi")){
  var ssid by remember{mutableStateOf("")};var pass by remember{mutableStateOf("")}
