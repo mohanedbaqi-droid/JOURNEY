@@ -107,7 +107,7 @@ private struct JourneyWidgetView: View {
         HStack(spacing: 5) {
             VStack(alignment: .leading, spacing: 1) { Text("JOURNEY").font(.system(size: 14, weight: .bold)); Text(s.name).font(.system(size: 10)).lineLimit(1) }
             Spacer(minLength: 2)
-            Text(s.online ? t("متصل", "Live") : t("غير متصل", "Offline")).font(.system(size: 9)).foregroundStyle(s.online ? .cyan : .gray)
+            Text(s.demoMode ? "DEMO" : (s.online ? t("متصل", "Live") : t("غير متصل", "Offline"))).font(.system(size: 9, weight: .bold)).foregroundStyle(s.demoMode ? .orange : (s.online ? .cyan : .gray))
             Button(intent: JourneyRefreshIntent(deviceID: s.deviceID)) { Image(systemName: "arrow.clockwise").font(.system(size: 13)).foregroundStyle(.cyan) }.buttonStyle(.plain)
         }
     }
@@ -169,6 +169,7 @@ private struct JourneyWidgetView: View {
                 door(t("باب السائق", "Driver door"), 2); door(t("باب الراكب", "Passenger door"), 4)
                 door(t("خلف السائق", "Rear driver"), 8); door(t("خلف الراكب", "Rear passenger"), 16)
                 door(t("الصندوق", "Liftgate"), 64)
+                door(t("البنيد", "Hood"), 32)
                 row(t("بطارية ESP", "ESP battery"), s.espBattery.map { decimal($0) + "%" } ?? "—")
                 row(t("الواطي", "Low beam"), flag(s.lowBeam, t("شغال", "On"), t("طافي", "Off")))
                 row(t("السكن", "Parking lights"), flag(s.parking, t("شغال", "On"), t("طافي", "Off")))
