@@ -56,12 +56,8 @@ final class JourneyWatchConnection: NSObject, ObservableObject, WCSessionDelegat
 
     func command(_ action: String) {
         guard ["lock", "unlock", "start"].contains(action) else { return }
-        guard action != "start" else {
-            // Physical remote start is never authorized by an unattended
-            // watch-to-phone message; Face ID approval stays on the phone.
-            message = "التشغيل يحتاج فتح JOURNEY وتأكيد Face ID بالآيفون"
-            return
-        }
+        // Start only notifies the iPhone to request a fresh Face ID.
+        // The watch itself never authorizes or sends a remote-start frame.
         guard !busy else { return }
         guard session.activationState == .activated, session.isReachable else {
             message = "الآيفون غير متاح حالياً؛ ما انرسل أي أمر"
@@ -73,7 +69,8 @@ final class JourneyWatchConnection: NSObject, ObservableObject, WCSessionDelegat
         }
 
         busy = true
-        message = action == "lock" ? "جاري طلب القفل..." : "جاري طلب الفتح..."
+        message = action == "lock" ? "جاري طلب القفل..." :
+            (action == "unlock" ? "جاري طلب الفتح..." : "جاري إرسال طلب Face ID للآيفون...")
         session.sendMessage([
             "type": "command",
             "action": action,
