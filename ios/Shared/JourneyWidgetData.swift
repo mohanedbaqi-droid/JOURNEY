@@ -181,7 +181,7 @@ private enum JourneyWidgetKeychainBridge {
     private static let service = "com.abuseif.journey.widget.snapshot.v1"
     private static let bridgeSuffix = ".com.abuseif.journey.widgetbridge"
 
-    private static var preferredAccessGroup: String? {
+    private static let preferredAccessGroup: String? = {
         // On iOS the SecTask entitlement-inspection APIs are unavailable.
         // Ask Keychain for the access group of our own default-group probe.
         // This yields the signing Team ID even when SideStore replaces the
@@ -204,7 +204,7 @@ private enum JourneyWidgetKeychainBridge {
               team.count >= 8,
               !defaultGroup.hasPrefix("group.") else { return nil }
         return String(team) + bridgeSuffix
-    }
+    }()
 
     private static func query(_ account: String, accessGroup: String?) -> [String: Any] {
         var query: [String: Any] = [
