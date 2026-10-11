@@ -41,21 +41,22 @@ private val English=staticCompositionLocalOf{false}
 }
 @Composable private fun Header(vm:JourneyViewModel,s:VehicleState,settings:()->Unit,esp:()->Unit){
  val status by vm.status.collectAsState()
+ val demo by vm.demoEnabled.collectAsState()
  Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal=16.dp,vertical=6.dp)){
   CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr){
    Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
     IconButton(settings,Modifier.testTag("settings")){Icon(Icons.Default.Menu,L("الإعدادات","Settings"),tint=MaterialTheme.colorScheme.primary)}
-    Column(horizontalAlignment=Alignment.CenterHorizontally){Text("J O U R N E Y",fontWeight=FontWeight.Black,style=MaterialTheme.typography.titleLarge);Text(L("سيارة جورني","Journey vehicle"),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelMedium)}
+    Column(horizontalAlignment=Alignment.CenterHorizontally){Text("J O U R N E Y",fontWeight=FontWeight.Black,style=MaterialTheme.typography.titleLarge);Text(if(demo)"DEMO • JOURNEY" else L("سيارة جورني","Journey vehicle"),color=if(demo)Color(0xFFFFB05C)else MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelMedium)}
     Column(horizontalAlignment=Alignment.CenterHorizontally){Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),contentAlignment=Alignment.Center){Icon(Icons.Default.Bluetooth,L("البلوتوث","Bluetooth"),tint=if(s.online)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)};TextButton(esp,contentPadding=PaddingValues(0.dp),modifier=Modifier.height(26.dp)){Text("ESP",style=MaterialTheme.typography.labelMedium)}}
    }
   }
   Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)){Box(Modifier.size(6.dp).background(if(s.online)Color(0xFF40D89C)else Color(0xFF71828D),CircleShape));Text(statusText(status),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelSmall,modifier=Modifier.widthIn(max=240.dp),maxLines=2)}
-   if(!s.online)TextButton({vm.connect()},contentPadding=PaddingValues(horizontal=10.dp,vertical=0.dp)){Text(L("ربط ESP","Connect ESP"),style=MaterialTheme.typography.labelMedium)}
+   if(!s.online&&!demo)TextButton({vm.connect()},contentPadding=PaddingValues(horizontal=10.dp,vertical=0.dp)){Text(L("ربط ESP","Connect ESP"),style=MaterialTheme.typography.labelMedium)}
   }
  }
 }
-@Composable private fun statusText(s:String):String=when(s){"CONNECTED"->L("BLE متصل","BLE connected");"SEARCHING"->L("جاري البحث عن ESP","Searching for ESP");"CONNECTING"->L("جاري الربط","Connecting");"SENT_WAITING_ESP"->L("تم الإرسال؛ بانتظار رد ESP","Sent; waiting for ESP");"BLE_PERMISSION"->L("اسمح بالبلوتوث من إعدادات التطبيق","Allow Bluetooth in app settings");"BLE_DISABLED"->L("فعّل البلوتوث","Enable Bluetooth");"NOT_FOUND"->L("لم نجد ESP؛ أعد البحث","ESP not found; search again");"NO_CONNECTION","DISCONNECTED"->L("غير متصل","Disconnected");else->s}
+@Composable private fun statusText(s:String):String=when(s){"DEMO"->"DEMO • "+L("محاكاة آمنة","Safe simulation");"CONNECTED"->L("BLE متصل","BLE connected");"SEARCHING"->L("جاري البحث عن ESP","Searching for ESP");"CONNECTING"->L("جاري الربط","Connecting");"SENT_WAITING_ESP"->L("تم الإرسال؛ بانتظار رد ESP","Sent; waiting for ESP");"BLE_PERMISSION"->L("اسمح بالبلوتوث من إعدادات التطبيق","Allow Bluetooth in app settings");"BLE_DISABLED"->L("فعّل البلوتوث","Enable Bluetooth");"NOT_FOUND"->L("لم نجد ESP؛ أعد البحث","ESP not found; search again");"NO_CONNECTION","DISCONNECTED"->L("غير متصل","Disconnected");else->s}
 @Composable private fun Nav(sel:Int,set:(Int)->Unit){
  val labels=listOf(L("معلومات","About"),"OBD",L("الرئيسية","Home"),L("السيارة","Car"),L("الخريطة","Map"))
  val icons=listOf(Icons.Default.Info,Icons.Default.Build,Icons.Default.Home,Icons.Default.DirectionsCar,Icons.Default.Map)
@@ -90,15 +91,67 @@ private val English=staticCompositionLocalOf{false}
  }
 }
 @Composable private fun StatusPill(text:String,icon:ImageVector,m:Modifier)=Row(m.background(MaterialTheme.colorScheme.surfaceVariant,RoundedCornerShape(20.dp)).padding(horizontal=10.dp,vertical=9.dp),horizontalArrangement=Arrangement.spacedBy(5.dp),verticalAlignment=Alignment.CenterVertically){Icon(icon,null,Modifier.size(17.dp),tint=MaterialTheme.colorScheme.onSurfaceVariant);Text(text,style=MaterialTheme.typography.labelMedium,maxLines=2,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-@Composable private fun Home(vm:JourneyViewModel,s:VehicleState)=Page{VehicleHero(vm,s);Controls(vm,s);Telemetry(s)}
+@Composable private fun Home(vm:JourneyViewModel,s:VehicleState){
+ val demo by vm.demoEnabled.collectAsState()
+ Page{VehicleHero(vm,s);if(demo)DemoControls(vm) else Controls(vm,s);Telemetry(s)}
+}
 @Composable private fun engineText(s:VehicleState)=if(!s.online||!s.rpmValid)L("المحرك غير متاح","Engine unavailable")else if(s.engineRunning)L("المحرك يعمل","Engine running")else L("المحرك متوقف","Engine stopped")
 @Composable private fun Controls(vm:JourneyViewModel,s:VehicleState){
+ val context=LocalContext.current
  Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
   Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action(L("قفل","Lock"),Icons.Default.Lock,s.online,s.feedbackLock,Modifier.weight(1f)){vm.send("lock")};Action(L("فتح","Unlock"),Icons.Default.LockOpen,s.online,s.feedbackUnlock,Modifier.weight(1f)){vm.send("unlock")}}
-  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action(L("تشغيل","Remote start"),Icons.Default.PowerSettingsNew,s.online,s.feedbackStart,Modifier.weight(1f)){vm.send("remote_start")};Action(L("إنذار","Alarm"),Icons.Default.Notifications,s.online,s.feedbackAlarm,Modifier.weight(1f)){vm.send("horn")}}
+  Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){Action(L("تشغيل","Remote start"),Icons.Default.PowerSettingsNew,s.online,s.feedbackStart,Modifier.weight(1f)){(context as? MainActivity)?.requestAction("start")};Action(L("إنذار","Alarm"),Icons.Default.Notifications,s.online,s.feedbackAlarm,Modifier.weight(1f)){vm.send("horn")}}
   val remoteText=if(!s.online)L("غير متصل","Disconnected")else if(s.remotePowered)L("شغالة","On")else L("طافية","Off")
   Action(L("طاقة الريموت","Remote power")+" · "+remoteText,Icons.Default.VpnKey,s.online,s.online&&s.remotePowered,Modifier.fillMaxWidth(),compact=true){vm.send(if(s.remotePowered)"remote_power_off" else "remote_power_on")}
   if(!s.online)Text(L("اربط ESP لتفعيل التحكم والقراءات.","Connect ESP to enable controls and live readings."),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodySmall)
+ }
+}
+
+@Composable private fun DemoControls(vm:JourneyViewModel)=CardX(L("التحكم بالديمو تحت صورة الجورني","Demo controls below Journey image")){
+ val d by vm.demoState.collectAsState()
+ val context=LocalContext.current
+ Text(L("كل الأزرار محاكاة فقط — ماكو إرسال إلى ESP.","All buttons are local only — no ESP commands are sent."),style=MaterialTheme.typography.bodySmall,color=Color(0xFFFFB05C))
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+  Action(L("فتح","Unlock"),Icons.Default.LockOpen,true,!d.locked,Modifier.weight(1f)){vm.setDemoLocked(false)}
+  Action(L("قفل","Lock"),Icons.Default.Lock,true,d.locked,Modifier.weight(1f)){vm.setDemoLocked(true)}
+  Action(if(d.engine)L("إطفاء","Stop")else L("تشغيل","Start"),Icons.Default.PowerSettingsNew,true,d.engine,Modifier.weight(1f)){
+   (context as? MainActivity)?.requestAction("start")
+  }
+ }
+ Text(L("البيبان والصندوق والبنيد","Doors, liftgate and hood"),fontWeight=FontWeight.SemiBold)
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+  DemoSwitch(L("باب السائق","Driver"),d.driverDoor,Modifier.weight(1f)){vm.toggleDemo("driverDoor")}
+  DemoSwitch(L("باب الراكب","Passenger"),d.passengerDoor,Modifier.weight(1f)){vm.toggleDemo("passengerDoor")}
+ }
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+  DemoSwitch(L("خلف السائق","Rear driver"),d.rearDriverDoor,Modifier.weight(1f)){vm.toggleDemo("rearDriverDoor")}
+  DemoSwitch(L("خلف الراكب","Rear passenger"),d.rearPassengerDoor,Modifier.weight(1f)){vm.toggleDemo("rearPassengerDoor")}
+ }
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+  DemoSwitch(L("الصندوق","Liftgate"),d.trunk,Modifier.weight(1f)){vm.toggleDemo("trunk")}
+  DemoSwitch(L("البنيد","Hood"),d.hood,Modifier.weight(1f)){vm.toggleDemo("hood")}
+ }
+ Text(L("الأيتات والبروجكتر والإشارات","Lights, projectors and turns"),fontWeight=FontWeight.SemiBold)
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+  DemoSwitch(L("أيت / بروجكتر","Headlights"),d.lowBeam,Modifier.weight(1f)){vm.toggleDemo("lowBeam")}
+  DemoSwitch(L("إشارة يسار","Left signal"),d.leftTurn,Modifier.weight(1f)){vm.toggleDemo("leftTurn")}
+ }
+ Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+  DemoSwitch(L("إشارة يمين","Right signal"),d.rightTurn,Modifier.weight(1f)){vm.toggleDemo("rightTurn")}
+  DemoSwitch(L("فلشر","Hazards"),d.leftTurn&&d.rightTurn,Modifier.weight(1f)){vm.toggleDemo("hazards")}
+ }
+}
+@Composable private fun DemoSwitch(title:String,checked:Boolean,modifier:Modifier=Modifier,onClick:()->Unit){
+ val color=MaterialTheme.colorScheme
+ OutlinedButton(onClick=onClick,modifier=modifier.heightIn(min=52.dp),shape=RoundedCornerShape(14.dp),
+  border=BorderStroke(1.dp,if(checked)Color(0xFF48EAB5)else color.outline),
+  contentPadding=PaddingValues(5.dp),
+  colors=ButtonDefaults.outlinedButtonColors(containerColor=if(checked)Color(0xFF113D36)else color.surfaceVariant.copy(alpha=.45f))){
+  Column(horizontalAlignment=Alignment.CenterHorizontally){
+   Text(title,maxLines=2,style=MaterialTheme.typography.labelMedium)
+   Text(if(checked)L("مفتوح / شغّال","ON")else L("مسدود / مطفأ","OFF"),
+    style=MaterialTheme.typography.labelSmall,color=if(checked)Color(0xFF48EAB5)else color.onSurfaceVariant)
+  }
  }
 }
 @Composable private fun Action(t:String,i:ImageVector,enabled:Boolean,active:Boolean,m:Modifier=Modifier,compact:Boolean=false,on:()->Unit){
@@ -126,7 +179,15 @@ private val English=staticCompositionLocalOf{false}
  }
  Text(if(s.online)"OBD · ${s.obdStatus}"else L("بانتظار اتصال ESP · — قراءة غير متاحة","Waiting for ESP · — reading unavailable"),color=MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.labelMedium)
 }
-@Composable private fun Car(vm:JourneyViewModel,s:VehicleState)=Page{VehicleHero(vm,s);Controls(vm,s);Telemetry(s);CardX(L("آخر حدث","Last event")){Text(if(s.online)s.lastEvent else L("غير متصل","Disconnected"))}}
+@Composable private fun Car(vm:JourneyViewModel,s:VehicleState){
+ val demo by vm.demoEnabled.collectAsState()
+ Page{
+  VehicleHero(vm,s)
+  if(demo)DemoControls(vm)else Controls(vm,s)
+  Telemetry(s)
+  CardX(L("آخر حدث","Last event")){Text(if(demo)"DEMO • local only"else if(s.online)s.lastEvent else L("غير متصل","Disconnected"))}
+ }
+}
 @Composable private fun MapPage(s:VehicleState)=Page{
  val context=LocalContext.current
  CardX(L("الخريطة والتتبع","Map and tracking")){
@@ -155,6 +216,24 @@ private val English=staticCompositionLocalOf{false}
 @Composable private fun SecretField(label:String,value:String,on:(String)->Unit)=OutlinedTextField(value,on,label={Text(label)},modifier=Modifier.fillMaxWidth(),singleLine=true,visualTransformation=PasswordVisualTransformation())
 @Composable private fun Settings(vm:JourneyViewModel,s:VehicleState)=Page{
  val en by vm.english.collectAsState();val angled by vm.angled.collectAsState();val dark by vm.dark.collectAsState()
+ val demo by vm.demoEnabled.collectAsState()
+ val lockStatus by vm.lockStatusEnabled.collectAsState()
+ CardX(L("الوضع التجريبي داخل التطبيق","Integrated Demo Mode")){
+  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
+   Column(Modifier.weight(1f)){Text(L("تفعيل الديمو","Enable demo"),fontWeight=FontWeight.Bold)
+    Text(L("يوقف BLE ويعزل الأوامر عن ESP. أزرار الديمو تظهر تحت صورة السيارة.","Disconnects BLE and blocks ESP commands. Demo controls appear beneath the car image."),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+   Switch(demo,{vm.setDemo(it)})
+  }
+  if(demo)Text(L("DEMO • كل العمليات محاكاة محلية. السيارة الحقيقية لا تستقبل أي أمر.","DEMO • local simulation only. No physical vehicle commands are sent."),color=Color(0xFFFFB05C))
+ }
+ CardX(L("الويدجت وشاشة القفل","Widgets and Lock Screen")){
+  Text(L("أضف JOURNEY أو JOURNEY Large من قائمة ويدجت الشاشة الرئيسية. بالديمو الفتح والقفل يشتغلن مباشرة، وبالوضع الحقيقي يفتح التطبيق للتحقق من الأمر.","Add JOURNEY or JOURNEY Large from the home screen widget gallery. Demo lock/unlock work directly; live car controls open the app for confirmation."),style=MaterialTheme.typography.bodySmall)
+  Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){
+   Text(L("حالة السيارة بإشعار شاشة القفل","Vehicle status notification on Lock Screen"),modifier=Modifier.weight(1f))
+   Switch(lockStatus,{vm.setLockStatusEnabled(it)})
+  }
+  Text(L("أندرويد يحدد شكل وحجم الإشعار على شاشة القفل، ولا يعرض قراءة حيّة إذا توقف التطبيق عن استقبالها.","Android controls the lock-screen notification size. It does not show fresh readings after the app stops receiving them."),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+ }
  CardX(L("واجهة التطبيق","Appearance")){
   Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("English");Switch(en,{vm.setLanguage(it)})}
   Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text(L("الوضع الداكن","Dark mode"));Switch(dark,{vm.setDark(it)})}
