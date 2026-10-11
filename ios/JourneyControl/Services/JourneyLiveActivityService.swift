@@ -65,7 +65,20 @@ final class JourneyLiveActivityService {
            now.timeIntervalSince(lastUpdate) < 60 {
             return
         }
-        if now.timeIntervalSince(lastUpdate) < 3 { return }
+        // Lock Screen buttons must show lock/unlock changes without waiting
+        // for the normal telemetry throttle. Only delay routine packets when
+        // none of the visible, user-critical states has changed.
+        if now.timeIntervalSince(lastUpdate) < 3,
+           let previous = lastState,
+           previous.locked == state.locked,
+           previous.engineRunning == state.engineRunning,
+           previous.doorOpenMask == state.doorOpenMask,
+           previous.lowBeam == state.lowBeam,
+           previous.leftTurn == state.leftTurn,
+           previous.rightTurn == state.rightTurn,
+           previous.demoMode == state.demoMode {
+            return
+        }
 
         for activity in existing where activity.attributes.vehicleID != value.deviceID {
             await activity.end(nil, dismissalPolicy: .immediate)
