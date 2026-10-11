@@ -10,6 +10,8 @@ final class JourneyWatchBridge: NSObject, WCSessionDelegate {
 
     private let session = WCSession.default
     private var lastPublished: Data?
+    private var lastVehicle: JourneyWatchStatus?
+    private var lastPublishedAt = Date.distantPast
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -45,16 +47,34 @@ final class JourneyWatchBridge: NSObject, WCSessionDelegate {
             transferredAt: Date()
         )
 
+        let now = Date()
+        if let previous = lastVehicle {
+            let criticalChanged =
+                previous.demoMode != status.demoMode ||
+                previous.deviceID != status.deviceID ||
+                previous.online != status.online ||
+                previous.locked != status.locked ||
+                previous.running != status.running ||
+                previous.doorOpenMask != status.doorOpenMask ||
+                previous.doorKnownMask != status.doorKnownMask ||
+                previous.headlights != status.headlights ||
+                previous.leftTurn != status.leftTurn ||
+                previous.rightTurn != status.rightTurn
+            // RPM/GPS heartbeat changes must not queue an iPhone-to-watch
+            // transfer every second. Always send critical controls promptly.
+            if !criticalChanged && now.timeIntervalSince(lastPublishedAt) < 8 { return }
+        }
+
         guard let data = try? JSONEncoder().encode(status) else { return }
-        // Application context replaces the previous status if the watch is
-        // asleep. Never enqueue unbounded transferUserInfo telemetry traffic.
-        if data != lastPublished {
-            do {
-                try session.updateApplicationContext(["journey.status": data])
-                lastPublished = data
-            } catch {
-                print("[JOURNEY Watch] Could not sync status: \(error.localizedDescription)")
-            }
+        do {
+            // updateApplicationContext keeps only the latest state for a
+            // sleeping watch; unlike transferUserInfo it cannot pile up.
+            try session.updateApplicationContext(["journey.status": data])
+            lastPublished = data
+            lastVehicle = status
+            lastPublishedAt = now
+        } catch {
+            print("[JOURNEY Watch] Could not sync status: \(error.localizedDescription)")
         }
     }
 
