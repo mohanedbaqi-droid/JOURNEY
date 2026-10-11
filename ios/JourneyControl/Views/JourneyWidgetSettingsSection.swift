@@ -49,7 +49,11 @@ struct JourneyWidgetSettingsSection: View {
                       systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange)
             }
-            if JourneyWidgetStore.keychainSnapshotPresent {
+            if JourneyWidgetStore.extensionAcknowledgedLatestSnapshot {
+                Label(JL("الويدجت قرأ آخر بيانات فعلاً — المشاركة مؤكدة", "Widget read latest snapshot — sharing confirmed"),
+                      systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+            } else if JourneyWidgetStore.keychainSnapshotPresent {
                 Label(JL("نسخة Keychain البديلة محفوظة — جرّب الويدجت", "Keychain backup stored — test the widget"),
                       systemImage: "key.fill")
                     .foregroundStyle(.cyan)
