@@ -68,9 +68,9 @@ private struct JourneyWidgetView: View {
                 .font(.system(size: family == .systemSmall ? 20 : 27))
                 .foregroundStyle(.cyan)
             Text("JOURNEY").font(.system(size: 15, weight: .bold))
-            Text(t("غير متصل", "Offline")).font(.system(size: 11, weight: .semibold))
+            Text(t("البيانات غير متاحة", "Data sharing unavailable")).font(.system(size: 11, weight: .semibold))
             if family != .systemSmall {
-                Text(t("المشاركة غير متاحة بالتوقيع الحالي", "Sharing unavailable with this signing profile"))
+                Text(t("التوقيع المجاني يمنع عرض القراءات هنا. افتح JOURNEY أو فعّل الحالة المباشرة لشاشة القفل.", "Free signing blocks data here. Open JOURNEY or enable Lock Screen Live Status."))
                     .font(.system(size: 10))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.75))
@@ -81,7 +81,7 @@ private struct JourneyWidgetView: View {
                 fallbackLink("start", icon: "faceid", label: t("تشغيل", "Start"))
             }
             if family != .systemSmall {
-                Text(t("تفتح الأزرار التطبيق وتطلب Face ID قبل إرسال الأمر", "Buttons open the app and require Face ID before sending"))
+                Text(t("الأزرار تفتح التطبيق للتأكيد؛ التشغيل يحتاج Face ID.", "Buttons open the app; engine start requires Face ID."))
                     .font(.system(size: 9))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.65))
