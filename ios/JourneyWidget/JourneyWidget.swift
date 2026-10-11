@@ -35,7 +35,7 @@ private struct JourneyWidgetProvider: TimelineProvider {
         // WidgetKit may postpone refreshes; reloadTimelines is a hint, not
         // a real-time channel. ActivityKit provides faster Lock Screen updates.
         let stored = JourneyWidgetStore.read()
-        if let stored { JourneyWidgetStore.acknowledgeExtensionRead(stored) }
+        if let stored { JourneyWidgetStore.acknowledgeExtensionRead(stored, timeline: true) }
         let snapshot = stored ?? JourneyWidgetSnapshot()
         let deadlines = snapshot.demoMode
             ? [(Date?, Double)]()
