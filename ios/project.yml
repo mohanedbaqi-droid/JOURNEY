@@ -15,6 +15,7 @@ targets:
     sources:
       - JourneyControl
       - Shared
+      - WatchShared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey
