@@ -9,11 +9,17 @@ struct JourneyLockIntent: AppIntent {
     init() { deviceID = "" }
     init(deviceID: String) { self.deviceID = deviceID }
     @MainActor func perform() async throws -> some IntentResult {
-        #if JOURNEY_APP
-        await JourneyWidgetActions.run("lock", deviceID: deviceID)
-        #else
-        JourneyWidgetStore.setStatus(deviceID: deviceID, message: "تعذر تشغيل الأمر بالخلفية؛ راجع توقيع التطبيق والويدجيت")
-        #endif
+        if JourneyWidgetStore.read()?.demoMode == true {
+            _ = JourneyWidgetStore.applyDemoLock(true)
+        } else {
+            #if JOURNEY_APP
+            await JourneyWidgetActions.run("lock", deviceID: deviceID)
+            #else
+            // The extension must never send a physical vehicle command.
+            // Live-car controls use a deep link to the enrolled host app.
+            JourneyWidgetStore.setStatus(deviceID: deviceID, message: "افتح JOURNEY للتحكم بالسيارة الحقيقية")
+            #endif
+        }
         return .result()
     }
 }
@@ -25,11 +31,15 @@ struct JourneyUnlockIntent: AppIntent {
     init() { deviceID = "" }
     init(deviceID: String) { self.deviceID = deviceID }
     @MainActor func perform() async throws -> some IntentResult {
-        #if JOURNEY_APP
-        await JourneyWidgetActions.run("unlock", deviceID: deviceID)
-        #else
-        JourneyWidgetStore.setStatus(deviceID: deviceID, message: "تعذر تشغيل الأمر بالخلفية؛ راجع توقيع التطبيق والويدجيت")
-        #endif
+        if JourneyWidgetStore.read()?.demoMode == true {
+            _ = JourneyWidgetStore.applyDemoLock(false)
+        } else {
+            #if JOURNEY_APP
+            await JourneyWidgetActions.run("unlock", deviceID: deviceID)
+            #else
+            JourneyWidgetStore.setStatus(deviceID: deviceID, message: "افتح JOURNEY للتحكم بالسيارة الحقيقية")
+            #endif
+        }
         return .result()
     }
 }
