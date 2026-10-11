@@ -182,11 +182,28 @@ private enum JourneyWidgetKeychainBridge {
     private static let bridgeSuffix = ".com.abuseif.journey.widgetbridge"
 
     private static var preferredAccessGroup: String? {
-        guard let task = SecTaskCreateFromSelf(kCFAllocatorDefault),
-              let value = SecTaskCopyValueForEntitlement(
-                task, "keychain-access-groups" as CFString, nil
-              ) as? [String] else { return nil }
-        return value.first { $0.hasSuffix(bridgeSuffix) }
+        // On iOS the SecTask entitlement-inspection APIs are unavailable.
+        // Ask Keychain for the access group of our own default-group probe.
+        // This yields the signing Team ID even when SideStore replaces the
+        // build Team ID during free-account provisioning.
+        let probeAccount = "bridge-group-discovery"
+        var probe = query(probeAccount, accessGroup: nil)
+        probe[kSecValueData as String] = Data("journey".utf8)
+        probe[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        let addResult = SecItemAdd(probe as CFDictionary, nil)
+        guard addResult == errSecSuccess || addResult == errSecDuplicateItem else { return nil }
+
+        var lookup = query(probeAccount, accessGroup: nil)
+        lookup[kSecReturnAttributes as String] = true
+        lookup[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(lookup as CFDictionary, &result) == errSecSuccess,
+              let attributes = result as? [String: Any],
+              let defaultGroup = attributes[kSecAttrAccessGroup as String] as? String,
+              let team = defaultGroup.split(separator: ".").first,
+              team.count >= 8,
+              !defaultGroup.hasPrefix("group.") else { return nil }
+        return String(team) + bridgeSuffix
     }
 
     private static func query(_ account: String, accessGroup: String?) -> [String: Any] {
