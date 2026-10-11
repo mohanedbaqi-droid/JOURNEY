@@ -110,6 +110,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private var bleWriteInFlight = false
     private var bleWriteQueue: [Data] = []
     private var preferredDeviceID: String?
+    private var demoSuspended = UserDefaults.standard.bool(forKey: "journey.demo.enabled")
     private var keylessConfigs: [String: KeylessEntryConfig] = [:]
     private var nearSince: [String: Date] = [:]
     private var farSince: [String: Date] = [:]
@@ -130,9 +131,32 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         )
     }
 
+    /// Suspend all local BLE traffic while the app is in isolated demo mode.
+    func suspendForDemo() {
+        demoSuspended = true
+        pending = nil
+        bleWriteQueue.removeAll()
+        bleWriteInFlight = false
+        commandCharacteristic = nil
+        nearSince.removeAll()
+        farSince.removeAll()
+        unlockedByKeyless.removeAll()
+        if central.isScanning { central.stopScan() }
+        for peripheral in peripherals.values where peripheral.state == .connected || peripheral.state == .connecting {
+            central.cancelPeripheralConnection(peripheral)
+        }
+        status = JL("BLE متوقف بوضع الديمو", "BLE suspended in demo mode")
+    }
+
+    func resumeFromDemo() {
+        demoSuspended = false
+        reconnectPreferredDevice(forceScanFallback: true)
+    }
+
     /// Keeps the known Journey ESP32 connected in the background.  iOS can
     /// restore this central manager after it suspends the app normally.
     func prepareConnection(to deviceID: String) {
+        guard !demoSuspended else { return }
         preferredDeviceID = deviceID
         defaults.set(deviceID, forKey: "journey.ble.preferredDevice")
         loadKeylessConfig(for: deviceID)
@@ -143,6 +167,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     /// guaranteed to run when iOS only backgrounds/foregrounds the existing
     /// view hierarchy, so explicitly wake the BLE reconnect path here.
     func resumeConnection(to deviceID: String) {
+        guard !demoSuspended else { return }
         preferredDeviceID = deviceID
         defaults.set(deviceID, forKey: "journey.ble.preferredDevice")
         loadKeylessConfig(for: deviceID)
@@ -182,6 +207,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     /// payloads such as the smart-entry configuration.
     @discardableResult
     func send(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        guard !demoSuspended else { return false }
         pending = (command, deviceID)
         guard central.state == .poweredOn else {
             status = JL("فعّل البلوتوث", "Enable Bluetooth")
@@ -204,10 +230,16 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         isReady = central.state == .poweredOn
         status = isReady ? JL("جاهز للبلوتوث", "Bluetooth ready") : JL("فعّل البلوتوث", "Enable Bluetooth")
-        if isReady { reconnectPreferredDevice(forceScanFallback: true) }
+        if isReady && !demoSuspended { reconnectPreferredDevice(forceScanFallback: true) }
     }
 
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+        if demoSuspended {
+            for peripheral in (dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral]) ?? [] {
+                central.cancelPeripheralConnection(peripheral)
+            }
+            return
+        }
         guard let restored = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] else { return }
         for peripheral in restored {
             guard let deviceID = preferredDeviceID else { continue }
@@ -237,6 +269,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        guard !demoSuspended else { central.cancelPeripheralConnection(peripheral); return }
         if central.isScanning { central.stopScan() }
         status = JL("BLE متصل", "BLE connected")
         peripheral.discoverServices([service])
@@ -249,6 +282,13 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        if demoSuspended {
+            commandCharacteristic = nil
+            bleWriteInFlight = false
+            bleWriteQueue.removeAll()
+            status = JL("BLE متوقف بوضع الديمو", "BLE suspended in demo mode")
+            return
+        }
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
         status = JL("انقطع BLE — إعادة اتصال", "BLE disconnected — reconnecting")
@@ -352,6 +392,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func write(_ command: VehicleCommand, to peripheral: CBPeripheral, characteristic: CBCharacteristic) {
+        guard !demoSuspended else { return }
         guard let data = try? JSONEncoder().encode(command) else {
             status = JL("تعذر تجهيز أمر BLE", "Could not prepare BLE command")
             return
@@ -374,6 +415,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func sendNextBleWrite(on peripheral: CBPeripheral, characteristic: CBCharacteristic) {
+        guard !demoSuspended else { bleWriteQueue.removeAll(); bleWriteInFlight = false; return }
         guard peripheral.state == .connected else {
             bleWriteInFlight = false
             bleWriteQueue.removeAll()
@@ -403,6 +445,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func reconnectPreferredDevice(forceScanFallback: Bool = false) {
+        guard !demoSuspended else { return }
         guard central.state == .poweredOn, let deviceID = preferredDeviceID else { return }
 
         // First reuse an already-connected Journey peripheral when iOS kept it
@@ -451,6 +494,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func startPreferredScan(deviceID: String) {
+        guard !demoSuspended else { return }
         guard central.state == .poweredOn, preferredDeviceID == deviceID else { return }
         if let p = peripherals[deviceID], p.state == .connected || p.state == .connecting { return }
         status = JL("جاري البحث عن ESP", "Searching for ESP")
@@ -498,6 +542,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func evaluateKeyless(rssi: Int, deviceID: String) {
+        guard !demoSuspended else { return }
         loadKeylessConfig(for: deviceID)
         guard let config = keylessConfigs[deviceID], config.enabled,
               let peripheral = peripherals[deviceID], peripheral.state == .connected,
