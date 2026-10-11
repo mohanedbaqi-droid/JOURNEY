@@ -4,6 +4,7 @@ import WidgetKit
 #endif
 
 struct JourneyWidgetSnapshot: Codable, Equatable {
+    var demoMode = false
     var deviceID = "journey-esp32s3-01"
     var name = "سيارة جورني"
     var english = false
@@ -41,6 +42,7 @@ struct JourneyWidgetSnapshot: Codable, Equatable {
         return now.timeIntervalSince(date) >= 0 && now.timeIntervalSince(date) <= seconds
     }
     func expired(at now: Date) -> Self {
+        if demoMode { return self }
         var s = self
         s.online = online && fresh(stateAt, at: now, seconds: 12)
         if !s.online || !fresh(obdAt, at: now, seconds: 5) {
@@ -57,7 +59,7 @@ struct JourneyWidgetSnapshot: Codable, Equatable {
     }
     private func key(_ value: Bool?) -> String { value.map { $0 ? "1" : "0" } ?? "?" }
     var importantKey: String {
-        "\(deviceID)|\(online)|\(key(locked))|\(doorKnownMask)|\(doorOpenMask)|\(key(lowBeam))|\(key(parking))|\(key(leftTurn))|\(key(rightTurn))|\((rpm ?? -1) > 0)"
+        "\(demoMode)|\(deviceID)|\(online)|\(key(locked))|\(doorKnownMask)|\(doorOpenMask)|\(key(lowBeam))|\(key(parking))|\(key(leftTurn))|\(key(rightTurn))|\((rpm ?? -1) > 0)"
     }
 }
 
