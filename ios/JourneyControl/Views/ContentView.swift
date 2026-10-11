@@ -428,14 +428,16 @@ struct ContentView: View {
             return
         }
         Task {
-            let allowed = await faceID.authenticate(
-                reason: JL("تأكيد \(shortcut.title) من اختصار الشاشة الرئيسية", "Confirm \(shortcut.title) from the home screen shortcut")
-            )
-            guard allowed else {
-                faceIDError = faceID.lastError
-                return
-            }
+            // Lock/unlock shortcuts use the app's enrolled owner transport;
+            // start remains protected by a fresh biometric confirmation.
             if shortcut.action == .start {
+                let allowed = await faceID.authenticate(
+                    reason: JL("تأكيد تشغيل JOURNEY من الويدجت", "Confirm JOURNEY engine start from widget")
+                )
+                guard allowed else {
+                    faceIDError = faceID.lastError
+                    return
+                }
                 confirmStart = true
                 return
             }
