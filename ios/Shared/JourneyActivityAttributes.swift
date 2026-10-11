@@ -19,6 +19,8 @@ struct JourneyActivityAttributes: ActivityAttributes {
         var leftTurn: Bool?
         var rightTurn: Bool?
         var lastReading: Date?
+        /// Optional so activities created by older builds decode safely.
+        var layoutStyle: String? = nil
 
         func door(_ bit: Int) -> Bool? {
             (doorKnownMask & bit) == 0 ? nil : (doorOpenMask & bit) != 0
