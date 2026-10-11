@@ -100,9 +100,9 @@ private struct JourneyWidgetView: View {
                 .font(.system(size: family == .systemSmall ? 20 : 27))
                 .foregroundStyle(.cyan)
             Text("JOURNEY").font(.system(size: 15, weight: .bold))
-            Text(t("البيانات غير متاحة", "Data sharing unavailable")).font(.system(size: 11, weight: .semibold))
+            Text(t("بانتظار تحديث بيانات السيارة", "Waiting for widget data")).font(.system(size: 11, weight: .semibold))
             if family != .systemSmall {
-                Text(t("التوقيع المجاني يمنع عرض القراءات هنا. افتح JOURNEY أو فعّل الحالة المباشرة لشاشة القفل.", "Free signing blocks data here. Open JOURNEY or enable Lock Screen Live Status."))
+                Text(t("افتح JOURNEY وحدّث الويدجت. إذا ظهرت علامة مشاركة Keychain الخضراء بالتطبيق وبقي هذا العرض، احذف الويدجت من الشاشة وأضفه من جديد.", "Refresh from JOURNEY. If the Keychain sharing check is green but this view stays, remove and re-add the widget from your Home Screen."))
                     .font(.system(size: 10))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.75))
