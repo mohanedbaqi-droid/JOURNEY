@@ -162,6 +162,10 @@ final class MQTTService: ObservableObject {
     }
 
     func syncSelectedWidget(force: Bool = false) {
+        if UserDefaults.standard.bool(forKey: "journey.demo.enabled") {
+            _ = JourneyWidgetStore.write(JourneyWidgetSnapshot(), force: true)
+            return
+        }
         let devices = DeviceStore()
         guard let device = devices.selectedDevice else {
             _ = JourneyWidgetStore.write(JourneyWidgetSnapshot(), force: true)
@@ -419,6 +423,7 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     func send(_ action: BenchAction, to deviceID: String) -> Bool {
+        guard !UserDefaults.standard.bool(forKey: "journey.demo.enabled") else { return false }
         let command = VehicleCommand(action: action)
         if sendByConfiguredPriority(command, to: deviceID) { return true }
         lastError = JL("لا يوجد مسار اتصال متاح حسب الأولوية المحددة", "No connection route is available in the selected order")
@@ -429,6 +434,7 @@ final class MQTTService: ObservableObject {
     /// still enforce authenticated BLE and its own RSSI calibration.
     @discardableResult
     func sendKeylessConfig(_ config: KeylessEntryConfig, to deviceID: String) -> Bool {
+        guard !UserDefaults.standard.bool(forKey: "journey.demo.enabled") else { return false }
         bluetooth.configureKeyless(config, for: deviceID)
         let command = VehicleCommand(action: .keylessConfig, keyless: config)
 
@@ -458,6 +464,7 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     func sendESPCommand(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        guard !UserDefaults.standard.bool(forKey: "journey.demo.enabled") else { return false }
         if sendByConfiguredPriority(command, to: deviceID) {
             applyLocal(command.action, to: deviceID)
             return true
