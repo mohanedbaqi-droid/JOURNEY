@@ -335,6 +335,7 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     private func sendByConfiguredPriority(_ command: VehicleCommand, to deviceID: String) -> Bool {
+        guard !defaults.bool(forKey: "journey.demo.enabled") else { return false }
         // Keyless remains BLE-first regardless of the configurable order.
         if isKeylessAction(command.action) || command.action == .remotePowerOn || command.action == .remotePowerOff {
             if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
