@@ -1,3 +1,4 @@
+import ActivityKit
 import SwiftUI
 import WidgetKit
 
@@ -7,9 +8,25 @@ struct JourneyWidgetSettingsSection: View {
     @State private var identityMatches = false
     @State private var signingMessage = ""
     @State private var refreshed = false
+    @AppStorage("journey.liveActivity.enabled") private var liveActivityEnabled = false
 
     var body: some View {
         Section {
+            Toggle(isOn: $liveActivityEnabled) {
+                Label(JL("حالة السيارة المباشرة على شاشة القفل", "Live vehicle status on Lock Screen"), systemImage: "car.side.fill")
+            }
+            .onChange(of: liveActivityEnabled) { _, _ in
+                mqtt.syncSelectedWidget(force: true)
+            }
+            if !ActivityAuthorizationInfo().areActivitiesEnabled {
+                Label(JL("فعّل Live Activities من إعدادات iPhone حتى تظهر حالة السيارة على شاشة القفل.", "Enable Live Activities in iPhone Settings to show vehicle status on the Lock Screen."), systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+            Text(JL("هذا بديل لشاشة القفل يعمل بدون مشاركة App Group، وليس بديلاً عن ويدجت الشاشة الرئيسية. يتحدث من التطبيق عندما تصله قراءة جديدة، ولا يراقب السيارة مستقلاً إذا توقف التطبيق.", "This Lock Screen status works without App Group sharing. It does not replace the Home Screen widget and updates only as the app receives vehicle data."))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Divider()
             Label(extensionPresent
                 ? JL("ملف الويدجيت موجود", "Widget extension file is present")
                 : JL("ملف الويدجيت غير موجود بالتثبيت", "Widget extension is missing from this installation"),
