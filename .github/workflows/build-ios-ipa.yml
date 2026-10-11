@@ -102,9 +102,18 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
 
-          # Sign nested binaries inside-out for this unsigned IPA staging.
-          # A real watch installation requires the watch provisioning profile
-          # to be re-signed by Xcode or a watch-aware installation tool.
+          # SideStore's free-Apple-ID signing changes the containing iPhone
+          # bundle ID to com.abuseif.journey.<development-team>. The watchOS
+          # WKCompanionAppBundleIdentifier must point at that installed ID.
+          # Apply this only to IPA packaging: the Xcode project itself keeps
+          # the original companion identifier for normal development signing.
+          SIDESTORE_IPHONE_ID="com.abuseif.journey.6778LWD4ZB"
+          /usr/libexec/PlistBuddy -c "Set :WKCompanionAppBundleIdentifier $SIDESTORE_IPHONE_ID" "$WATCH_APP/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH_APP/Info.plist")" = "$SIDESTORE_IPHONE_ID"
+          echo "SideStore watch companion corrected to $SIDESTORE_IPHONE_ID"
+
+          # Re-sign nested bundles after changing the plist. The final
+          # installer must still provide correct iPhone/watch provisioning.
           codesign --force --sign - "$WATCH_APP"
           # Preserve desired App Group entitlements for the installation signing tool.
           codesign --force --sign - --entitlements ios/JourneyWidget/JourneyWidget.entitlements "$APP/PlugIns/JourneyWidget.appex"
