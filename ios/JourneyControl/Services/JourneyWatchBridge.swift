@@ -1,5 +1,6 @@
 import Foundation
 import WatchConnectivity
+import UserNotifications
 
 /// Only the paired Apple Watch can request an action; the iPhone keeps
 /// credential storage, BLE pairing and MQTT transport. A Watch message
@@ -94,10 +95,22 @@ final class JourneyWatchBridge: NSObject, WCSessionDelegate {
             return ["ok": false, "message": "الأمر غير معروف"]
         }
 
-        // Never start a physical vehicle directly from the watch: a fresh
-        // phone Face ID confirmation is required.
+        // Watch start is a request to open the iPhone confirmation UI, never
+        // a direct engine command. A local notification supports both demo
+        // and live modes without granting the watch permission to start.
         if action == "start" {
-            return ["ok": false, "message": "شغّل من JOURNEY على الآيفون لتأكيد Face ID"]
+            let content = UNMutableNotificationContent()
+            content.title = "JOURNEY — Apple Watch"
+            content.body = "طلب تشغيل من الساعة. افتح التطبيق وأكد باستخدام Face ID."
+            content.sound = .default
+            content.userInfo = ["journey.watch.startRequest": true]
+            let request = UNNotificationRequest(
+                identifier: "journey.watch.start.(UUID().uuidString)",
+                content: content,
+                trigger: nil
+            )
+            UNUserNotificationCenter.current().add(request)
+            return ["ok": true, "message": "تفقد إشعار JOURNEY على الآيفون لتأكيد Face ID"]
         }
 
         let defaults = UserDefaults.standard
