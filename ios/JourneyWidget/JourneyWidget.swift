@@ -124,9 +124,15 @@ private struct JourneyWidgetView: View {
     }
     private var actions: some View {
         HStack(spacing: 5) {
-            Button(intent: JourneyLockIntent(deviceID: s.deviceID)) { action("lock.fill", t("قفل", "Lock"), .cyan) }
-            Button(intent: JourneyUnlockIntent(deviceID: s.deviceID)) { action("lock.open.fill", t("فتح", "Unlock"), .cyan) }
-            Button(intent: JourneyStartIntent(deviceID: s.deviceID)) { action("faceid", t("تشغيل", "Start"), .orange) }
+            Link(destination: URL(string: "journeycontrol://widget/lock")!) {
+                action("lock.fill", t("قفل", "Lock"), .cyan)
+            }
+            Link(destination: URL(string: "journeycontrol://widget/unlock")!) {
+                action("lock.open.fill", t("فتح", "Unlock"), .cyan)
+            }
+            Link(destination: URL(string: "journeycontrol://widget/start")!) {
+                action("faceid", t("تشغيل", "Start"), .orange)
+            }
         }.buttonStyle(.plain).disabled(s.deviceID.isEmpty)
     }
     private func action(_ icon: String, _ title: String, _ tint: Color) -> some View {
