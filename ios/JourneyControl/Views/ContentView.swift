@@ -410,15 +410,16 @@ struct ContentView: View {
 
     private func authenticateHomeScreenShortcut(_ shortcut: HomeScreenShortcut) {
         if demoEnabled {
-            Task {
-                let allowed = await faceID.authenticate(reason: JL("تأكيد أمر الويدجت في وضع الديمو", "Confirm widget action in demo mode"))
-                guard allowed else { faceIDError = faceID.lastError; return }
-                switch shortcut.action {
-                case .lock: demoLocked = true
-                case .unlock: demoLocked = false
-                case .start: demoEngine.toggle()
-                default: break
+            switch shortcut.action {
+            case .lock: demoLocked = true
+            case .unlock: demoLocked = false
+            case .start:
+                Task {
+                    let allowed = await faceID.authenticate(reason: JL("تأكيد تشغيل المحرك التجريبي", "Confirm demo engine start"))
+                    guard allowed else { faceIDError = faceID.lastError; return }
+                    demoEngine.toggle()
                 }
+            default: break
             }
             return
         }
