@@ -58,7 +58,7 @@ object JourneyStatusNotification {
    .setStyle(Notification.BigTextStyle().bigText(summary+
     if(demo)" • محاكاة فقط" else " • آخر قراءة وصلتها للتطبيق"))
    .setContentIntent(action("open",8400))
-   .addAction(android.R.drawable.ic_lock_idle_unlock,"فتح",action("unlock",8401))
+   .addAction(android.R.drawable.ic_menu_view,"فتح",action("unlock",8401))
    .addAction(android.R.drawable.ic_lock_lock,"قفل",action("lock",8402))
    .setVisibility(Notification.VISIBILITY_PRIVATE)
    .setAutoCancel(false)
