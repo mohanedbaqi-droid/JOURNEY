@@ -66,7 +66,29 @@ struct JourneyWidgetSettingsSection: View {
                       systemImage: "key")
                     .foregroundStyle(.orange)
             }
-            if JourneyWidgetStore.groupURL == nil {
+            if let timelineAt = JourneyWidgetStore.extensionLastTimelineReadAt {
+                Label {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(JL("الويدجت أنشأ جدول عرض بالبيانات الجديدة", "Widget timeline read the latest data"))
+                        Text(timelineAt, style: .time)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "clock.badge.checkmark")
+                }
+                .foregroundStyle(.green)
+                Text(JL("هذا يؤكد قراءة البيانات، لكن تحديث الرسم على الشاشة تتحكم بتوقيته منظومة iOS. إذا بعده ظاهر قديم، احذف الويدجت من الشاشة فقط وأضفه من جديد.",
+                        "The timeline has read the data, but iOS decides when the Home Screen renders it. If a stale widget remains, remove only the widget and add it back."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if JourneyWidgetStore.extensionAcknowledgedLatestSnapshot {
+                Text(JL("وصلت البيانات لإضافة الويدجت، لكن ما عدنا بعد تأكيد تحديث Timeline الشاشة الرئيسية. جرّب تحديث الويدجت.",
+                        "The extension received the data, but we have not confirmed a new Home Screen timeline. Request a widget refresh."))
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+            if JourneyWidgetStore.groupURL == nil && !JourneyWidgetStore.extensionAcknowledgedLatestSnapshot {
                 Text(JL("تگدر تجرب توقيع الويدجت بهوية مستقلة من SideStore: Keep App Extensions (Register App ID for Each Extension). هذا قد يستهلك App ID إضافي وما يضمن مشاركة البيانات.",
                         "Try separate extension provisioning with SideStore: Keep App Extensions (Register App ID for Each Extension). This may use an additional App ID and does not guarantee sharing."))
                     .font(.footnote)
@@ -83,7 +105,7 @@ struct JourneyWidgetSettingsSection: View {
                 refreshed = true
             }
             if refreshed {
-                Text(JL("تم طلب التحديث. إضافة الويدجيت تتم من قائمة الآيفون.", "Refresh requested. Add the widget from the iPhone widget gallery."))
+                Text(JL("انطلب تحديث WidgetKit. قد يحتاج iOS عدة دقائق، وإذا ظل العرض القديم احذف الويدجت فقط وأضفه من جديد.", "WidgetKit refresh requested. iOS may take minutes; if the old view persists, remove and re-add only the widget."))
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Text(JL("عند التثبيت بـSideloadly عطّل Remove App Extensions / PlugIns حتى يبقى الويدجيت داخل البرنامج.", "When installing with Sideloadly, disable Remove App Extensions / PlugIns to retain the widget."))
