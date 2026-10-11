@@ -163,6 +163,9 @@ final class MQTTService: ObservableObject {
 
     func syncSelectedWidget(force: Bool = false) {
         if defaults.bool(forKey: "journey.demo.enabled") {
+            // Reconcile lock/unlock AppIntents that ran in the widget
+            // extension before replacing the shared demo snapshot.
+            JourneyWidgetStore.reconcilePendingDemoLock()
             let d = defaults
             var snapshot = JourneyWidgetSnapshot()
             snapshot.demoMode = true
