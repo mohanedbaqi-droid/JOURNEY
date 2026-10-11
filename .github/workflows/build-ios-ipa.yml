@@ -108,9 +108,21 @@ jobs:
           # Apply this only to IPA packaging: the Xcode project itself keeps
           # the original companion identifier for normal development signing.
           SIDESTORE_IPHONE_ID="com.abuseif.journey.6778LWD4ZB"
+          SIDESTORE_WATCH_ID="${SIDESTORE_IPHONE_ID}.watchkitapp"
           /usr/libexec/PlistBuddy -c "Set :WKCompanionAppBundleIdentifier $SIDESTORE_IPHONE_ID" "$WATCH_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $SIDESTORE_WATCH_ID" "$WATCH_APP/Info.plist"
+          # A watch app must (a) refer to the signed iPhone app and
+          # (b) have its own bundle ID nested under that iPhone app's ID.
+          # SideStore changes the iPhone bundle ID but does not adjust these
+          # nested watch metadata values during resignment.
           test "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH_APP/Info.plist")" = "$SIDESTORE_IPHONE_ID"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_APP/Info.plist")" = "$SIDESTORE_WATCH_ID"
+          case "$SIDESTORE_WATCH_ID" in
+            "$SIDESTORE_IPHONE_ID".*) ;;
+            *) echo "Watch bundle identifier has invalid iPhone-prefix relationship"; exit 1 ;;
+          esac
           echo "SideStore watch companion corrected to $SIDESTORE_IPHONE_ID"
+          echo "SideStore watch bundle corrected to $SIDESTORE_WATCH_ID"
 
           # Re-sign nested bundles after changing the plist. The final
           # installer must still provide correct iPhone/watch provisioning.
