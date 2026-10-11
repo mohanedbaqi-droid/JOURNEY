@@ -68,6 +68,8 @@ jobs:
           test -f "$APP_INFO"
           test -f "$APP/JourneyControl"
           test -f "$WIDGET_INFO"
+          test "$APP_VERSION" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$WIDGET_INFO")"
+          test "$APP_BUILD" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$WIDGET_INFO")"
           test -f "$APP/PlugIns/JourneyWidget.appex/JourneyWidget"
           python3 ios/Tests/verify_widget_binary.py "$APP"
 
