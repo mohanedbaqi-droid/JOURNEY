@@ -70,6 +70,11 @@ struct JourneyWidgetCommandStatus: Codable {
     var date: Date
 }
 
+private struct JourneyWidgetBridgeAcknowledgement: Codable {
+    var snapshotKey: String
+    var at: Date
+}
+
 /// No credentials or owner keys are copied into the widget container.
 /// Storage priority: shared App Group file, then a signed shared Keychain
 /// access group. Both routes keep the data on-device and require entitlements.
@@ -82,6 +87,28 @@ enum JourneyWidgetStore {
     static var keychainSnapshotPresent: Bool {
         JourneyWidgetKeychainBridge.read("snapshot") != nil
     }
+    /// Confirm that the extension itself read the app's latest saved snapshot.
+    /// A successful write from the app alone is not proof of shared access.
+    static var extensionAcknowledgedLatestSnapshot: Bool {
+        guard let snapshot = read(),
+              let data = JourneyWidgetKeychainBridge.read("extension-ack"),
+              let acknowledgement = try? JSONDecoder().decode(JourneyWidgetBridgeAcknowledgement.self, from: data),
+              acknowledgement.snapshotKey == snapshot.importantKey,
+              Date().timeIntervalSince(acknowledgement.at) >= 0,
+              Date().timeIntervalSince(acknowledgement.at) <= 600 else { return false }
+        return true
+    }
+
+    static func acknowledgeExtensionRead(_ snapshot: JourneyWidgetSnapshot) {
+        let acknowledgement = JourneyWidgetBridgeAcknowledgement(
+            snapshotKey: snapshot.importantKey,
+            at: Date()
+        )
+        if let data = try? JSONEncoder().encode(acknowledgement) {
+            _ = JourneyWidgetKeychainBridge.write(data, account: "extension-ack")
+        }
+    }
+
     static var sharingMethod: String {
         if groupURL != nil { return "App Group" }
         if keychainSnapshotPresent { return "Keychain" }
