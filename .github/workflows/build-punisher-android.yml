@@ -283,6 +283,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Test isolated synthetic vehicle simulator
+        run: node standalone/tests/punisher_simulator.test.cjs
+
       - name: Validate packaged Punisher Android frontend
         run: node standalone/tests/punisher_android_smoke.cjs
 
