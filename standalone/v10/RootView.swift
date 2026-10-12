@@ -4,6 +4,7 @@ struct RootView: View {
     @EnvironmentObject private var garage: VehicleProfileStore
     @State private var showPicker = false
     @State private var selectedTab = 0
+    @AppStorage("punisher.demo.enabled") private var simulatorEnabled = false
     @State private var documentsVehicle: GarageVehicle?
 
     var body: some View {
@@ -164,6 +165,10 @@ struct RootView: View {
                     }
                     .buttonStyle(.plain)
 
+                    if simulatorEnabled {
+                        PunisherDemoPanel(vehicleID: vehicle.id)
+                            .id(vehicle.id)
+                    }
                     quickControls(profile: profile)
                     systemCards(vehicle: vehicle, profile: profile)
                 } else {
