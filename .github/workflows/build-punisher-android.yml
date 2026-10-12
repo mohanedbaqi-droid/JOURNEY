@@ -277,7 +277,16 @@ jobs:
           set -euo pipefail
           grep -q 'function refreshAppearancePreview' PunisherAndroid/app/src/main/assets/index.html
           grep -q 'vehicle-media' PunisherAndroid/app/src/main/assets/index.html
-          grep -q 'Android 0.4.7 (18)' PunisherAndroid/app/src/main/assets/index.html
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          gradle = Path("PunisherAndroid/app/build.gradle.kts").read_text()
+          html = Path("PunisherAndroid/app/src/main/assets/index.html").read_text()
+          version = re.search(r'versionName\s*=\s*"([^"]+)"', gradle).group(1)
+          build = re.search(r'versionCode\s*=\s*(\d+)', gradle).group(1)
+          assert f"Android {version} ({build})" in html, "Android UI version must match Gradle"
+          print(f"Android version verified: {version} ({build})")
+          PY
 
       - uses: actions/setup-node@v4
         with:
