@@ -11,8 +11,8 @@ android {
         applicationId = "com.abuseif.punisherdrive"
         minSdk = 23
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.4.7"
+        versionCode = 19
+        versionName = "0.4.8"
     }
 
     compileOptions {
