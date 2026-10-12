@@ -75,10 +75,18 @@ linear-gradient(#040507,#071018);display:flex;align-items:center;justify-content
 .plate-fit-controls label{display:block;margin:10px 0 4px}
 .plate-fit-controls input[type=range]{display:block;width:100%;accent-color:#00cdeb}
 .ctrl:disabled{opacity:.50;filter:grayscale(.5);cursor:not-allowed}
+.sim-banner{color:#ffe0a6;border:1px dashed #e7ae46;border-radius:12px;padding:9px;background:rgba(255,163,32,.1);font-size:12px;font-weight:800;text-align:center;margin:9px 0}
+.sim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.sim-stat{padding:10px 5px;border-radius:12px;border:1px solid #263845;background:#0b1119;text-align:center;overflow:hidden}
+.sim-stat b{display:block;font-size:14px;color:#7addf1;margin-top:4px}
+.sim-switch{width:20px;height:20px;accent-color:#00cdeb}
+.sim-result{font-size:12px;line-height:1.6;min-height:16px}
+
 
 </style>
 <script src="vehicle_profiles.js"></script>
 <script src="vehicle_visual_ai.js"></script>
+<script src="simulator.js"></script>
 </head>
 <body>
 <div id="splash"><div><img class="splash-logo" src="punisher_mark.png"><div class="splash-title">PUNISHER</div><div class="splash-drive">DRIVE</div><div class="splash-sub">SMART VEHICLE CONTROL</div></div></div>
@@ -100,6 +108,28 @@ var profiles=Array.isArray(window.VEHICLE_PROFILES)?window.VEHICLE_PROFILES:[];
 var visualAI=Array.isArray(window.VEHICLE_VISUAL_AI)?window.VEHICLE_VISUAL_AI:[];
 var garage=[];var activeId=null;var tab='home';var selectedColor='#F2F2F2';
 var lang=localStorage.getItem('pd_lang')||'ar';
+var demoEnabled=localStorage.getItem('pd_simulator_enabled')==='yes';
+var simMessage='';
+function simState(v){return demoEnabled&&v&&window.PunisherSimulator?PunisherSimulator.get(v.id):null}
+function simCommand(v,cmd){
+  if(!demoEnabled||!v||!window.PunisherSimulator)return;
+  if(cmd==='start'&&!window.confirm(t('simConfirmStart')))return;
+  var result=PunisherSimulator.execute(v.id,cmd);
+  simMessage=result.ok?t('simApplied'):t('simDenied')+' ('+result.reason+')';
+  render()
+}
+function simTelemetry(v){
+  var d=simState(v);if(!d)return '';
+  var metric=function(k,value){return '<div class="sim-stat"><small>'+k+'</small><b>'+esc(String(value))+'</b></div>'};
+  return '<div class="card"><div class="sim-banner">'+t('simWarning')+'</div>'+
+    '<div class="sim-grid">'+metric(t('simEngine'),d.engineRunning?t('simOn'):t('simOff'))+
+    metric('RPM',d.rpm)+metric('OBD V',d.batteryV.toFixed(2))+
+    metric('ESP °C',d.espC)+metric('GPS',d.latitude.toFixed(3)+', '+d.longitude.toFixed(3))+
+    metric(t('simLocked'),d.locked?t('simYes'):t('simNo'))+'</div>'+
+    '<p class="sim-result">'+esc(simMessage)+'</p>'+
+    '<button class="btn" data-act="sim-reset" data-id="'+v.id+'">'+t('simReset')+'</button></div>'
+}
+
 var rtlLangs={ar:1,ku:1,fa:1};
 var I18N={
  ar:{home:'الرئيسية',garage:'الكراج',map:'الخارطة',settings:'الإعدادات',about:'حول',addCar:'إضافة سيارة',addFirst:'إضافة أول سيارة',garageEmpty:'الكراج فارغ',quick:'التحكم السريع',lock:'قفل',unlock:'فتح',start:'تشغيل',alarm:'إنذار',colorPlate:'لون ورقم السيارة',active:'نشطة',manageGarage:'إدارة الكراج',activeVehicle:'السيارة النشطة',vehicle:'السيارة',notLinked:'غير مربوط',version:'الإصدار',language:'اللغة',languageNote:'تتغير اللغة مباشرة بدون إعادة تثبيت.',smartAI:'الذكاء',smartAISub:'ذكاء للصور والتشخيص والتنبيهات والرحلات',fleetMap:'خارطة السيارات',waitingGPS:'بانتظار بيانات GPS',speed:'السرعة',status:'الحالة',moving:'متحركة',stopped:'متوقفة',connection:'الاتصال',setActive:'اعتماد للتحكم',appearance:'شكل السيارة',governorate:'المحافظة',letter:'الحرف',number6:'الرقم • حتى 6 أرقام',save:'حفظ',make:'الشركة',model:'الموديل',generation:'الجيل',year:'السنة',addGarage:'إضافة للكراج',developer:'المطور',business:'الجهة',fullControl:'تحكم كامل بسيارتك',aiVisual:'AI Visual Fit',aiVisualSub:'يضبط تلوين البودي وموقع وحجم وزاوية اللوحة لكل صورة سيارة.',aiOBD:'AI OBD Diagnostics',aiOBDSub:'يفسر DTC وبيانات الحساسات عند وصول بيانات OBD الحقيقية.',aiAlerts:'Smart Alerts',aiAlertsSub:'يراقب الفولت والحرارة والاتصال والحركة وينبه على القيم غير الطبيعية.',aiTrips:'Trip AI',aiTripsSub:'يلخص الوقت والمسافة والتوقفات وسلوك القيادة من GPS وبيانات السيارة.'},
@@ -120,6 +150,11 @@ Object.assign(I18N.en,{plateFit:'Plate placement',fitX:'Left / right',fitY:'Up /
 Object.assign(I18N.ku,{plateFit:'شوێنی تابلۆ',fitX:'چەپ / ڕاست',fitY:'سەرەوە / خوارەوە',fitScale:'قەبارەی تابلۆ',fitAngle:'لاربوونی تابلۆ',resetFit:'گەڕانەوە بۆ AI',espLinked:'بەستراو',controlWaiting:'فەرمانەکان پەیوەندیی ESPی پشتڕاستکراو دەوێت'});
 Object.assign(I18N.tr,{plateFit:'Plaka yerleşimi',fitX:'Sol / sağ',fitY:'Yukarı / aşağı',fitScale:'Plaka boyutu',fitAngle:'Plaka açısı',resetFit:'AI konumunu sıfırla',espLinked:'Bağlı',controlWaiting:'Kontroller doğrulanmış ESP bağlantısı gerektirir'});
 Object.assign(I18N.fa,{plateFit:'جای پلاک',fitX:'چپ / راست',fitY:'بالا / پایین',fitScale:'اندازه پلاک',fitAngle:'زاویه پلاک',resetFit:'بازنشانی AI',espLinked:'پیوند شده',controlWaiting:'کنترل‌ها نیازمند ارتباط زنده و تأییدشده ESP هستند'});
+Object.assign(I18N.ar,{simTitle:'محاكي ESP (تجربة فقط)',simHelp:'داتا افتراضية بدون اتصال بأي سيارة أو GPS أو OBD',simWarning:'وضع تجريبي — لا ينفذ أي أمر حقيقي',simEngine:'المحرك',simLocked:'مقفولة',simOn:'شغال',simOff:'مطفي',simYes:'نعم',simNo:'لا',simReset:'إعادة تعيين المحاكاة',simApplied:'تم تطبيق الأمر داخل المحاكي فقط',simDenied:'تم رفض الأمر التجريبي',simConfirmStart:'تشغيل المحرك الافتراضي فقط؟ ما راح يتصل بالسيارة.'});
+Object.assign(I18N.en,{simTitle:'ESP simulator (demo only)',simHelp:'Synthetic data; no car, GPS or OBD connection',simWarning:'SIMULATION — no real vehicle commands',simEngine:'Engine',simLocked:'Locked',simOn:'On',simOff:'Off',simYes:'Yes',simNo:'No',simReset:'Reset simulation',simApplied:'Applied in simulator only',simDenied:'Demo command denied',simConfirmStart:'Start synthetic engine only? This cannot control a car.'});
+Object.assign(I18N.ku,{simTitle:'هاوشێوەسازی ESP',simHelp:'داتای ساختە، بەبێ پەیوەندی بە ئۆتۆمبێل',simWarning:'تەنها تاقیکردنەوە — هیچ فەرمانێکی ڕاستەقینە نییە',simEngine:'ماتۆڕ',simLocked:'قفڵ',simOn:'کارا',simOff:'ناکارا',simYes:'بەڵێ',simNo:'نەخێر',simReset:'ڕێکخستنەوە',simApplied:'تەنها لە هاوشێوەسازیدا',simDenied:'فەرمان ڕەتکرایەوە',simConfirmStart:'تەنها ماتۆڕی خەیاڵی پێبکرێت؟'});
+Object.assign(I18N.tr,{simTitle:'ESP simülatörü',simHelp:'Yalnızca sahte veriler',simWarning:'SİMÜLASYON — gerçek araç komutu gönderilmez',simEngine:'Motor',simLocked:'Kilitli',simOn:'Açık',simOff:'Kapalı',simYes:'Evet',simNo:'Hayır',simReset:'Simülasyonu sıfırla',simApplied:'Yalnızca simülatörde uygulandı',simDenied:'Simülasyon komutu reddedildi',simConfirmStart:'Yalnızca sanal motor başlatılsın mı?'});
+Object.assign(I18N.fa,{simTitle:'شبیه‌ساز ESP',simHelp:'داده آزمایشی بدون اتصال خودرو',simWarning:'حالت آزمایشی — بدون فرمان واقعی',simEngine:'موتور',simLocked:'قفل',simOn:'روشن',simOff:'خاموش',simYes:'بله',simNo:'خیر',simReset:'بازنشانی',simApplied:'فقط در شبیه‌ساز اجرا شد',simDenied:'فرمان آزمایشی رد شد',simConfirmStart:'موتور آزمایشی روشن شود؟'});
 function t(k){return (I18N[lang]&&I18N[lang][k])||I18N.en[k]||k}
 function applyLang(){
   document.documentElement.lang=lang;
@@ -202,7 +237,11 @@ function homeHtml(){
   '<div class="pills"><div class="pill">ESP '+(v.espDeviceID?t('espLinked'):t('notLinked'))+'</div><div class="pill '+(v.latitude!=null&&v.longitude!=null?'on':'')+'">GPS</div><div class="pill">OBD</div></div>'+
   '<button class="btn" style="width:100%;margin-bottom:8px" data-act="appearance" data-id="'+v.id+'">'+t('colorPlate')+'</button>'+
   '<button class="btn" style="width:100%;margin-bottom:12px" data-act="documents" data-id="'+v.id+'">👤 '+t('customerDocs')+'</button>'+
-  '<div class="card"><div class="section">'+t('quick')+'</div><div class="sub" style="margin:8px 0">'+t('controlWaiting')+'</div><div class="grid2"><button class="ctrl red" disabled>🔒<br>'+t('lock')+'</button><button class="ctrl cyan" disabled>🔓<br>'+t('unlock')+'</button><button class="ctrl red" disabled>⏻<br>'+t('start')+'</button><button class="ctrl cyan" disabled>🔔<br>'+t('alarm')+'</button></div></div>';
+  '<div class="card"><div class="section">'+t('quick')+'</div><div class="sub" style="margin:8px 0">'+(demoEnabled?t('simWarning'):t('controlWaiting'))+'</div><div class="grid2">'+
+  (demoEnabled?
+    '<button class="ctrl red" data-act="sim-lock" data-id="'+v.id+'">🔒<br>'+t('lock')+'</button><button class="ctrl cyan" data-act="sim-unlock" data-id="'+v.id+'">🔓<br>'+t('unlock')+'</button><button class="ctrl red" data-act="sim-start" data-id="'+v.id+'">⏻<br>'+t('start')+'</button><button class="ctrl cyan" data-act="sim-alarm" data-id="'+v.id+'">🔔<br>'+t('alarm')+'</button>':
+    '<button class="ctrl red" disabled>🔒<br>'+t('lock')+'</button><button class="ctrl cyan" disabled>🔓<br>'+t('unlock')+'</button><button class="ctrl red" disabled>⏻<br>'+t('start')+'</button><button class="ctrl cyan" disabled>🔔<br>'+t('alarm')+'</button>')+
+    '</div></div>'+simTelemetry(v);
 }
 function garageHtml(){
   var h='<div class="row between"><div><h1 class="title">'+t('garage')+'</h1><div class="sub">'+garage.length+' '+t('vehicle')+'</div></div><button class="btn" data-act="add">'+t('addCar')+'</button></div>';
@@ -224,6 +263,7 @@ function settingsHtml(){
   return '<h1 class="title">'+t('settings')+'</h1>'+
   '<div class="card"><div class="section">'+t('language')+'</div><select id="langSelect" class="field">'+langs.map(function(x){return '<option value="'+x[0]+'" '+(x[0]===lang?'selected':'')+'>'+x[1]+'</option>'}).join('')+'</select><div class="sub">'+t('languageNote')+'</div></div>'+
   '<div class="card"><button class="btn fill" style="width:100%" data-tabgo="ai">✦ '+t('smartAI')+'</button><div class="sub" style="margin-top:9px">'+t('smartAISub')+'</div></div>'+
+  '<div class="card"><div class="section">'+t('simTitle')+'</div><label class="row"><input id="simToggle" class="sim-switch" type="checkbox" '+(demoEnabled?'checked':'')+'><b>'+t('simTitle')+'</b></label><div class="sub">'+t('simHelp')+'</div></div>'+
   '<div class="card"><div class="section">'+t('customerServer')+'</div><button class="btn" style="width:100%" data-act="server">'+t('serverNotConfigured')+'</button><div class="sub" style="margin-top:8px">'+t('uploadDisabled')+'</div></div>'+
   '<div class="card"><div class="section">'+t('activeVehicle')+'</div><div class="info"><span>'+t('vehicle')+'</span><b>'+esc(v?sub(v):'—')+'</b></div><div class="info"><span>ESP</span><b>'+esc(v&&v.espDeviceID?v.espDeviceID:t('notLinked'))+'</b></div></div>'+
   '<div class="card"><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="garage">'+t('manageGarage')+'</button><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="map">'+t('map')+'</button><button class="btn red" style="width:100%" data-tabgo="about">'+t('about')+'</button></div>'+
@@ -342,7 +382,8 @@ document.querySelectorAll('.swatch').forEach(function(b){b.onclick=function(){se
 var reset=document.getElementById('fitReset');if(reset)reset.onclick=function(){[['fitX',0],['fitY',0],['fitScale',1],['fitAngle',0]].forEach(function(p){document.getElementById(p[0]).value=p[1];document.getElementById(p[0]+'Value').textContent=Number(p[1]).toFixed(2)});refreshAppearancePreview()};
 var s=document.getElementById('appearanceSave');if(s)s.onclick=function(){var id=document.getElementById('sheet').dataset.vid;var v=garage.find(function(x){return x.id===id});if(v){v.colorHex=selectedColor;v.plateGovernorateCode=document.getElementById('plateGov').value;v.plateLetter=document.getElementById('plateLetter').value;v.plateNumber=normalizePlateNumber(document.getElementById('plateNumber').value);v.plateText=v.plateNumber?(v.plateGovernorateCode+' '+v.plateLetter+' '+v.plateNumber):'';v.plateShiftX=Number(document.getElementById('fitX').value);v.plateShiftY=Number(document.getElementById('fitY').value);v.plateScale=Number(document.getElementById('fitScale').value);v.plateAngleOffset=Number(document.getElementById('fitAngle').value);save()}closeModal();render()};var es=document.getElementById('espSave');if(es)es.onclick=function(){var id=document.getElementById('sheet').dataset.vid;var v=garage.find(function(x){return x.id===id});if(v){var d=document.getElementById('esp').value.trim();garage.forEach(function(x){if(x.id!==v.id&&x.espDeviceID===d)x.espDeviceID=''});v.espDeviceID=d;save()}closeModal();render()}}
 function espDialog(v){openModal('<h2>ESP</h2><input id="esp" class="field" value="'+esc(v.espDeviceID||'')+'" placeholder="ESP Device ID"><button class="btn fill" style="width:100%" id="espSave">'+t('save')+'</button>')}
-function bind(){document.querySelectorAll('[data-act]').forEach(function(b){b.onclick=function(){var a=b.dataset.act,id=b.dataset.id,v=garage.find(function(x){return x.id===id});if(a==='add')addDialog();if(a==='server')customerServerDialog();if(a==='activate'&&v){activeId=v.id;save();render()}if(a==='documents'&&v){customerDocs(v)}if(a==='appearance'&&v){document.getElementById('sheet').dataset.vid=v.id;appearance(v);document.getElementById('sheet').dataset.vid=v.id}if(a==='esp'&&v){espDialog(v);document.getElementById('sheet').dataset.vid=v.id}}});document.querySelectorAll('[data-tabgo]').forEach(function(b){b.onclick=function(){setTab(b.dataset.tabgo)}});var ls=document.getElementById('langSelect');if(ls)ls.onchange=function(){lang=ls.value;localStorage.setItem('pd_lang',lang);applyLang();render()}}
+function bind(){document.querySelectorAll('[data-act]').forEach(function(b){b.onclick=function(){var a=b.dataset.act,id=b.dataset.id,v=garage.find(function(x){return x.id===id});if(a==='add')addDialog();if(a==='server')customerServerDialog();if(a.indexOf('sim-')===0&&v){if(a==='sim-reset'){PunisherSimulator.reset(v.id);simMessage='';render()}else simCommand(v,a.slice(4))};if(a==='activate'&&v){activeId=v.id;save();render()}if(a==='documents'&&v){customerDocs(v)}if(a==='appearance'&&v){document.getElementById('sheet').dataset.vid=v.id;appearance(v);document.getElementById('sheet').dataset.vid=v.id}if(a==='esp'&&v){espDialog(v);document.getElementById('sheet').dataset.vid=v.id}}});document.querySelectorAll('[data-tabgo]').forEach(function(b){b.onclick=function(){setTab(b.dataset.tabgo)}});var ls=document.getElementById('langSelect');if(ls)ls.onchange=function(){lang=ls.value;localStorage.setItem('pd_lang',lang);applyLang();render()};
+var simToggle=document.getElementById('simToggle');if(simToggle)simToggle.onchange=function(){demoEnabled=simToggle.checked;localStorage.setItem('pd_simulator_enabled',demoEnabled?'yes':'no');simMessage='';render()}}
 function loadMap(){var located=garage.filter(function(v){return v.latitude!=null&&v.longitude!=null});if(!located.length)return;var old=document.getElementById('leafletScript');if(old)old.remove();var css=document.getElementById('leafletCss');if(!css){css=document.createElement('link');css.id='leafletCss';css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';css.integrity='sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';css.crossOrigin='anonymous';document.head.appendChild(css)}var sc=document.createElement('script');sc.id='leafletScript';sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';sc.integrity='sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';sc.crossOrigin='anonymous';sc.onload=function(){var m=L.map('map');var pts=[];located.forEach(function(v){var p=[v.latitude,v.longitude];pts.push(p);var mk=L.circleMarker(p,{radius:v.id===activeId?12:9,color:v.id===activeId?'#d71c23':'#00cdeb',fillColor:'#111722',fillOpacity:.95,weight:3}).addTo(m);mk.bindPopup('<b>'+esc(name(v))+'</b><br>'+esc(plateText(v)||'—')+'<br>'+t('speed')+': '+Math.round(v.speedKmh||0)+' km/h');mk.on('click',function(){showMapInfo(v)})});if(pts.length===1)m.setView(pts[0],15);else m.fitBounds(pts,{padding:[30,30]})};document.head.appendChild(sc)}
 function showMapInfo(v){var el=document.getElementById('mapInfo');if(!el)return;el.innerHTML='<div class="card map-card"><div class="row between"><div><b>'+esc(name(v))+'</b><div class="sub">'+esc(plateText(v)||'—')+'</div></div>'+(v.id===activeId?'<span class="badge">'+t('active')+'</span>':'<button class="btn red" data-act="activate" data-id="'+v.id+'">'+t('setActive')+'</button>')+'</div><div class="metrics"><div class="metric"><small>'+t('speed')+'</small><b>'+Math.round(v.speedKmh||0)+' km/h</b></div><div class="metric"><small>'+t('status')+'</small><b>'+((v.speedKmh||0)>1?t('moving'):t('stopped'))+'</b></div><div class="metric"><small>'+t('connection')+'</small><b>'+(v.online?'Online':'Offline')+'</b></div></div></div>';bind()}
 applyLang();render();setTimeout(function(){document.getElementById('splash').classList.add('hide')},900)
