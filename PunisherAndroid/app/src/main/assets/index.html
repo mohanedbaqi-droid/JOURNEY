@@ -267,7 +267,7 @@ function settingsHtml(){
   '<div class="card"><div class="section">'+t('customerServer')+'</div><button class="btn" style="width:100%" data-act="server">'+t('serverNotConfigured')+'</button><div class="sub" style="margin-top:8px">'+t('uploadDisabled')+'</div></div>'+
   '<div class="card"><div class="section">'+t('activeVehicle')+'</div><div class="info"><span>'+t('vehicle')+'</span><b>'+esc(v?sub(v):'—')+'</b></div><div class="info"><span>ESP</span><b>'+esc(v&&v.espDeviceID?v.espDeviceID:t('notLinked'))+'</b></div></div>'+
   '<div class="card"><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="garage">'+t('manageGarage')+'</button><button class="btn" style="width:100%;margin-bottom:8px" data-tabgo="map">'+t('map')+'</button><button class="btn red" style="width:100%" data-tabgo="about">'+t('about')+'</button></div>'+
-  '<div class="card"><div class="info"><span>'+t('version')+'</span><b>Android 0.4.7 (18)</b></div><div class="info"><span>Profiles</span><b>'+profiles.length+'</b></div><div class="info"><span>'+t('garage')+'</span><b>'+garage.length+'</b></div></div>'
+  '<div class="card"><div class="info"><span>'+t('version')+'</span><b>Android 0.4.8 (19)</b></div><div class="info"><span>Profiles</span><b>'+profiles.length+'</b></div><div class="info"><span>'+t('garage')+'</span><b>'+garage.length+'</b></div></div>'
 }
 function aiHtml(){
   return '<div class="row between"><h1 class="title">PUNISHER AI</h1><button class="btn" data-tabgo="settings">‹ '+t('settings')+'</button></div>'+
@@ -278,7 +278,7 @@ function aiHtml(){
 }
 function aboutHtml(){
   return '<div class="about-logo"><img src="punisher_mark.png" style="width:160px;height:160px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(215,28,35,.35))"><h2><span style="color:#ff343d">PUNISHER</span> <span style="color:#24dfff">DRIVE</span></h2><h3>Punisher Car</h3><p>'+t('fullControl')+'</p></div>'+
-  '<div class="card"><div class="info"><span>'+t('developer')+'</span><b>مهند الربيعي</b></div><div class="info"><span>'+t('business')+'</span><b>مركز بونيشير للسيارات</b></div><div class="info"><span>Phone / WhatsApp</span><b>07811119127</b></div><div class="info"><span>Instagram</span><b>h0k38</b></div><div class="info"><span>Telegram</span><b>ma_o_92</b></div><div class="info"><span>'+t('version')+'</span><b>Android 0.4.7 (18)</b></div><div class="info"><span>ESP</span><b>v1.0.4</b></div></div>'
+  '<div class="card"><div class="info"><span>'+t('developer')+'</span><b>مهند الربيعي</b></div><div class="info"><span>'+t('business')+'</span><b>مركز بونيشير للسيارات</b></div><div class="info"><span>Phone / WhatsApp</span><b>07811119127</b></div><div class="info"><span>Instagram</span><b>h0k38</b></div><div class="info"><span>Telegram</span><b>ma_o_92</b></div><div class="info"><span>'+t('version')+'</span><b>Android 0.4.8 (19)</b></div><div class="info"><span>ESP</span><b>v1.0.4</b></div></div>'
 }
 function openModal(html){document.getElementById('sheet').innerHTML=html;document.getElementById('modal').classList.add('open');bindModal()}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
