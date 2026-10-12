@@ -22,6 +22,7 @@ on:
       - "standalone/v18/**"
       - "standalone/v19/**"
       - "standalone/v20/**"
+      - "standalone/v21/**"
       - "standalone/tests/**"
       - ".github/workflows/build-ios-ipa.yml"
 
@@ -47,6 +48,7 @@ jobs:
           cp standalone/v07/LaunchSplashView.swift PunisherDrive/Views/LaunchSplashView.swift
           cp standalone/v07/PunisherBrand.swift PunisherDrive/Views/PunisherBrand.swift
           cp standalone/v10/RootView.swift PunisherDrive/Views/RootView.swift
+          cp standalone/v21/PunisherDemoPanel.swift PunisherDrive/Views/PunisherDemoPanel.swift
           cp standalone/v10/GarageView.swift PunisherDrive/Views/GarageView.swift
           cp standalone/v10/VehicleProfileStore.swift PunisherDrive/Models/VehicleProfileStore.swift
           cp standalone/v14/VehicleAppearanceView.swift PunisherDrive/Views/VehicleAppearanceView.swift
