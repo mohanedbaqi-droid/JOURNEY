@@ -269,16 +269,15 @@ jobs:
             --mode directory
           test "$(find PunisherAndroid/app/src/main/assets/vehicle_masks -type f -name '*.png' | wc -l | tr -d ' ')" -eq 56
 
-      - name: Patch Android Full Paint v4 and natural plate
+      # index.html already contains the current plate editor and rendering pipeline.
+      # Historical migration patches expect old function signatures and must never
+      # rewrite the shipping UI or undo new edits during packaging.
+      - name: Verify current Android UI without legacy rewrites
         run: |
           set -euo pipefail
-          python standalone/v11/android_patch.py
-          python standalone/v14/android_plate_patch.py
-          python standalone/v15/android_color_v2_patch.py
-          python standalone/v16/android_ai_paint_v3_patch.py
-          python standalone/v18/android_full_paint_v4_patch.py
-          python standalone/v19/android_plate_fit_patch.py
-          python standalone/v20/android_plate_patch.py
+          grep -q 'function refreshAppearancePreview' PunisherAndroid/app/src/main/assets/index.html
+          grep -q 'vehicle-media' PunisherAndroid/app/src/main/assets/index.html
+          grep -q 'Android 0.4.7 (18)' PunisherAndroid/app/src/main/assets/index.html
 
       - uses: actions/setup-node@v4
         with:
