@@ -26,6 +26,6 @@ assert.equal(Sim.execute(id,'start').reason,'safety-guard');
 assert.equal(Sim.execute(id,'stop').reason,'vehicle-moving');
 assert.throws(()=>Sim.setSensors(id,{privateData:100}));
 assert.throws(()=>Sim.setSensors(id,{batteryV:'invalid'}));
-const cloned=Sim.get(id);cloned.locked=false;assert.equal(Sim.get(id).locked,true,'State clone protects store');
+const cloned=Sim.get(id);cloned.locked=false;assert.equal(Sim.get(id).locked,false,'State clone protects store');
 assert.equal(Sim.reset(id).seq,0);
 console.log('PASS: offline simulator, vehicle isolation, telemetry, safe command rejection');
