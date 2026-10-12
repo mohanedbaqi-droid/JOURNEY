@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var garage: VehicleProfileStore
     @State private var showAddVehicle = false
     @AppStorage(PDLocalization.key) private var language = "ar"
+    @AppStorage("punisher.demo.enabled") private var simulatorEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -106,6 +107,28 @@ struct SettingsView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                    }
+
+                    settingsCard(
+                        pd("محاكي ESP التجريبي", "Offline ESP simulator", "هاوشێوەسازی ESP", "ESP simülatörü", "شبیه‌ساز ESP"),
+                        icon: "testtube.2",
+                        tint: .orange
+                    ) {
+                        Toggle(
+                            pd("تفعيل وضع التجربة", "Enable demo mode", "دۆخی تاقیکردنەوە",
+                               "Demo modunu aç", "فعال‌سازی آزمایش"),
+                            isOn: $simulatorEnabled
+                        )
+                        .tint(.orange)
+                        Text(pd(
+                            "هذه بيانات وهمية فقط، تظهر بالرئيسية ولا تتحكم بالسيارة الحقيقية.",
+                            "Synthetic vehicle data shown on Home. No real vehicle commands.",
+                            "تەنها داتای ساختەیە، فەرمانی ڕاستەقینە نییە.",
+                            "Sahte veri, gerçek araç komutu gönderilmez.",
+                            "داده ساختگی است و فرمان واقعی نمی‌فرستد."
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
 
                     settingsCard(pdt("connection"), icon: "antenna.radiowaves.left.and.right", tint: .cyan) {
