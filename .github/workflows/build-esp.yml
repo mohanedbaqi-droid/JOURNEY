@@ -1,8 +1,8 @@
-name: Build ESP v12.78 fixed
+name: Build JOURNEY Waveshare ESP v12.79
 on:
   workflow_dispatch:
   push:
-    branches: [main, journey-main-real-doors, journey-android-real-state]
+    branches: [main, journey-main-real-doors, journey-android-real-state, journey-waveshare-complete-20261013]
     paths: ["ESP32/**", ".github/workflows/build-esp.yml"]
 jobs:
   build:
@@ -10,7 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check thermal thresholds and hysteresis
-        run: g++ ESP32/tests/thermal_policy_test.cpp -o /tmp/thermal-test && /tmp/thermal-test
+        run: |
+          g++ ESP32/tests/thermal_policy_test.cpp -o /tmp/thermal-test && /tmp/thermal-test
+          g++ ESP32/tests/modem_parsing_test.cpp -o /tmp/modem-test && /tmp/modem-test
       - uses: arduino/setup-arduino-cli@v2
       - name: Install platform and libraries
         run: |
@@ -21,11 +23,23 @@ jobs:
           arduino-cli lib install ArduinoJson PubSubClient TM1637 "Adafruit PN532"
       - name: Compile firmware
         run: |
-          mkdir -p /tmp/JOURNEY_ESP32S3_V12_78
-          cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_78/JOURNEY_ESP32S3_V12_78.ino
-          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h ESP32/EspThermalPolicy.h /tmp/JOURNEY_ESP32S3_V12_78/
-          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_78
+          mkdir -p /tmp/JOURNEY_ESP32S3_V12_79
+          cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_79/JOURNEY_ESP32S3_V12_79.ino
+          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h ESP32/EspThermalPolicy.h ESP32/JourneyModemParsing.h /tmp/JOURNEY_ESP32S3_V12_79/
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=default,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_79
+      - name: Package firmware and correctly named Arduino source
+        run: |
+          mkdir -p build-esp/JOURNEY_Waveshare_V12_79
+          cp /tmp/JOURNEY_ESP32S3_V12_79/*.h /tmp/JOURNEY_ESP32S3_V12_79/*.cpp build-esp/JOURNEY_Waveshare_V12_79/
+          cp /tmp/JOURNEY_ESP32S3_V12_79/JOURNEY_ESP32S3_V12_79.ino build-esp/JOURNEY_Waveshare_V12_79/JOURNEY_Waveshare_V12_79.ino
+          cp WAVESHARE_BUILD_AR.md build-esp/README_AR.md
+          cp build-esp/JOURNEY_ESP32S3_V12_79.ino.bin build-esp/firmware.bin
+          cp build-esp/JOURNEY_ESP32S3_V12_79.ino.bootloader.bin build-esp/bootloader.bin
+          cp build-esp/JOURNEY_ESP32S3_V12_79.ino.partitions.bin build-esp/partitions.bin
+          cp "$HOME/.arduino15/packages/esp32/hardware/esp32/3.3.0/tools/partitions/boot_app0.bin" build-esp/boot_app0.bin
+          echo 'USB flash addresses: bootloader.bin 0x0; partitions.bin 0x8000; boot_app0.bin 0xe000; firmware.bin 0x10000. OTA: firmware.bin only. Do not erase all flash.' > build-esp/FLASH_ADDRESSES.txt
+          sha256sum build-esp/firmware.bin > build-esp/SHA256.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: JOURNEY-ESP-v12.78
-          path: build-esp/*.bin
+          name: JOURNEY-ESP-v12.79
+          path: build-esp/

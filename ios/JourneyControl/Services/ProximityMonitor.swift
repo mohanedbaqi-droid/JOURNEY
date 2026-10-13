@@ -127,7 +127,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         central = CBCentralManager(
             delegate: self,
             queue: .main,
-            options: [CBCentralManagerOptionRestoreIdentifierKey: "com.example.JourneyControl.ble"]
+            options: [CBCentralManagerOptionRestoreIdentifierKey: "\(Bundle.main.bundleIdentifier ?? "com.abuseif.journey").ble"]
         )
     }
 

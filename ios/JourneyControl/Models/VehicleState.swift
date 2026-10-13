@@ -7,6 +7,8 @@ struct VehicleState: Codable {
     var espBatteryValid = false
     var espHealthPacket = false
     var firmwareVersion = ""
+    var espBoard = ""
+    var espBoardRevision = ""
     var espTemperatureC: Double? = nil
     var espBatteryVoltage: Double? = nil
     var espBatteryPercent: Double? = nil
@@ -182,7 +184,7 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case espHealthPacket, firmwareVersion, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason, espTempWarningC
+        case espHealthPacket, firmwareVersion, espBoard, espBoardRevision, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason, espTempWarningC
         case doorOpenMask, doorKnownMask, parkingLightsOn, parkingLightsValid
         case bodyStatePacket, rpmValid, coolantValid, speedValid, doorsValid, lightsValid, turnsValid, readDiagnostics
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
@@ -201,6 +203,8 @@ struct VehicleState: Codable {
         let compact = try decoder.container(keyedBy: CompactCodingKeys.self)
         espHealthPacket = try box.decodeIfPresent(Bool.self, forKey: .espHealthPacket) ?? false
         firmwareVersion = try box.decodeIfPresent(String.self, forKey: .firmwareVersion) ?? ""
+        espBoard = try box.decodeIfPresent(String.self, forKey: .espBoard) ?? ""
+        espBoardRevision = try box.decodeIfPresent(String.self, forKey: .espBoardRevision) ?? ""
         espTemperatureValid = try box.decodeIfPresent(Bool.self, forKey: .espTemperatureValid) ?? false
         if espTemperatureValid {
             espTemperatureC = try box.decodeIfPresent(Double.self, forKey: .espTemperatureC)

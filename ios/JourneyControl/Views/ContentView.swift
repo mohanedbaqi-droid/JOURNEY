@@ -1299,8 +1299,14 @@ private struct ESPStatusView: View {
                 statusRow(JL("أجهزة المالك", "Owner devices"), vehicle.ownerStateKnown ? JL("\(vehicle.authorizedPhoneCount) / 10 مسجّل", "\(vehicle.authorizedPhoneCount) / 10 registered") : JL("بانتظار ESP", "Waiting for ESP"))
             }
             Section(JL("صحة ESP", "ESP health")) {
+                if vehicle.online && !vehicle.espBoard.isEmpty {
+                    statusRow(JL("لوحة ESP", "ESP board"), vehicle.espBoard)
+                    if vehicle.espBoardRevision == "V1" || vehicle.espBoardRevision == "V2" {
+                        statusRow(JL("إصدار حساس البطارية", "Battery gauge revision"), vehicle.espBoardRevision)
+                    }
+                }
                 statusRow(JL("حرارة شريحة ESP", "ESP chip temperature"), vehicle.online ? vehicle.espTemperatureC.map { String(format: "%.1f °C", $0) } ?? "—" : "—")
-                statusRow(JL("بطارية ESP", "ESP battery"), vehicle.online && vehicle.espBatteryPercent != nil ? String(format: "%.0f%% · %.2f V", vehicle.espBatteryPercent ?? 0, vehicle.espBatteryVoltage ?? 0) : JL("غير متاحة — تحتاج حساس بطارية", "Unavailable — battery gauge required"))
+                statusRow(JL("بطارية ESP", "ESP battery"), vehicle.online && vehicle.espBatteryPercent != nil ? String(format: "%.0f%% · %.2f V", vehicle.espBatteryPercent ?? 0, vehicle.espBatteryVoltage ?? 0) : JL("بانتظار قراءة البطارية", "Waiting for battery reading"))
                 Text(!vehicle.online || vehicle.espTemperatureC == nil ? JL("بانتظار قراءة حرارة فعلية", "Waiting for a live temperature reading") : vehicle.espThermalLevel >= 2 ? JL("حرارة مرتفعة جداً؛ افحص التهوية والتغذية", "Very high temperature; check ventilation and power") : vehicle.espThermalLevel == 1 ? JL("حرارة مرتفعة؛ افحص التهوية", "High temperature; check ventilation") : JL("الحرارة دون حد التنبيه", "Temperature below warning threshold"))
                     .foregroundStyle(vehicle.online && vehicle.espTemperatureC != nil && vehicle.espThermalLevel > 0 ? Color.orange : Color.secondary)
                 statusRow(JL("حد التنبيه المحفوظ", "Saved warning threshold"), vehicle.espTempWarningC.map { "\($0) °C" } ?? JL("بانتظار ESP v12.78", "Waiting for ESP v12.78"))

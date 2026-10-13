@@ -29,6 +29,7 @@
 
 #include "ObdBleService.h"
 #include "config.h"
+#include "JourneyModemParsing.h"
 
 // Internal die temperature; never represents cabin or battery temperature.
 temperature_sensor_handle_t espTempSensor = nullptr;
@@ -66,6 +67,26 @@ int espTempWarningC = 50;
 uint32_t espHealthAt = 0;
 TwoWire batteryWire(1);
 bool batteryBusReady = false;
+const char* batteryBoardRevision = "not_detected";
+
+void beginBatteryGauge() {
+  if (!ESP_BATTERY_GAUGE_ENABLED) return;
+  const int pins[][2] = {{ESP_BATTERY_SDA_PIN, ESP_BATTERY_SCL_PIN},
+                         {ESP_BATTERY_V1_SDA_PIN, ESP_BATTERY_V1_SCL_PIN}};
+  for (unsigned i = 0; i < 2; ++i) {
+    if (!batteryWire.begin(pins[i][0], pins[i][1], 100000)) continue;
+    batteryWire.setTimeOut(20);
+    batteryWire.beginTransmission(0x36);
+    if (batteryWire.endTransmission() == 0) {
+      batteryBusReady = true;
+      batteryBoardRevision = i == 0 ? "V2" : "V1";
+      Serial0.printf("[BAT] MAX17048 %s SDA=%d SCL=%d\n", batteryBoardRevision, pins[i][0], pins[i][1]);
+      return;
+    }
+    batteryWire.end();
+  }
+  Serial0.println("[BAT] MAX17048 not detected; battery data unavailable");
+}
 
 bool readGaugeWord(uint8_t reg, uint16_t& value) {
   batteryWire.beginTransmission(0x36);
@@ -291,6 +312,13 @@ bool cellularDataAttached = false;
 String cellularNetwork = "غير متاح";
 int cellularSignalDbm = -120;
 uint32_t lastCellularPollAt = 0;
+uint32_t lastCellularAttemptAt = 0;
+uint32_t cellularDialAt = 0;
+bool cellularAttempted = false;
+volatile bool cellularReconfigureRequested = false;
+volatile bool cellularTestRequested = false;
+bool standaloneGnssStarted = false;
+bool gnssPowered = false;
 constexpr uint32_t CELLULAR_POLL_INTERVAL_MS = 15000;
 constexpr uint32_t GENERAL_WIFI_RETRY_MS = 10000;
 
@@ -396,46 +424,87 @@ void refreshCellularStatus(bool attachData) {
     cellularStatus = "disabled";
     return;
   }
-  cellularRegistered = PPP.attached();
+  if (!PPP.started()) {
+    cellularRegistered = false;
+    cellularDataAttached = false;
+    cellularSignalDbm = -120;
+    cellularNetwork = "غير متاح";
+    return;
+  }
+  cellularRegistered = PPP.hasIP() || PPP.attached();
   cellularDataAttached = PPP.hasIP();
-  cellularSignalDbm = PPP.RSSI();
-  const String op = PPP.operatorName();
+  cellularSignalDbm = journeyCsqDbm(PPP.RSSI());
+  // Avoid the core 3.3.0 operatorName() string cast; parse the bounded AT reply.
+  const String operatorReply = PPP.cmd("AT+COPS?", 1000);
+  const int firstQuote = operatorReply.indexOf('"');
+  const int lastQuote = firstQuote >= 0 ? operatorReply.indexOf('"', firstQuote + 1) : -1;
+  const String op = lastQuote > firstQuote ? operatorReply.substring(firstQuote + 1, lastQuote) : String();
   cellularNetwork = cellularRegistered ? (op.isEmpty() ? "4G" : op) : "غير متاح";
   cellularStatus = cellularDataAttached ? "data_attached" : (cellularRegistered ? "registered" : "registration_failed");
 }
 
 void startCellularPpp() {
   if (!cellularEnabled || PPP.started()) return;
+  if (cellularAttempted && millis() - lastCellularAttemptAt < CELLULAR_RETRY_MS) return;
+  cellularAttempted = true;
+  lastCellularAttemptAt = millis();
   modem.end();
+  standaloneGnssStarted = false;
+  gnssPowered = false;
   delay(50);
   PPP.setApn(cellularApn.c_str());
-  if (!cellularSimPin.isEmpty()) PPP.setPin(cellularSimPin.c_str());
+  PPP.setPin(cellularSimPin.isEmpty() ? nullptr : cellularSimPin.c_str());
   PPP.setPins(MODEM_TX_PIN, MODEM_RX_PIN, -1, -1, ESP_MODEM_FLOW_CONTROL_NONE);
   Serial0.println("[CELL] starting PPP");
   if (!PPP.begin(PPP_MODEM_SIM7600, 1, MODEM_BAUD)) {
     cellularStatus = "data_failed";
     return;
   }
-  if (PPP.attached()) {
-    PPP.mode(ESP_MODEM_MODE_CMUX);
-    PPP.waitStatusBits(ESP_NETIF_CONNECTED_BIT, 15000);
-  }
+  if (ENABLE_GNSS) gnssPowered = !PPP.cmd("AT+CGNSSPWR=1", 1000).isEmpty();
+  cellularStatus = "checking";
+  cellularDialAt = millis();
   refreshCellularStatus(true);
 }
 
 void stopCellularPpp() {
-  if (PPP.started()) PPP.end();
+  if (PPP.started()) {
+    if (PPP.mode() != ESP_MODEM_MODE_COMMAND) PPP.mode(ESP_MODEM_MODE_COMMAND);
+    PPP.end();
+  }
+  gnssPowered = false;
   cellularRegistered = false;
   cellularDataAttached = false;
   cellularStatus = cellularEnabled ? "disconnected" : "disabled";
 }
 
 void pollCellular() {
-  if (!cellularEnabled) return;
+  // UART/PPP lifecycle has one owner (loop), including settings from BLE.
+  if (cellularReconfigureRequested) {
+    cellularReconfigureRequested = false;
+    stopHotspot();
+    stopCellularPpp();
+    cellularAttempted = false;
+    applyInternetPriority();
+  }
+  if (!cellularEnabled) { cellularTestRequested = false; return; }
   if (!PPP.started()) startCellularPpp();
-  if (millis() - lastCellularPollAt < CELLULAR_POLL_INTERVAL_MS) return;
+  if (!cellularTestRequested && millis() - lastCellularPollAt < CELLULAR_POLL_INTERVAL_MS) return;
+  cellularTestRequested = false;
   lastCellularPollAt = millis();
   refreshCellularStatus(true);
+  if (PPP.started() && !PPP.hasIP()) {
+    if (PPP.mode() == ESP_MODEM_MODE_COMMAND && cellularRegistered) {
+      if (!PPP.mode(ESP_MODEM_MODE_CMUX)) cellularStatus = "data_failed";
+      else cellularStatus = "checking";
+    }
+    // Registration may take longer than boot; keep trying and recover after
+    // loss of data instead of leaving a started-but-undialled PPP forever.
+    if (millis() - cellularDialAt >= CELLULAR_CONNECT_TIMEOUT_MS) {
+      stopCellularPpp();
+      cellularStatus = "data_failed";
+      lastCellularAttemptAt = millis();
+    }
+  }
   publishState();
 }
 
@@ -1216,7 +1285,9 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.78";
+  doc["firmwareVersion"] = "12.79";
+  doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
+  doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
   doc["espTemperatureValid"] = espTemperatureValid && fresh;
   if (espTemperatureValid && fresh) doc["espTemperatureC"] = roundf(espTemperatureC * 10) / 10;
@@ -1433,14 +1504,13 @@ void publishState() {
     cellularDoc["cellularDataAttached"] = cellularDataAttached;
     cellularDoc["cellularAPN"] = cellularApn;
     cellularDoc["cellularStatus"] = cellularStatus;
-    cellularDoc["cellularNetwork"] = cellularNetwork;
+    cellularDoc["cellularNetwork"] = cellularNetwork.substring(0, 24);
     cellularDoc["cellularSignalDBm"] = cellularSignalDbm;
     cellularDoc["hotspotEnabled"] = hotspotEnabled;
     cellularDoc["hotspotRunning"] = hotspotRunning;
     cellularDoc["hotspotSSID"] = hotspotSsid;
     cellularDoc["internetRoute"] = activeInternetRoute == InternetRoute::CELLULAR ? "CELLULAR" : (activeInternetRoute == InternetRoute::WIFI ? "WIFI" : "NONE");
-    cellularDoc["connectionPriority"] = connectionPriorityCsv;
-    char cellularPayload[360];
+    char cellularPayload[513];
     const size_t cellularWritten = serializeJson(cellularDoc, cellularPayload, sizeof(cellularPayload));
     if (cellularWritten > 0 && cellularWritten < sizeof(cellularPayload) - 1) {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(cellularPayload), cellularWritten);
@@ -1607,44 +1677,28 @@ void publishState() {
 }
 
 bool validCoordinate(const char* value, char hemisphere, bool isLatitude, double &result) {
-  if (!value || !*value) return false;
-  const double raw = atof(value);
-  const int degrees = static_cast<int>(raw / 100.0);
-  const double minutes = raw - degrees * 100.0;
-  result = degrees + minutes / 60.0;
-  if (hemisphere == 'S' || hemisphere == 'W') result = -result;
-  return minutes >= 0 && minutes < 60 && fabs(result) <= (isLatitude ? 90.0 : 180.0);
+  return journeyCoordinate(value, hemisphere, isLatitude, result);
 }
 
 void parseGpsLine(const String &line) {
-  if (!line.startsWith("+CGPSINFO:")) return;
-  String payload = line.substring(10);
-  payload.trim();
-  char buffer[220];
-  payload.toCharArray(buffer, sizeof(buffer));
-  char *fields[9]{};
-  size_t count = 0;
-  char *save = nullptr;
-  for (char *token = strtok_r(buffer, ",", &save); token && count < 9; token = strtok_r(nullptr, ",", &save)) {
-    fields[count++] = token;
-  }
+  if (line.indexOf("+CGPSINFO:") < 0) return;
   double lat = 0, lon = 0;
-  if (count >= 4 && strlen(fields[1]) == 1 && strlen(fields[3]) == 1 &&
-      validCoordinate(fields[0], fields[1][0], true, lat) &&
-      validCoordinate(fields[2], fields[3][0], false, lon)) {
+  if (journeyGpsFix(line.c_str(), lat, lon)) {
     latitude = lat;
     longitude = lon;
     gpsValid = true;
     gpsFixAt = millis();
-  }
+  } else gpsValid = false;
 }
 
 void pollGnss() {
   if (!ENABLE_GNSS) return;
+  if (gpsValid && millis() - gpsFixAt >= GPS_FIX_MAX_AGE_MS) gpsValid = false;
   if (cellularEnabled && PPP.started()) {
     if (millis() - lastGnssQueryAt >= GNSS_QUERY_INTERVAL_MS) {
       lastGnssQueryAt = millis();
-      const String response = PPP.cmd("AT+CGPSINFO", 5000);
+      if (!gnssPowered) gnssPowered = !PPP.cmd("AT+CGNSSPWR=1", 1000).isEmpty();
+      const String response = PPP.cmd("AT+CGPSINFO", 1000);
       if (!response.isEmpty()) {
         const int pos = response.indexOf("+CGPSINFO:");
         if (pos >= 0) parseGpsLine(response.substring(pos));
@@ -1652,6 +1706,12 @@ void pollGnss() {
     }
     if (gpsValid && millis() - gpsFixAt >= GPS_FIX_MAX_AGE_MS) gpsValid = false;
     return;
+  }
+  if (cellularEnabled) return; // PPP retry owns UART while cellular is enabled.
+  if (!standaloneGnssStarted) {
+    modem.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+    standaloneGnssStarted = true;
+    gnssPowered = false;
   }
   while (modem.available()) {
     const char c = static_cast<char>(modem.read());
@@ -1665,6 +1725,7 @@ void pollGnss() {
   }
   if (millis() - lastGnssQueryAt >= GNSS_QUERY_INTERVAL_MS) {
     lastGnssQueryAt = millis();
+    if (!gnssPowered) gnssPowered = modemOK("AT+CGNSSPWR=1", 1000);
     modem.println("AT+CGPSINFO");
   }
   if (gpsValid && millis() - gpsFixAt >= GPS_FIX_MAX_AGE_MS) gpsValid = false;
@@ -1967,19 +2028,16 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     preferences.putBool("hotspotEnabled", hotspotEnabled);
     preferences.putString("hotspotSsid", hotspotSsid);
     preferences.putString("hotspotPass", hotspotPassword);
-    if (PPP.started()) PPP.end();
-    if (cellularEnabled) startCellularPpp();
-    else { stopHotspot(); stopCellularPpp(); }
-    applyInternetPriority();
+    cellularReconfigureRequested = true;
     lastCommandId = id;
     lastEvent = cellularEnabled ? "cellular_config_saved" : "cellular_disabled";
     publishState();
     return;
   }
   if (action == "cellular_test") {
-    refreshCellularStatus(true);
+    cellularTestRequested = true;
     lastCommandId = id;
-    lastEvent = "cellular_test_complete";
+    lastEvent = "cellular_test_queued";
     publishState();
     return;
   }
@@ -1991,7 +2049,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     cellularSimPin = "";
     hotspotEnabled = false;
     stopHotspot();
-    stopCellularPpp();
+    cellularReconfigureRequested = true;
     preferences.putBool("cellEnabled", false);
     preferences.remove("cellApn");
     preferences.remove("cellUser");
@@ -2000,7 +2058,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     preferences.remove("hotspotEnabled");
     preferences.remove("hotspotSsid");
     preferences.remove("hotspotPass");
-    refreshCellularStatus(false);
+    cellularStatus = "disabled";
     lastCommandId = id;
     lastEvent = "cellular_settings_cleared";
     publishState();
@@ -2334,14 +2392,11 @@ void bleCommandTask(void*) {
 }
 
 void setup() {
-  if (ESP_BATTERY_GAUGE_ENABLED) {
-    batteryBusReady = batteryWire.begin(ESP_BATTERY_SDA_PIN, ESP_BATTERY_SCL_PIN, 100000);
-    batteryWire.setTimeOut(20);
-  }
   Serial0.begin(115200);
   delay(2000);
+  beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.78 ESP HEALTH");
+  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.79");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
@@ -2356,7 +2411,7 @@ void setup() {
   generalWifiEnabled = preferences.getBool("wifiEnabled", false);
   generalWifiSsid = preferences.getString("wifiSsid", "");
   generalWifiPassword = preferences.getString("wifiPassGen", "");
-  cellularEnabled = preferences.getBool("cellEnabled", false);
+  cellularEnabled = preferences.getBool("cellEnabled", ENABLE_CELLULAR);
   cellularApn = preferences.getString("cellApn", CELLULAR_APN);
   cellularUsername = preferences.getString("cellUser", "");
   cellularPassword = preferences.getString("cellPass", "");
@@ -2394,7 +2449,8 @@ void setup() {
     // High-impedance is the safe idle state for direct negative remote buttons.
     if (output.pin >= 0) setRemoteButton(output.pin, false);
   }
-  if (REMOTE_POWER_PIN >= 0) {
+  if (ENABLE_OUTPUTS && REMOTE_POWER_PIN >= 0) {
+    digitalWrite(REMOTE_POWER_PIN, HIGH);
     pinMode(REMOTE_POWER_PIN, OUTPUT);
     // BD140 must be HIGH immediately at boot so the spare remote stays off.
     setRemotePower(false);
@@ -2433,11 +2489,6 @@ void setup() {
   });
   if (cellularEnabled) {
     startCellularPpp();
-    if (ENABLE_GNSS && PPP.started()) PPP.cmd("AT+CGNSSPWR=1", 5000);
-  } else if (ENABLE_GNSS) {
-    modem.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
-    delay(250);
-    modem.println("AT+CGNSSPWR=1");
   }
 
   if (settingsReady()) {

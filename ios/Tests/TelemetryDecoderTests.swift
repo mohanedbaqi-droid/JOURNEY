@@ -27,6 +27,9 @@ enum AppConfig { static let phoneID = "test-owner" }
    precondition(health.partialState && health.espHealthPacket && health.espTemperatureC == 70.5 && health.espBatteryVoltage == nil && health.firmwareVersion == "12.77")
    let gauge = try decode.decode(VehicleState.self, from: Data(#"{"espHealthPacket":true,"espBatteryValid":true,"espBatteryVoltage":3.8,"espBatteryPercent":62.5}"#.utf8))
    precondition(gauge.espBatteryVoltage == 3.8 && gauge.espBatteryPercent == 62.5 && gauge.batteryVoltage == 0)
+   let waveshare = try decode.decode(VehicleState.self, from: Data(#"{"espHealthPacket":true,"espBoard":"Waveshare ESP32-S3 SIM7670G","espBoardRevision":"V2","firmwareVersion":"12.79","espBatteryValid":true,"espBatteryVoltage":4.05,"espBatteryPercent":84.2}"#.utf8))
+   precondition(waveshare.espBoard == "Waveshare ESP32-S3 SIM7670G" && waveshare.espBoardRevision == "V2" && waveshare.espBatteryPercent == 84.2)
+   precondition(health.espBoard.isEmpty && health.espBoardRevision.isEmpty) // Older ESP remains compatible.
    let configured = try decode.decode(VehicleState.self, from: Data(#"{"espHealthPacket":true,"espTempWarningC":45,"espTemperatureValid":true,"espTemperatureC":46,"espThermalLevel":1}"#.utf8))
    precondition(configured.espTempWarningC == 45 && configured.espThermalLevel == 1)
    precondition(health.espTempWarningC == nil) // Older firmware cannot confirm this setting.

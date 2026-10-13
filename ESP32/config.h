@@ -50,7 +50,7 @@ constexpr uint32_t GPS_FIX_MAX_AGE_MS = 30000;
 constexpr uint16_t REMOTE_BUTTON_SERIES_RESISTOR_OHMS = 1000;
 // نبضة زر الريموت: 450ms.
 constexpr uint32_t OUTPUT_PULSE_MS = 450;
-constexpr bool ALLOW_REMOTE_START = false;
+constexpr bool ALLOW_REMOTE_START = true; // Existing owner/OBD/stationary checks still apply.
 // ترتيب التوصيل النهائي للريموت:
 // GPIO4 قفل، GPIO5 فتح، GPIO6 تشغيل، GPIO7 إنذار.
 // GPIO10 يذهب إلى قاعدة BD140: HIGH يطفئ طاقة الريموت و LOW يشغّلها.
@@ -74,9 +74,10 @@ constexpr int LEFT_SIGNAL_PIN = -1;
 constexpr int RIGHT_SIGNAL_PIN = -1;
 
 // الملحقات الاختيارية، لا تدخل في مخارج الريموت.
-// TM1637 (4 digits): CLK=15, DIO=16. Supply the module at 3.3 V.
-constexpr int TM1637_CLK_PIN = 15;
-constexpr int TM1637_DIO_PIN = 16;
+// Waveshare V2 uses GPIO15/16 for its onboard MAX17048.
+// Optional TM1637: camera must be OFF; do not connect to GPIO15/16.
+constexpr int TM1637_CLK_PIN = 12;
+constexpr int TM1637_DIO_PIN = 13;
 constexpr uint8_t TM1637_BRIGHTNESS = 5;
 // PN532 بوضع I2C: SDA=8 و SCL=9.
 constexpr int PN532_SDA_PIN = 8;
@@ -94,9 +95,13 @@ constexpr char BLE_COMMAND_UUID[] = "AF10A001-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr char BLE_STATE_UUID[] = "AF10A002-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr uint32_t STATE_INTERVAL_MS = 250;
 
-// Current generic S3 board has no fuel gauge: leave disabled.
-// Waveshare MAX17048: V1 SDA=3/SCL=2; V2 SDA=15/SCL=16.
-// V2 conflicts with this project's HUD pins: remap/disable HUD before enabling.
-constexpr bool ESP_BATTERY_GAUGE_ENABLED = false;
-constexpr int ESP_BATTERY_SDA_PIN = 3;
-constexpr int ESP_BATTERY_SCL_PIN = 2;
+// Probe the V2 gauge first, then V1, without resetting its learned state.
+constexpr bool ESP_BATTERY_GAUGE_ENABLED = true;
+constexpr int ESP_BATTERY_SDA_PIN = 15;
+constexpr int ESP_BATTERY_SCL_PIN = 16;
+constexpr int ESP_BATTERY_V1_SDA_PIN = 3;
+constexpr int ESP_BATTERY_V1_SCL_PIN = 2;
+constexpr uint32_t CELLULAR_RETRY_MS = 30000;
+constexpr uint32_t CELLULAR_CONNECT_TIMEOUT_MS = 60000;
+static_assert(TM1637_CLK_PIN != ESP_BATTERY_SDA_PIN && TM1637_DIO_PIN != ESP_BATTERY_SCL_PIN,
+              "HUD conflicts with Waveshare battery gauge");

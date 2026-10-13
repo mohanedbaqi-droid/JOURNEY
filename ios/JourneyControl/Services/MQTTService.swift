@@ -676,6 +676,10 @@ final class MQTTService: ObservableObject {
             var merged = previous ?? VehicleState()
             merged.online = true
             merged.firmwareVersion = state.firmwareVersion
+            merged.espBoard = state.espBoard
+            merged.espBoardRevision = state.espBoardRevision
+            merged.espTemperatureValid = state.espTemperatureValid
+            merged.espBatteryValid = state.espBatteryValid
             merged.espTemperatureC = state.espTemperatureC
             merged.espBatteryVoltage = state.espBatteryVoltage
             merged.espBatteryPercent = state.espBatteryPercent
