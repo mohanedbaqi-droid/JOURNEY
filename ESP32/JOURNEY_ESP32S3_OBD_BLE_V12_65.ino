@@ -26,10 +26,30 @@
 #include <Adafruit_PN532.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 
 #include "ObdBleService.h"
 #include "config.h"
 #include "JourneyModemParsing.h"
+
+// Network/OBD libraries need headroom beyond Arduino's default 8 KiB loop.
+SET_LOOP_TASK_STACK_SIZE(16384);
+
+// Large JSON byte arrays live in BSS, not on loopTask/bleCmd stacks. Only one
+// publisher may use them at once, including commands arriving over BLE.
+struct StatePublishBuffers {
+  char cloud[4096];
+  char ble[513];
+};
+StatePublishBuffers statePublishBuffers;
+SemaphoreHandle_t statePublishMutex = nullptr;
+struct StatePublishGuard {
+  bool acquired;
+  StatePublishGuard() : acquired(statePublishMutex && xSemaphoreTake(statePublishMutex, pdMS_TO_TICKS(100)) == pdTRUE) {}
+  ~StatePublishGuard() { if (acquired) xSemaphoreGive(statePublishMutex); }
+};
+constexpr size_t CLOUD_STATE_CAPACITY = sizeof(statePublishBuffers.cloud);
+constexpr size_t BLE_STATE_CAPACITY = sizeof(statePublishBuffers.ble);
 
 // Internal die temperature; never represents cabin or battery temperature.
 temperature_sensor_handle_t espTempSensor = nullptr;
@@ -1285,7 +1305,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.79";
+  doc["firmwareVersion"] = "12.80";
   doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
   doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
@@ -1302,6 +1322,8 @@ void addEspHealth(JsonDocument& doc) {
 }
 
 void publishState() {
+  StatePublishGuard guard;
+  if (!guard.acquired) return;
   const ObdSnapshot& c = obd.snapshot();
   JsonDocument doc;
   addEspHealth(doc);
@@ -1400,8 +1422,8 @@ void publishState() {
   doc["lastEvent"] = lastEvent;
   doc["uptimeSeconds"] = millis() / 1000;
 
-  char payload[4096];
-  const size_t written = serializeJson(doc, payload, sizeof(payload));
+  char* const payload = statePublishBuffers.cloud;
+  const size_t written = serializeJson(doc, payload, CLOUD_STATE_CAPACITY);
   if (bleStateCharacteristic) {
     // Owner/admin + uptime always goes first in a compact BLE-safe packet.
     publishOwnerState();
@@ -1409,9 +1431,9 @@ void publishState() {
     healthDoc["partialState"] = true;
     healthDoc["espHealthPacket"] = true;
     addEspHealth(healthDoc);
-    char healthPayload[512];
-    size_t healthBytes = serializeJson(healthDoc, healthPayload, sizeof(healthPayload));
-    if (healthBytes > 0 && healthBytes < sizeof(healthPayload) - 1) {
+    char* const healthPayload = statePublishBuffers.ble;
+    size_t healthBytes = serializeJson(healthDoc, healthPayload, BLE_STATE_CAPACITY);
+    if (healthBytes > 0 && healthBytes < BLE_STATE_CAPACITY - 1) {
       delay(15);
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(healthPayload), healthBytes);
       bleStateCharacteristic->notify();
@@ -1424,9 +1446,9 @@ void publishState() {
     gpsDoc["gpsValid"] = gpsValid && millis() - gpsFixAt < GPS_FIX_MAX_AGE_MS;
     gpsDoc["latitude"] = latitude;
     gpsDoc["longitude"] = longitude;
-    char gpsPayload[220];
-    const size_t gpsBytes = serializeJson(gpsDoc, gpsPayload, sizeof(gpsPayload));
-    if (gpsBytes > 0 && gpsBytes < sizeof(gpsPayload) - 1) {
+    char* const gpsPayload = statePublishBuffers.ble;
+    const size_t gpsBytes = serializeJson(gpsDoc, gpsPayload, BLE_STATE_CAPACITY);
+    if (gpsBytes > 0 && gpsBytes < BLE_STATE_CAPACITY - 1) {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(gpsPayload), gpsBytes);
       bleStateCharacteristic->notify();
       delay(15);
@@ -1457,9 +1479,9 @@ void publishState() {
     coreDoc["feedbackStart"] = remoteOutputActive(START_PIN);
     coreDoc["feedbackAlarm"] = remoteOutputActive(HORN_PIN);
 
-    char corePayload[512];
-    const size_t coreWritten = serializeJson(coreDoc, corePayload, sizeof(corePayload));
-    if (coreWritten > 0 && coreWritten < sizeof(corePayload) - 1) {
+    char* const corePayload = statePublishBuffers.ble;
+    const size_t coreWritten = serializeJson(coreDoc, corePayload, BLE_STATE_CAPACITY);
+    if (coreWritten > 0 && coreWritten < BLE_STATE_CAPACITY - 1) {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(corePayload), coreWritten);
       bleStateCharacteristic->notify();
       delay(15);
@@ -1482,9 +1504,9 @@ void publishState() {
       eventDoc["vehicleEventType"] = pe.type;
       eventDoc["vehicleEventText"] = pe.text;
       eventDoc["vehicleEventUptime"] = pe.createdUptime;
-      char eventPayload[320];
-      const size_t eventWritten = serializeJson(eventDoc, eventPayload, sizeof(eventPayload));
-      if (eventWritten > 0 && eventWritten < sizeof(eventPayload) - 1) {
+      char* const eventPayload = statePublishBuffers.ble;
+      const size_t eventWritten = serializeJson(eventDoc, eventPayload, BLE_STATE_CAPACITY);
+      if (eventWritten > 0 && eventWritten < BLE_STATE_CAPACITY - 1) {
         bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(eventPayload), eventWritten);
         bleStateCharacteristic->notify();
         delay(15);
@@ -1502,9 +1524,9 @@ void publishState() {
     wifiDoc["wifiIP"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "";
     wifiDoc["wifiStatus"] = generalWifiStatus;
     wifiDoc["otaAddress"] = (WiFi.status() == WL_CONNECTED) ? (String("http://") + WiFi.localIP().toString()) : "";
-    char wifiPayload[360];
-    const size_t wifiWritten = serializeJson(wifiDoc, wifiPayload, sizeof(wifiPayload));
-    if (wifiWritten > 0 && wifiWritten < sizeof(wifiPayload) - 1) {
+    char* const wifiPayload = statePublishBuffers.ble;
+    const size_t wifiWritten = serializeJson(wifiDoc, wifiPayload, BLE_STATE_CAPACITY);
+    if (wifiWritten > 0 && wifiWritten < BLE_STATE_CAPACITY - 1) {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(wifiPayload), wifiWritten);
       bleStateCharacteristic->notify();
       delay(12);
@@ -1524,9 +1546,9 @@ void publishState() {
     cellularDoc["hotspotRunning"] = hotspotRunning;
     cellularDoc["hotspotSSID"] = hotspotSsid;
     cellularDoc["internetRoute"] = activeInternetRoute == InternetRoute::CELLULAR ? "CELLULAR" : (activeInternetRoute == InternetRoute::WIFI ? "WIFI" : "NONE");
-    char cellularPayload[513];
-    const size_t cellularWritten = serializeJson(cellularDoc, cellularPayload, sizeof(cellularPayload));
-    if (cellularWritten > 0 && cellularWritten < sizeof(cellularPayload) - 1) {
+    char* const cellularPayload = statePublishBuffers.ble;
+    const size_t cellularWritten = serializeJson(cellularDoc, cellularPayload, BLE_STATE_CAPACITY);
+    if (cellularWritten > 0 && cellularWritten < BLE_STATE_CAPACITY - 1) {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(cellularPayload), cellularWritten);
       bleStateCharacteristic->notify();
       delay(12);
@@ -1541,9 +1563,9 @@ void publishState() {
     bodyDoc["do"]=c.doorsOpen?1:0; bodyDoc["lk"]=c.locked?1:0;
     bodyDoc["lo"]=c.headlightsOn; bodyDoc["il"]=c.leftSignalOn; bodyDoc["ir"]=c.rightSignalOn;
     bodyDoc["dg"]=c.readDiagnostics;
-    char bodyPayload[384];
-    const size_t bodyWritten=serializeJson(bodyDoc,bodyPayload,sizeof(bodyPayload));
-    if(bodyWritten && bodyWritten<sizeof(bodyPayload)-1) {
+    char* const bodyPayload = statePublishBuffers.ble;
+    const size_t bodyWritten=serializeJson(bodyDoc,bodyPayload,BLE_STATE_CAPACITY);
+    if(bodyWritten && bodyWritten<BLE_STATE_CAPACITY-1) {
       bleStateCharacteristic->setValue((uint8_t*)bodyPayload,bodyWritten);
       bleStateCharacteristic->notify(); delay(12);
     }
@@ -1577,9 +1599,9 @@ void publishState() {
     teleDoc["bv"] = c.batteryVoltage;
     teleDoc["ca"] = c.canAwake ? 1 : 0;
     teleDoc["ig"] = c.ignitionState;
-    char telePayload[320];
-    const size_t teleWritten = serializeJson(teleDoc, telePayload, sizeof(telePayload));
-    if (teleWritten > 0 && teleWritten < sizeof(telePayload) - 1) {
+    char* const telePayload = statePublishBuffers.ble;
+    const size_t teleWritten = serializeJson(teleDoc, telePayload, BLE_STATE_CAPACITY);
+    if (teleWritten > 0 && teleWritten < BLE_STATE_CAPACITY - 1) {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(telePayload), teleWritten);
       bleStateCharacteristic->notify();
       Serial0.printf("[BLE OBD] telemetry bytes=%u connected=%d rpm=%u speed=%u coolant=%d V=%.2f progress=%u\n",
@@ -1617,9 +1639,9 @@ void publishState() {
         if (String(kind) == "BLE") discoveryDoc["obdDiscoveredAdapters"] = chunk;
         else discoveryDoc["obdDiscoveredWifiNetworks"] = chunk;
 
-        char discoveryPayload[448];
-        const size_t discoveryWritten = serializeJson(discoveryDoc, discoveryPayload, sizeof(discoveryPayload));
-        if (discoveryWritten > 0 && discoveryWritten < sizeof(discoveryPayload) - 1) {
+        char* const discoveryPayload = statePublishBuffers.ble;
+        const size_t discoveryWritten = serializeJson(discoveryDoc, discoveryPayload, BLE_STATE_CAPACITY);
+        if (discoveryWritten > 0 && discoveryWritten < BLE_STATE_CAPACITY - 1) {
           bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(discoveryPayload), discoveryWritten);
           bleStateCharacteristic->notify();
           Serial0.printf("[BLE] discovery %s chunk=%u bytes=%u done=%d\n",
@@ -1650,9 +1672,9 @@ void publishState() {
         emptyDoc["wifiDiscoveryDone"] = true;
         emptyDoc["wifiDiscoveredNetworks"] = "";
         emptyDoc["wifiStatus"] = generalWifiStatus;
-        char emptyPayload[280];
-        const size_t n = serializeJson(emptyDoc, emptyPayload, sizeof(emptyPayload));
-        if (n > 0 && n < sizeof(emptyPayload)-1) {
+        char* const emptyPayload = statePublishBuffers.ble;
+        const size_t n = serializeJson(emptyDoc, emptyPayload, BLE_STATE_CAPACITY);
+        if (n > 0 && n < BLE_STATE_CAPACITY-1) {
           bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(emptyPayload), n);
           bleStateCharacteristic->notify();
         }
@@ -1673,9 +1695,9 @@ void publishState() {
         wifiDiscoveryDoc["wifiDiscoveryDone"] = remaining.isEmpty();
         wifiDiscoveryDoc["wifiDiscoveredNetworks"] = chunk;
         wifiDiscoveryDoc["wifiStatus"] = generalWifiStatus;
-        char wifiDiscoveryPayload[420];
-        const size_t n = serializeJson(wifiDiscoveryDoc, wifiDiscoveryPayload, sizeof(wifiDiscoveryPayload));
-        if (n == 0 || n >= sizeof(wifiDiscoveryPayload)-1) break;
+        char* const wifiDiscoveryPayload = statePublishBuffers.ble;
+        const size_t n = serializeJson(wifiDiscoveryDoc, wifiDiscoveryPayload, BLE_STATE_CAPACITY);
+        if (n == 0 || n >= BLE_STATE_CAPACITY-1) break;
         bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(wifiDiscoveryPayload), n);
         bleStateCharacteristic->notify();
         delay(12);
@@ -2406,11 +2428,12 @@ void bleCommandTask(void*) {
 }
 
 void setup() {
+  statePublishMutex = xSemaphoreCreateMutex();
   Serial0.begin(115200);
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.79");
+  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.80");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
@@ -2483,7 +2506,7 @@ void setup() {
   }
   bleCommandQueue = xQueueCreate(24, sizeof(BleCommandFrame));
   if (bleCommandQueue) {
-    xTaskCreatePinnedToCore(bleCommandTask, "bleCmd", 8192, nullptr, 3, nullptr, 1);
+    xTaskCreatePinnedToCore(bleCommandTask, "bleCmd", 16384, nullptr, 3, nullptr, 1);
   }
   advertiseBle();
   startLocalOta();
@@ -2515,6 +2538,11 @@ void setup() {
 }
 
 void loop() {
+  static uint32_t lastMemoryLogAt = 0;
+  if (millis() - lastMemoryLogAt >= 10000) {
+    lastMemoryLogAt = millis();
+    Serial0.printf("[MEM] loop stack free=%u heap=%u\n", unsigned(uxTaskGetStackHighWaterMark(nullptr)), unsigned(ESP.getFreeHeap()));
+  }
   pollEspHealth();
   pollGeneralWifi();
   pollCellular();
