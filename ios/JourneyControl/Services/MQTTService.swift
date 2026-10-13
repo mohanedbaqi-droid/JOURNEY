@@ -672,6 +672,16 @@ final class MQTTService: ObservableObject {
             return
         }
 
+        if state.gpsStatePacket {
+            var merged = previous ?? VehicleState()
+            merged.online = true
+            merged.gpsValid = state.gpsValid
+            merged.latitude = state.latitude
+            merged.longitude = state.longitude
+            vehicles[deviceID] = merged
+            lastStateAt[deviceID] = Date()
+            return
+        }
         if state.espHealthPacket {
             var merged = previous ?? VehicleState()
             merged.online = true

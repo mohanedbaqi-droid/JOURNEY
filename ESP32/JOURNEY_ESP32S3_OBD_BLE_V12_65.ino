@@ -1417,6 +1417,20 @@ void publishState() {
       bleStateCharacteristic->notify();
     }
     delay(15); // v12.54: pace notifications so iOS does not lose the following telemetry packet.
+    // GNSS must reach the nearby phone even without an MQTT broker.
+    JsonDocument gpsDoc;
+    gpsDoc["partialState"] = true;
+    gpsDoc["gpsStatePacket"] = true;
+    gpsDoc["gpsValid"] = gpsValid && millis() - gpsFixAt < GPS_FIX_MAX_AGE_MS;
+    gpsDoc["latitude"] = latitude;
+    gpsDoc["longitude"] = longitude;
+    char gpsPayload[220];
+    const size_t gpsBytes = serializeJson(gpsDoc, gpsPayload, sizeof(gpsPayload));
+    if (gpsBytes > 0 && gpsBytes < sizeof(gpsPayload) - 1) {
+      bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(gpsPayload), gpsBytes);
+      bleStateCharacteristic->notify();
+      delay(15);
+    }
     // Send operational core state separately. This packet contains the fields
     // needed by the iPhone for owner registration and keyless state and is kept
     // comfortably below the 512-byte application buffer.

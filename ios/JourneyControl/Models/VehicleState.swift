@@ -6,6 +6,7 @@ struct VehicleState: Codable {
     var espTemperatureValid = false
     var espBatteryValid = false
     var espHealthPacket = false
+    var gpsStatePacket = false
     var firmwareVersion = ""
     var espBoard = ""
     var espBoardRevision = ""
@@ -184,7 +185,7 @@ struct VehicleState: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case espHealthPacket, firmwareVersion, espBoard, espBoardRevision, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason, espTempWarningC
+        case espHealthPacket, gpsStatePacket, firmwareVersion, espBoard, espBoardRevision, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason, espTempWarningC
         case doorOpenMask, doorKnownMask, parkingLightsOn, parkingLightsValid
         case bodyStatePacket, rpmValid, coolantValid, speedValid, doorsValid, lightsValid, turnsValid, readDiagnostics
         case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
@@ -202,6 +203,7 @@ struct VehicleState: Codable {
         let box = try decoder.container(keyedBy: CodingKeys.self)
         let compact = try decoder.container(keyedBy: CompactCodingKeys.self)
         espHealthPacket = try box.decodeIfPresent(Bool.self, forKey: .espHealthPacket) ?? false
+        gpsStatePacket = try box.decodeIfPresent(Bool.self, forKey: .gpsStatePacket) ?? false
         firmwareVersion = try box.decodeIfPresent(String.self, forKey: .firmwareVersion) ?? ""
         espBoard = try box.decodeIfPresent(String.self, forKey: .espBoard) ?? ""
         espBoardRevision = try box.decodeIfPresent(String.self, forKey: .espBoardRevision) ?? ""
@@ -228,7 +230,7 @@ struct VehicleState: Codable {
         obdTelemetryPacket = fullObdTelemetryPacket || compactObdTelemetryPacket
         wifiStatePacket = try box.decodeIfPresent(Bool.self, forKey: .wifiStatePacket) ?? false
         cellularStatePacket = try box.decodeIfPresent(Bool.self, forKey: .cellularStatePacket) ?? false
-        if espHealthPacket || obdTelemetryPacket || wifiStatePacket || cellularStatePacket { partialState = true }
+        if espHealthPacket || gpsStatePacket || obdTelemetryPacket || wifiStatePacket || cellularStatePacket { partialState = true }
         vehicleEventPacket = try box.decodeIfPresent(Bool.self, forKey: .vehicleEventPacket) ?? false
         vehicleEventId = try box.decodeIfPresent(String.self, forKey: .vehicleEventId) ?? ""
         vehicleEventType = try box.decodeIfPresent(String.self, forKey: .vehicleEventType) ?? ""

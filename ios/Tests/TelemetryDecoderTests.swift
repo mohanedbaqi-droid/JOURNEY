@@ -30,6 +30,10 @@ enum AppConfig { static let phoneID = "test-owner" }
    let waveshare = try decode.decode(VehicleState.self, from: Data(#"{"espHealthPacket":true,"espBoard":"Waveshare ESP32-S3 SIM7670G","espBoardRevision":"V2","firmwareVersion":"12.79","espBatteryValid":true,"espBatteryVoltage":4.05,"espBatteryPercent":84.2}"#.utf8))
    precondition(waveshare.espBoard == "Waveshare ESP32-S3 SIM7670G" && waveshare.espBoardRevision == "V2" && waveshare.espBatteryPercent == 84.2)
    precondition(health.espBoard.isEmpty && health.espBoardRevision.isEmpty) // Older ESP remains compatible.
+   let gps = try decode.decode(VehicleState.self, from: Data(#"{"gpsStatePacket":true,"gpsValid":true,"latitude":30.5,"longitude":47.8}"#.utf8))
+   precondition(gps.partialState && gps.gpsStatePacket && gps.gpsValid && gps.latitude == 30.5 && gps.longitude == 47.8)
+   let noFix = try decode.decode(VehicleState.self, from: Data(#"{"gpsStatePacket":true,"gpsValid":false,"latitude":30.5,"longitude":47.8}"#.utf8))
+   precondition(noFix.partialState && !noFix.gpsValid) // Cached position cannot become a current fix.
    let configured = try decode.decode(VehicleState.self, from: Data(#"{"espHealthPacket":true,"espTempWarningC":45,"espTemperatureValid":true,"espTemperatureC":46,"espThermalLevel":1}"#.utf8))
    precondition(configured.espTempWarningC == 45 && configured.espThermalLevel == 1)
    precondition(health.espTempWarningC == nil) // Older firmware cannot confirm this setting.
