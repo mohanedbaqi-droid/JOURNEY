@@ -23,7 +23,7 @@ constexpr uint32_t OBD_COMMAND_GAP_MS = 80;
 // v12.76: the acknowledged Journey raw scheduler owns BCM monitoring.
 constexpr bool ENABLE_AUTO_BCM_SLICES = false;
 // فعّلها فقط بعد تحديد المخارج وفحص كل قناة بالأفوميتر.
-constexpr bool ENABLE_OUTPUTS = true;
+constexpr bool ENABLE_OUTPUTS = false; // Enable ONLY after fob wiring and polarity tests
 // غيّرها إلى true لرفعة واحدة فقط إذا بدّلت الآيفون، ثم أرجعها false.
 constexpr bool CLEAR_TRUSTED_PHONE_ON_BOOT = false;
 
@@ -74,9 +74,9 @@ constexpr int LEFT_SIGNAL_PIN = -1;
 constexpr int RIGHT_SIGNAL_PIN = -1;
 
 // الملحقات الاختيارية، لا تدخل في مخارج الريموت.
-// TM1637 (4 digits): CLK=15, DIO=16. Supply the module at 3.3 V.
-constexpr int TM1637_CLK_PIN = 15;
-constexpr int TM1637_DIO_PIN = 16;
+// TM1637 (4 digits): CLK=12, DIO=13 (camera OFF). Supply module at 3.3 V.
+constexpr int TM1637_CLK_PIN = 12;
+constexpr int TM1637_DIO_PIN = 13;
 constexpr uint8_t TM1637_BRIGHTNESS = 5;
 // PN532 بوضع I2C: SDA=8 و SCL=9.
 constexpr int PN532_SDA_PIN = 8;
@@ -94,9 +94,8 @@ constexpr char BLE_COMMAND_UUID[] = "AF10A001-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr char BLE_STATE_UUID[] = "AF10A002-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr uint32_t STATE_INTERVAL_MS = 250;
 
-// Current generic S3 board has no fuel gauge: leave disabled.
-// Waveshare MAX17048: V1 SDA=3/SCL=2; V2 SDA=15/SCL=16.
-// V2 conflicts with this project's HUD pins: remap/disable HUD before enabling.
-constexpr bool ESP_BATTERY_GAUGE_ENABLED = false;
-constexpr int ESP_BATTERY_SDA_PIN = 3;
-constexpr int ESP_BATTERY_SCL_PIN = 2;
+// Waveshare MAX17048 V2: SDA=15/SCL=16; measured on target hardware.
+// V1 boards instead need SDA=3/SCL=2. HUD moved to GPIO12/13.
+constexpr bool ESP_BATTERY_GAUGE_ENABLED = true;
+constexpr int ESP_BATTERY_SDA_PIN = 15;
+constexpr int ESP_BATTERY_SCL_PIN = 16;
