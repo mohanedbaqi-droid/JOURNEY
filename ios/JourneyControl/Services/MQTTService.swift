@@ -412,41 +412,23 @@ final class MQTTService: ObservableObject {
     @discardableResult
     private func sendByConfiguredPriority(_ command: VehicleCommand, to deviceID: String) -> Bool {
         guard !defaults.bool(forKey: "journey.demo.enabled") else { return false }
-        // Keyless remains BLE-first regardless of the configurable order.
-        if isKeylessAction(command.action) || command.action == .remotePowerOn || command.action == .remotePowerOff {
-            if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
-                lastCommand = command.action
-                lastCommandAt = Date()
-                record(command.action)
-                lastError = nil
-                return true
-            }
-            if publishCloud(command, to: deviceID) { return true }
-            return false
+
+        // Proximity/keyless presence must stay local to prevent remote presence spoofing.
+        if isKeylessAction(command.action) {
+            guard bluetooth.isConnected(to: deviceID),
+                  bluetooth.send(command, to: deviceID) else { return false }
+            lastCommand = command.action
+            lastCommandAt = Date()
+            record(command.action)
+            lastError = nil
+            return true
         }
 
-        for route in connectionPriorityOrder {
-            switch route {
-            case "BLE":
-                if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
-                    lastCommand = command.action
-                    lastCommandAt = Date()
-                    record(command.action)
-                    lastError = nil
-                    return true
-                }
-            case "CELLULAR", "WIFI":
-                if cloudRouteMatches(route, deviceID: deviceID), publishCloud(command, to: deviceID) {
-                    return true
-                }
-            default:
-                break
-            }
-        }
-
-        // If the configured Internet route has just changed but state has not
-        // caught up yet, use any confirmed cloud path before giving up.
+        // All normal vehicle controls and diagnostics use confirmed MQTT first,
+        // regardless of the phone's Bluetooth status or stored route ordering.
         if publishCloud(command, to: deviceID) { return true }
+
+        // Cellular/Wi-Fi MQTT unavailable: authenticated local BLE fallback.
         if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
             lastCommand = command.action
             lastCommandAt = Date()
