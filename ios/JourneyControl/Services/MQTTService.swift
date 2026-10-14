@@ -778,13 +778,13 @@ final class MQTTService: ObservableObject {
                 merged.cellularEnabled = state.cellularEnabled
                 merged.cellularRegistered = state.cellularRegistered
                 merged.cellularDataAttached = state.cellularDataAttached
-                merged.cellularAPN = state.cellularAPN
+                if !state.cellularAPN.isEmpty { merged.cellularAPN = state.cellularAPN }
                 merged.cellularNetwork = state.cellularNetwork
                 merged.cellularSignalDBm = state.cellularSignalDBm
                 merged.cellularStatus = state.cellularStatus
                 merged.hotspotEnabled = state.hotspotEnabled
                 merged.hotspotRunning = state.hotspotRunning
-                merged.hotspotSSID = state.hotspotSSID
+                if !state.hotspotSSID.isEmpty { merged.hotspotSSID = state.hotspotSSID }
                 merged.internetRoute = state.internetRoute
             } else if state.wifiStatePacket {
                 merged.wifiEnabled = state.wifiEnabled

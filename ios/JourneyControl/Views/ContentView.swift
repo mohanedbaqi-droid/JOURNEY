@@ -2458,11 +2458,10 @@ private struct MQTTSettingsView: View {
                 }
 
                 Section {
-                    Toggle(JL("تشغيل الشريحة / 4G", "Enable cellular / 4G"), isOn: $cellularEnabled)
-                        .tint(.green)
-                        .onChange(of: cellularEnabled) { _, enabled in
-                            if !enabled { setCellularEnabled(false) }
-                        }
+                    Toggle(JL("تشغيل الشريحة / 4G", "Enable cellular / 4G"), isOn: Binding(
+                        get: { cellularEnabled },
+                        set: { enabled in cellularEnabled = enabled; setCellularEnabled(enabled) }
+                    )).tint(.green)
 
                     HStack {
                         Label(cellularStatusText(vehicle.cellularStatus),
@@ -2610,12 +2609,15 @@ private struct MQTTSettingsView: View {
                 password = saved.password
                 wifiEnabled = vehicle.wifiEnabled
                 if wifiSSID.isEmpty { wifiSSID = vehicle.wifiSSID }
-                cellularEnabled = vehicle.cellularEnabled
+                cellularEnabled = vehicle.cellularStateKnown ? vehicle.cellularEnabled :
+                    UserDefaults.standard.bool(forKey: "journey.cellular.enabled.\(selectedDeviceID ?? "")")
                 if !vehicle.cellularAPN.isEmpty { cellularAPN = vehicle.cellularAPN }
                 hotspotEnabled = vehicle.hotspotEnabled
                 if !vehicle.hotspotSSID.isEmpty { hotspotSSID = vehicle.hotspotSSID }
                 loadConnectionPriority()
             }
+            .onChange(of: vehicle.cellularEnabled) { _, _ in syncCellularState() }
+            .onChange(of: vehicle.cellularStatus) { _, _ in syncCellularState() }
         }
     }
 
@@ -2722,45 +2724,32 @@ private struct MQTTSettingsView: View {
         }
     }
 
+    private func syncCellularState() {
+        guard vehicle.cellularStateKnown, let id = selectedDeviceID else { return }
+        cellularEnabled = vehicle.cellularEnabled
+        UserDefaults.standard.set(cellularEnabled, forKey: "journey.cellular.enabled.\(id)")
+    }
+
     private func setCellularEnabled(_ enabled: Bool) {
         guard let id = selectedDeviceID else { return }
-        let settings = ESPCellularSettings(
-            enabled: enabled,
-            apn: cellularAPN,
-            username: cellularUsername,
-            password: cellularPassword,
-            simPin: cellularSimPin,
-            hotspotEnabled: hotspotEnabled,
-            hotspotSSID: hotspotSSID,
-            hotspotPassword: hotspotPassword
-        )
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
-        cellularMessage = enabled ? JL("تم إرسال أمر تشغيل الشريحة", "Cellular enable command sent") : JL("تم إرسال أمر إطفاء بيانات الشريحة", "Cellular data disable command sent")
+        let settings = ESPCellularSettings(enabled: enabled, apn: cellularAPN,
+            username: cellularUsername, password: cellularPassword, simPin: cellularSimPin,
+            hotspotEnabled: hotspotEnabled, hotspotSSID: hotspotSSID, hotspotPassword: hotspotPassword)
+        let sent = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
+        if sent {
+            UserDefaults.standard.set(enabled, forKey: "journey.cellular.enabled.\(id)")
+            cellularMessage = JL("تم إرسال الإعدادات؛ بانتظار تأكيد ESP", "Settings sent; waiting for ESP confirmation")
+        } else {
+            cellularMessage = JL("تعذر الإرسال؛ تحقق من اتصال ESP", "Send failed; check ESP connection")
+        }
     }
 
     private func saveCellular() {
-        let apn = cellularAPN.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apn.isEmpty else {
-            cellularMessage = JL("أدخل APN", "Enter APN")
-            return
-        }
-        guard let id = selectedDeviceID else {
-            cellularMessage = JL("ماكو ESP محدد", "No ESP selected")
-            return
+        guard !cellularAPN.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            cellularMessage = JL("أدخل APN", "Enter APN"); return
         }
         cellularEnabled = true
-        let settings = ESPCellularSettings(
-            enabled: true,
-            apn: apn,
-            username: cellularUsername,
-            password: cellularPassword,
-            simPin: cellularSimPin,
-            hotspotEnabled: hotspotEnabled,
-            hotspotSSID: hotspotSSID,
-            hotspotPassword: hotspotPassword
-        )
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
-        cellularMessage = JL("تم حفظ إعدادات الشريحة وجاري الفحص", "Cellular settings saved; checking connection")
+        setCellularEnabled(true)
     }
 
     private func testCellular() {

@@ -44,6 +44,10 @@ enum AppConfig { static let phoneID = "test-owner" }
    precondition(encoded["action"] as? String == "esp_settings")
    let settings = encoded["espSettings"] as! [String: Any]
    precondition(settings.count == 1 && settings["espTempWarningC"] as? Int == 45) // Leave unrelated settings untouched.
+   let cell = try decode.decode(VehicleState.self, from: Data(#"{"cpk":1,"ce":true,"cr":true,"cd":true,"cs":-75,"ct":"data_attached","cn":"4G","nr":"CELLULAR","he":false,"hr":false}"#.utf8))
+   precondition(cell.cellularStatePacket && cell.partialState && cell.cellularStateKnown && cell.cellularEnabled && cell.cellularDataAttached && cell.cellularSignalDBm == -75)
+   let missing = try decode.decode(VehicleState.self, from: Data(#"{"p":1,"on":1}"#.utf8))
+   precondition(!missing.cellularStateKnown)
    print("Telemetry decoder checks passed")
  }
 }

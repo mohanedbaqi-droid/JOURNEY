@@ -78,6 +78,7 @@ struct VehicleState: Codable {
     /// Published by the 4G/3G modem on the ESP when available.
     var cellularNetwork = JL("غير متاح", "Unavailable")
     var cellularSignalDBm = -120
+    var cellularStateKnown: Bool { cellularStatePacket || cellularStatus != "off" }
     var cellularEnabled = false
     var cellularRegistered = false
     var cellularDataAttached = false
@@ -146,6 +147,9 @@ struct VehicleState: Codable {
     var powerSaveActive = false
 
     private enum CompactCodingKeys: String, CodingKey {
+        case cellPacket = "cpk", cellEnabled = "ce", cellRegistered = "cr", cellAttached = "cd"
+        case cellStatus = "ct", cellDbm = "cs", cellOperator = "cn", cellRoute = "nr"
+        case hotspotEnabled = "he", hotspotRunning = "hr"
         case bodyPacket = "bp"
         case doorOpenMask = "dm", doorKnownMask = "dk", parkingLightsOn = "pl", parkingLightsValid = "pv"
         case doorsValid = "dv", lightsValid = "lv", turnsValid = "iv"
@@ -229,7 +233,8 @@ struct VehicleState: Codable {
         let compactObdTelemetryPacket = (try compact.decodeIfPresent(Int.self, forKey: .obdTelemetry) ?? 0) == 1
         obdTelemetryPacket = fullObdTelemetryPacket || compactObdTelemetryPacket
         wifiStatePacket = try box.decodeIfPresent(Bool.self, forKey: .wifiStatePacket) ?? false
-        cellularStatePacket = try box.decodeIfPresent(Bool.self, forKey: .cellularStatePacket) ?? false
+        let compactCellPacket = (try compact.decodeIfPresent(Int.self, forKey: .cellPacket) ?? 0) == 1
+        cellularStatePacket = (try box.decodeIfPresent(Bool.self, forKey: .cellularStatePacket) ?? false) || compactCellPacket
         if espHealthPacket || gpsStatePacket || obdTelemetryPacket || wifiStatePacket || cellularStatePacket { partialState = true }
         vehicleEventPacket = try box.decodeIfPresent(Bool.self, forKey: .vehicleEventPacket) ?? false
         vehicleEventId = try box.decodeIfPresent(String.self, forKey: .vehicleEventId) ?? ""
@@ -278,17 +283,17 @@ struct VehicleState: Codable {
         }
 
         gpsValid = try box.decodeIfPresent(Bool.self, forKey: .gpsValid) ?? false
-        cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? JL("غير متاح", "Unavailable")
-        cellularSignalDBm = try box.decodeIfPresent(Int.self, forKey: .cellularSignalDBm) ?? -120
-        cellularEnabled = try box.decodeIfPresent(Bool.self, forKey: .cellularEnabled) ?? false
-        cellularRegistered = try box.decodeIfPresent(Bool.self, forKey: .cellularRegistered) ?? false
-        cellularDataAttached = try box.decodeIfPresent(Bool.self, forKey: .cellularDataAttached) ?? false
+        cellularNetwork = try box.decodeIfPresent(String.self, forKey: .cellularNetwork) ?? compact.decodeIfPresent(String.self, forKey: .cellOperator) ?? JL("غير متاح", "Unavailable")
+        cellularSignalDBm = try box.decodeIfPresent(Int.self, forKey: .cellularSignalDBm) ?? compact.decodeIfPresent(Int.self, forKey: .cellDbm) ?? -120
+        cellularEnabled = try box.decodeIfPresent(Bool.self, forKey: .cellularEnabled) ?? compact.decodeIfPresent(Bool.self, forKey: .cellEnabled) ?? false
+        cellularRegistered = try box.decodeIfPresent(Bool.self, forKey: .cellularRegistered) ?? compact.decodeIfPresent(Bool.self, forKey: .cellRegistered) ?? false
+        cellularDataAttached = try box.decodeIfPresent(Bool.self, forKey: .cellularDataAttached) ?? compact.decodeIfPresent(Bool.self, forKey: .cellAttached) ?? false
         cellularAPN = try box.decodeIfPresent(String.self, forKey: .cellularAPN) ?? ""
-        cellularStatus = try box.decodeIfPresent(String.self, forKey: .cellularStatus) ?? "off"
-        hotspotEnabled = try box.decodeIfPresent(Bool.self, forKey: .hotspotEnabled) ?? false
-        hotspotRunning = try box.decodeIfPresent(Bool.self, forKey: .hotspotRunning) ?? false
+        cellularStatus = try box.decodeIfPresent(String.self, forKey: .cellularStatus) ?? compact.decodeIfPresent(String.self, forKey: .cellStatus) ?? "off"
+        hotspotEnabled = try box.decodeIfPresent(Bool.self, forKey: .hotspotEnabled) ?? compact.decodeIfPresent(Bool.self, forKey: .hotspotEnabled) ?? false
+        hotspotRunning = try box.decodeIfPresent(Bool.self, forKey: .hotspotRunning) ?? compact.decodeIfPresent(Bool.self, forKey: .hotspotRunning) ?? false
         hotspotSSID = try box.decodeIfPresent(String.self, forKey: .hotspotSSID) ?? ""
-        internetRoute = try box.decodeIfPresent(String.self, forKey: .internetRoute) ?? "NONE"
+        internetRoute = try box.decodeIfPresent(String.self, forKey: .internetRoute) ?? compact.decodeIfPresent(String.self, forKey: .cellRoute) ?? "NONE"
         bluetoothRSSI = try box.decodeIfPresent(Int.self, forKey: .bluetoothRSSI) ?? -120
         espSleeping = try box.decodeIfPresent(Bool.self, forKey: .espSleeping) ?? false
         latitude = try box.decodeIfPresent(Double.self, forKey: .latitude) ?? 0

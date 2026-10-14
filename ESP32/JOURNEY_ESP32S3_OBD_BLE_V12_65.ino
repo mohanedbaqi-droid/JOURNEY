@@ -136,8 +136,8 @@ struct BleCommandFrame {
 
 struct PulseOutput {
   int pin;
-  bool active;
-  uint32_t offAt;
+  volatile bool active;
+  volatile uint32_t offAt;
 };
 
 PulseOutput outputs[] = {
@@ -190,12 +190,12 @@ uint32_t lastGnssQueryAt = 0;
 uint32_t lastStateAt = 0;
 uint32_t lastReconnectAt = 0;
 String modemLine;
-bool remotePowered = false;
+volatile bool remotePowered = false;
 volatile bool bleClientConnected = false;
 volatile bool bleOwnerSyncPending = false;
-int scheduledRemotePulsePin = -1;
-uint32_t scheduledRemotePulseAt = 0;
-uint32_t remotePowerOffAt = 0;
+volatile int scheduledRemotePulsePin = -1;
+volatile uint32_t scheduledRemotePulseAt = 0;
+volatile uint32_t remotePowerOffAt = 0;
 bool nfcReady = false;
 bool nfcEnrollPending = false;
 bool nfcLockedUntilDeparture = false;
@@ -1066,9 +1066,9 @@ bool pulsePin(int pin, uint32_t durationMs) {
   if (!ENABLE_OUTPUTS || pin < 0) return false;
   for (auto &output : outputs) {
     if (output.pin != pin) continue;
-    output.active = true;
     output.offAt = millis() + durationMs;
     setRemoteButton(pin, true);
+    output.active = true;
     lastEvent = remoteButtonEvent(pin, true);
     publishState();
     return true;
@@ -1305,7 +1305,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.80";
+  doc["firmwareVersion"] = "12.81";
   doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
   doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
@@ -1552,6 +1552,22 @@ void publishState() {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(cellularPayload), cellularWritten);
       bleStateCharacteristic->notify();
       delay(12);
+    }
+
+    // A compact SIM confirmation fits even a 185-byte ATT MTU.
+    JsonDocument compactCell;
+    compactCell["cpk"] = 1;
+    compactCell["ce"] = cellularEnabled; compactCell["cr"] = cellularRegistered;
+    compactCell["cd"] = cellularDataAttached; compactCell["cs"] = cellularSignalDbm;
+    compactCell["ct"] = cellularStatus;
+    compactCell["cn"] = cellularRegistered ? "4G" : "";
+    compactCell["he"] = hotspotEnabled; compactCell["hr"] = hotspotRunning;
+    compactCell["nr"] = activeInternetRoute == InternetRoute::CELLULAR ? "CELLULAR" :
+      (activeInternetRoute == InternetRoute::WIFI ? "WIFI" : "NONE");
+    const size_t compactCellBytes = serializeJson(compactCell, statePublishBuffers.ble, 181);
+    if (compactCellBytes > 0 && compactCellBytes < 180) {
+      bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(statePublishBuffers.ble), compactCellBytes);
+      bleStateCharacteristic->notify(); delay(12);
     }
 
     // Independent body packet: no combined BCM gate and no 512-byte core growth.
@@ -2416,6 +2432,42 @@ void ensureMqtt() {
   }
 }
 
+// GPIO deadlines must not wait behind an OBD connect or a modem query.
+volatile bool remoteTimerStateDirty = false;
+void remoteTimerTask(void*) {
+  for (;;) {
+    const uint32_t now = millis();
+    for (auto &output : outputs) {
+      if (output.active && static_cast<int32_t>(now - output.offAt) >= 0) {
+        setRemoteButton(output.pin, false);
+        output.active = false;
+        if (output.pin == HORN_PIN) hornActive = false;
+        remoteTimerStateDirty = true;
+      }
+    }
+    if (scheduledRemotePulsePin >= 0 && static_cast<int32_t>(now - scheduledRemotePulseAt) >= 0) {
+      const int pin = scheduledRemotePulsePin;
+      scheduledRemotePulsePin = -1;
+      for (auto &output : outputs) {
+        if (output.pin == pin) {
+          output.offAt = now + remotePulseMs;
+          setRemoteButton(pin, true);
+          output.active = true;
+          remoteTimerStateDirty = true;
+          break;
+        }
+      }
+    }
+    if (remotePowerOffAt && static_cast<int32_t>(now - remotePowerOffAt) >= 0) {
+      remotePowerOffAt = 0;
+      if (ENABLE_OUTPUTS && REMOTE_POWER_PIN >= 0) digitalWrite(REMOTE_POWER_PIN, HIGH);
+      remotePowered = false;
+      remoteTimerStateDirty = true;
+    }
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
+}
+
 // v12.47: Drain iPhone BLE commands in a dedicated task. OBD discovery/polling can
 // block the Arduino loop for seconds; vehicle controls must not wait behind it.
 void bleCommandTask(void*) {
@@ -2433,7 +2485,7 @@ void setup() {
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.80");
+  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.81");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
@@ -2508,6 +2560,10 @@ void setup() {
   if (bleCommandQueue) {
     xTaskCreatePinnedToCore(bleCommandTask, "bleCmd", 16384, nullptr, 3, nullptr, 1);
   }
+  if (xTaskCreatePinnedToCore(remoteTimerTask, "remoteTimer", 4096, nullptr, 4, nullptr, 1) != pdPASS) {
+    Serial0.println("[REMOTE] timer task allocation failed; restarting before enabling control");
+    ESP.restart();
+  }
   advertiseBle();
   startLocalOta();
   obd.begin();
@@ -2565,8 +2621,7 @@ void loop() {
   updateHud();
   updateKeylessPresenceState();
   updatePowerSaving();
-  updateOutputs();
-  updateRemoteSequence();
+  if (remoteTimerStateDirty) { remoteTimerStateDirty = false; publishState(); }
   if (otaRestartPending) {
     delay(800);
     ESP.restart();
