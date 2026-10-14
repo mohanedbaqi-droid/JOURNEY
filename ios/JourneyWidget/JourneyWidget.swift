@@ -140,7 +140,7 @@ private struct JourneyWidgetView: View {
             VStack(alignment: .leading, spacing: 1) { Text("JOURNEY").font(.system(size: 14, weight: .bold)); Text(s.name).font(.system(size: 10)).lineLimit(1) }
             Spacer(minLength: 2)
             Text(s.demoMode ? "DEMO" : (s.online ? t("متصل", "Live") : t("غير متصل", "Offline"))).font(.system(size: 9, weight: .bold)).foregroundStyle(s.demoMode ? .orange : (s.online ? .cyan : .gray))
-            Link(destination: URL(string: "journeycontrol://widget/open")!) {
+            Button(intent: JourneyRefreshIntent(deviceID: s.deviceID)) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 13))
                     .foregroundStyle(.cyan)
@@ -171,10 +171,10 @@ private struct JourneyWidgetView: View {
                 }
             } else {
                 // Physical commands still require the enrolled host app.
-                Link(destination: URL(string: "journeycontrol://widget/lock")!) {
+                Button(intent: JourneyActivityLockIntent(deviceID: s.deviceID)) {
                     action("lock.fill", t("قفل", "Lock"), .cyan)
                 }
-                Link(destination: URL(string: "journeycontrol://widget/unlock")!) {
+                Button(intent: JourneyActivityUnlockIntent(deviceID: s.deviceID)) {
                     action("lock.open.fill", t("فتح", "Unlock"), .cyan)
                 }
             }

@@ -1298,6 +1298,21 @@ private struct ESPStatusView: View {
                 statusRow(JL("طاقة الريموت", "Remote power"), !vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off")))
                 statusRow(JL("أجهزة المالك", "Owner devices"), vehicle.ownerStateKnown ? JL("\(vehicle.authorizedPhoneCount) / 10 مسجّل", "\(vehicle.authorizedPhoneCount) / 10 registered") : JL("بانتظار ESP", "Waiting for ESP"))
             }
+            Section(JL("تقرير تشخيص ESP", "ESP diagnostic report")) {
+                Button {
+                    if let deviceID { mqtt.requestESPDiagnostics(for: deviceID) }
+                } label: {
+                    Label(JL("سحب تشخيص ESP", "Download ESP diagnostics"), systemImage: "square.and.arrow.down")
+                }.disabled(deviceID == nil || !vehicle.online)
+                if let deviceID, let status=mqtt.espDiagnosticStatus[deviceID] { Text(status).font(.caption) }
+                if let deviceID, let report=mqtt.espDiagnosticReports[deviceID] {
+                    if let url=mqtt.espDiagnosticFiles[deviceID] {
+                        ShareLink(item: url) { Label(JL("حفظ أو مشاركة ملف التشخيص", "Save or share diagnostic file"), systemImage: "square.and.arrow.up") }
+                    }
+                    Text(report).font(.caption.monospaced()).textSelection(.enabled)
+                }
+                Text(JL("تقرير حالة وآخر أسباب فصل CAN منذ تشغيل القطعة، بدون طلب فحص أعطال السيارة وبدون تغيير المخارج.", "Current status and recent CAN disconnect reasons since boot; does not scan vehicle trouble codes or change outputs.")).font(.caption).foregroundStyle(.secondary)
+            }
             Section(JL("صحة ESP", "ESP health")) {
                 if vehicle.online && !vehicle.espBoard.isEmpty {
                     statusRow(JL("لوحة ESP", "ESP board"), vehicle.espBoard)

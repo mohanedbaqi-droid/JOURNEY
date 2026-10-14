@@ -22,6 +22,11 @@ jobs:
           swiftc ios/JourneyControl/Models/VehicleState.swift ios/JourneyControl/Models/VehicleCommand.swift ios/Tests/TelemetryDecoderTests.swift -o "$RUNNER_TEMP/decoder-tests"
           "$RUNNER_TEMP/decoder-tests"
 
+      - name: Check ESP diagnostic report assembly
+        run: |
+          swiftc ios/JourneyControl/Models/ESPDiagnosticReport.swift ios/Tests/ESPDiagnosticTests.swift -o "$RUNNER_TEMP/diagnostic-tests"
+          "$RUNNER_TEMP/diagnostic-tests"
+
       - name: Check widget data freshness
         run: |
           swiftc ios/Shared/JourneyWidgetData.swift ios/Tests/WidgetSnapshotTests.swift -o "$RUNNER_TEMP/widget-tests"

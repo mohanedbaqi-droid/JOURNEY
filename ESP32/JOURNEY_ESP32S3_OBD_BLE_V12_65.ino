@@ -397,6 +397,7 @@ void startLocalOta() {
   Serial0.println("[OTA] HTTP server ready; enable ESP Wi-Fi from the app to use it");
 }
 
+volatile bool diagnosticsRequested = false;
 void publishState();
 void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource source);
 bool queueRemotePress(int pin, bool keepRemotePowered);
@@ -1322,7 +1323,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.84";
+  doc["firmwareVersion"] = "12.85";
   doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
   doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
@@ -1818,7 +1819,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
       action == "keyless_presence" || action == "keyless_unlock" ||
       action == "keyless_lock" || action == "keyless_config" ||
       action == "owner_status" || action == "owner_register" ||
-      action == "owner_request";
+      action == "owner_request" || action == "esp_diagnostics";
   // Manual remote-power is a safety/control command.  Never discard a valid
   // BLE press merely because an Internet route is currently ranked higher.
   // The iPhone already sends one route according to priority; accepting BLE
@@ -1958,6 +1959,11 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     return;
   }
   lastOwnerActivityAt = millis();
+  if (action == "esp_diagnostics") {
+    diagnosticsRequested = true;
+    lastCommandId = id;
+    return;
+  }
   if (action == "obd_select") {
     String name = doc["obdAdapter"]["name"] | "";
     String transport = doc["obdAdapter"]["transport"] | "BLE";
@@ -2346,6 +2352,33 @@ void handleCommand(char* topic, byte* bytes, unsigned int length) {
   processCommandPayload(bytes, length, CommandSource::MQTT);
 }
 
+// On-demand read-only report. Uses small hex chunks so UTF-8 and 185-byte ATT MTUs are safe.
+void publishDiagnostics() {
+  if (!diagnosticsRequested || !bleClientConnected || !bleStateCharacteristic) return;
+  StatePublishGuard guard;
+  if (!guard.acquired) return;
+  diagnosticsRequested = false;
+  String report; report.reserve(4096);
+  report = "JOURNEY ESP diagnostics v12.85\nUptime=" + String(millis()/1000) + "s resetReason=" + String(static_cast<int>(esp_reset_reason())) + " heap=" + String(ESP.getFreeHeap()) + " minHeap=" + String(ESP.getMinFreeHeap()) + " loopStackFree=" + String(uxTaskGetStackHighWaterMark(nullptr)) + "\n";
+  report += "ESP temperature=" + String(espTemperatureC) + " valid=" + espTemperatureValid + " batteryV=" + espBatteryVoltage + " percent=" + espBatteryPercent + " valid=" + espBatteryValid + "\n";
+  report += "WiFi enabled=" + String(generalWifiEnabled) + " status=" + generalWifiStatus + " scan=" + generalWifiScanActive + " connected=" + (WiFi.status()==WL_CONNECTED) + " RSSI=" + WiFi.RSSI() + "\n";
+  report += "Cellular enabled=" + String(cellularEnabled) + " status=" + cellularStatus + " registered=" + cellularRegistered + " IP=" + cellularDataAttached + " signal=" + cellularSignalDbm + " PPPstarted=" + PPP.started() + " mode=" + static_cast<int>(PPP.mode()) + "\n";
+  report += "GPS valid=" + String(gpsValid) + " GNSSpowered=" + gnssPowered + " cloud=" + mqtt.connected() + "\n";
+  report += obd.diagnosticReport();
+  const uint32_t seq = millis();
+  const size_t count = (report.length()+47)/48;
+  const char* hex="0123456789ABCDEF";
+  for (size_t i=0; i<count; ++i) {
+    String encoded; encoded.reserve(96);
+    for (size_t j=i*48; j<report.length() && j<(i+1)*48; ++j) { uint8_t b=report[j]; encoded += hex[b>>4]; encoded += hex[b&15]; }
+    JsonDocument packet; packet["ds"]=seq; packet["di"]=i; packet["dn"]=count; packet["dx"]=encoded;
+    const size_t n=serializeJson(packet,statePublishBuffers.ble,180);
+    if (!n || n>=180) break;
+    bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(statePublishBuffers.ble),n);
+    bleStateCharacteristic->notify(); delay(12);
+  }
+}
+
 void connectWifi() {
   if (generalWifiScanActive || generalWifiScanRequested) return;
   if (obdWifiStaReserved) { generalWifiStatus = "paused_for_obd_wifi"; return; }
@@ -2505,7 +2538,7 @@ void setup() {
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.84");
+  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.85");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
@@ -2619,6 +2652,7 @@ void loop() {
     lastMemoryLogAt = millis();
     Serial0.printf("[MEM] loop stack free=%u heap=%u\n", unsigned(uxTaskGetStackHighWaterMark(nullptr)), unsigned(ESP.getFreeHeap()));
   }
+  publishDiagnostics();
   pollEspHealth();
   pollGeneralWifi();
   pollCellular();

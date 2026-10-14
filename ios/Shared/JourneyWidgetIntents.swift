@@ -58,7 +58,7 @@ struct JourneyStartIntent: AppIntent {
         return .result()
     }
 }
-struct JourneyRefreshIntent: AppIntent {
+struct JourneyRefreshIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "تحديث بيانات JOURNEY"
     static var openAppWhenRun = false
     static var isDiscoverable = false
@@ -117,5 +117,5 @@ struct JourneyActivityUnlockIntent: LiveActivityIntent {
 // App-process execution reuses the enrolled phone identity and its existing BLE connection.
 extension JourneyLockIntent: ForegroundContinuableIntent {}
 extension JourneyUnlockIntent: ForegroundContinuableIntent {}
-extension JourneyRefreshIntent: ForegroundContinuableIntent {}
+
 #endif

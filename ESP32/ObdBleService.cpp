@@ -1282,6 +1282,8 @@ void ObdBleService::rawSend(const String& command) {
 }
 void ObdBleService::rawFail(const char* reason) {
   rawLastFailure_=reason; rawReconnects_++;
+  failureHistory_[failureHistoryNext_] = String(millis()/1000) + "s: " + reason + " phase=" + rawPhase_ + " stage=" + rawStage_;
+  failureHistoryNext_ = (failureHistoryNext_ + 1) % 8;
   Serial0.printf("[JOURNEY CAN] reconnect=%lu reason=%s phase=%u stage=%u\n",(unsigned long)rawReconnects_,reason,rawPhase_,rawStage_);
   journeyRaw_=false; data_.rpmValid=false; data_.bcmStateValid=false;
   commandPending_=false; data_.connected=false;
@@ -1401,4 +1403,14 @@ void ObdBleService::pollJourneyRaw() {
     else rawStage_=0;
     rawPhase_=1; rawSend(rawStage_==0?"ATCM7C3":"ATCM7FF");
   }
+}
+
+String ObdBleService::diagnosticReport() const {
+  String report = "OBD status=" + String(statusText()) + " connected=" + data_.connected + " adapter=" + data_.adapterName + "\n";
+  report += "CAN phase=" + String(rawPhase_) + " stage=" + rawStage_ + " cycles=" + rawCycles_ + " frames=" + rawFrames_ + " reconnects=" + rawReconnects_ + " malformed=" + rawMalformed_ + " lastFailure=" + rawLastFailure_ + "\n";
+  report += "Read: " + data_.readDiagnostics + "\nPID=" + data_.currentPid + " reply=" + data_.lastReply.substring(0, 240) + "\n";
+  report += "RPM=" + String(data_.rpm) + " valid=" + data_.rpmValid + " coolant=" + data_.coolantC + " valid=" + data_.coolantValid + " fuel=" + data_.fuelLevelPercent + " valid=" + data_.fuelLevelValid + "\n";
+  report += "doorsValid=" + String(data_.doorsValid) + " lightsValid=" + data_.lightsValid + " turnsValid=" + data_.turnsValid + "\nRecent CAN failures (this boot):\n";
+  for (uint8_t i=0; i<8; ++i) { const String& line=failureHistory_[(failureHistoryNext_+i)%8]; if (!line.isEmpty()) report += line + "\n"; }
+  return report;
 }

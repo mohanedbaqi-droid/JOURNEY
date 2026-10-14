@@ -6,6 +6,33 @@ import Security
 @MainActor
 final class MQTTService: ObservableObject {
     static let shared = MQTTService()
+    @Published private(set) var espDiagnosticFiles: [String: URL] = [:]
+    @Published private(set) var espDiagnosticReports: [String: String] = [:]
+    @Published private(set) var espDiagnosticStatus: [String: String] = [:]
+    private var diagnosticAssemblers: [String: ESPDiagnosticAssembler] = [:]
+    private var diagnosticRequests: [String: UUID] = [:]
+
+    func requestESPDiagnostics(for deviceID: String) {
+        guard !defaults.bool(forKey: "journey.demo.enabled") else { return }
+        let token = UUID()
+        diagnosticAssemblers[deviceID] = ESPDiagnosticAssembler()
+        guard bluetooth.send(VehicleCommand(action: .espDiagnostics), to: deviceID) else {
+            espDiagnosticStatus[deviceID] = JL("اتصل بالـESP عبر BLE أولاً", "Connect to ESP over BLE first")
+            return
+        }
+        diagnosticRequests[deviceID] = token
+        espDiagnosticReports[deviceID] = nil
+        espDiagnosticFiles[deviceID] = nil
+        espDiagnosticStatus[deviceID] = JL("جاري سحب التشخيص…", "Downloading diagnostics…")
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(15))
+            if self.diagnosticRequests[deviceID] == token {
+                self.diagnosticRequests[deviceID] = nil
+                self.espDiagnosticStatus[deviceID] = JL("لم يكتمل التقرير؛ تحقق من الاتصال وإصدار ESP 12.85", "Report incomplete; check connection and ESP 12.85 firmware")
+            }
+        }
+    }
+
     enum Connection: String {
         case notConfigured, disconnected, connecting, connected
 
@@ -89,6 +116,21 @@ final class MQTTService: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
 
     init() {
+        bluetooth.onDiagnostics = { [weak self] deviceID, packet in
+            Task { @MainActor in
+                guard let self, self.diagnosticRequests[deviceID] != nil else { return }
+                var assembler=self.diagnosticAssemblers[deviceID] ?? ESPDiagnosticAssembler()
+                if let report=assembler.accept(packet) {
+                    self.espDiagnosticReports[deviceID]=report
+                    let filename="JOURNEY-ESP-diagnostics-\(Int(Date().timeIntervalSince1970)).txt"
+                    let url=FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
+                    if (try? report.write(to: url, atomically: true, encoding: .utf8)) != nil { self.espDiagnosticFiles[deviceID]=url }
+                    self.espDiagnosticStatus[deviceID]=JL("اكتمل تقرير ESP", "ESP report complete")
+                    self.diagnosticRequests[deviceID]=nil
+                }
+                self.diagnosticAssemblers[deviceID]=assembler
+            }
+        }
         bluetooth.onState = { [weak self] deviceID, state in
             Task { @MainActor in
                 self?.receive(state, from: deviceID)

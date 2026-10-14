@@ -41,6 +41,7 @@ enum BenchAction: String, Codable, Hashable {
     case wifiConfig = "wifi_config"
     case wifiSearch = "wifi_search"
     case wifiForget = "wifi_forget"
+    case espDiagnostics = "esp_diagnostics"
     case cellularConfig = "cellular_config"
     case cellularTest = "cellular_test"
     case cellularForget = "cellular_forget"
@@ -233,6 +234,9 @@ struct BenchEvent: Identifiable, Equatable {
         case .rightSignal:
             title = JL("فحص إشارة يمين", "Test right turn signal")
             icon = "arrow.turn.up.right"
+        case .espDiagnostics:
+            title = JL("سحب تشخيص ESP", "Download ESP diagnostics")
+            icon = "doc.text.magnifyingglass"
         case .ownerStatus:
             title = JL("مزامنة حالة المالك", "Sync owner status")
             icon = "person.crop.circle.badge.checkmark"

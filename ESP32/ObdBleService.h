@@ -61,6 +61,7 @@ class ObdBleService {
   void poll();
   const ObdSnapshot& snapshot() const;
   const char* statusText() const;
+  String diagnosticReport() const;
   // The phone chooses the adapter once.  Its advertised name is persisted in
   // ESP flash and the ESP connects to that adapter automatically after reboot.
   void setPreferredAdapter(const String& name, const String& transport = "BLE", const String& password = "", const String& host = "192.168.0.10", uint16_t port = 35000);
@@ -102,6 +103,8 @@ class ObdBleService {
   uint32_t rawReconnects_=0, rawMalformed_=0;
   uint32_t rawCounts_[5]={0};
   String rawLastFailure_="none";
+  String failureHistory_[8];
+  uint8_t failureHistoryNext_ = 0;
   static ObdBleService* instance_;
   BLEClient* client_ = nullptr;
   BLERemoteCharacteristic* writeChar_ = nullptr;

@@ -69,7 +69,9 @@ import UIKit
         if mqtt.isConfigured && mqtt.connection != .connected { mqtt.connect() }
         JourneyWidgetStore.setStatus(deviceID: deviceID, message: text("جاري الاتصال بـESP…", "Connecting to ESP…"))
         var fresh = false
-        for _ in 0..<40 {
+        var requestedState = false
+        for _ in 0..<60 {
+            if !requestedState && mqtt.sendESPCommand(VehicleCommand(action: .ownerStatus), to: deviceID) { requestedState = true }
             if let date = mqtt.lastStateAt[deviceID], date != baseline, Date().timeIntervalSince(date) < 4, mqtt.state(for: deviceID).online { fresh = true; break }
             try? await Task.sleep(for: .milliseconds(200))
         }
