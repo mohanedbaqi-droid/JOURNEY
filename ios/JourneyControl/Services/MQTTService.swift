@@ -74,6 +74,8 @@ final class MQTTService: ObservableObject {
         return false
     }
     @Published private(set) var lastStateAt: [String: Date] = [:]
+    // Only broker-delivered telemetry proves the cloud route; BLE packets do not.
+    private var lastCloudStateAt: [String: Date] = [:]
     @Published private(set) var commandHistory: [BenchEvent] = []
     @Published private(set) var bluetoothStatus = JL("غير متصل", "Disconnected")
     // v12.52: independent real ESP button feedback. Do not use lastEvent because
@@ -91,6 +93,7 @@ final class MQTTService: ObservableObject {
     init() {
         bluetooth.onState = { [weak self] deviceID, state in
             Task { @MainActor in
+                self?.lastCloudStateAt[deviceID] = Date()
                 self?.receive(state, from: deviceID)
             }
         }
@@ -142,9 +145,10 @@ final class MQTTService: ObservableObject {
                     }
                 }
                 for (deviceID, seenAt) in self.lastStateAt where now.timeIntervalSince(seenAt) > 4.0 {
-                    // Keep the car online through either route:
-                    // nearby BLE, or fresh ESP->MQTT cloud telemetry over Wi-Fi.
-                    if self.bluetooth.isConnected(to: deviceID) {
+                    // Do not mark offline when the broker still delivers fresh 4G/Wi-Fi state.
+                    let cloudFresh = self.connection == .connected &&
+                        self.lastCloudStateAt[deviceID].map { now.timeIntervalSince($0) <= 12.0 } == true
+                    if self.bluetooth.isConnected(to: deviceID) || cloudFresh {
                         if var state = self.vehicles[deviceID], !state.online {
                             state.online = true
                             self.vehicles[deviceID] = state
@@ -366,6 +370,7 @@ final class MQTTService: ObservableObject {
     func disconnect() {
         client?.disconnect()
         client = nil
+        lastCloudStateAt.removeAll()
         connection = isConfigured ? .disconnected : .notConfigured
     }
 
@@ -376,10 +381,8 @@ final class MQTTService: ObservableObject {
 
     private func cloudPathAvailable(for deviceID: String) -> Bool {
         guard connection == .connected, client != nil,
-              let state = vehicles[deviceID],
-              state.cloudConnected,
-              let seenAt = lastStateAt[deviceID],
-              Date().timeIntervalSince(seenAt) <= 6.0
+              let seenAt = lastCloudStateAt[deviceID],
+              Date().timeIntervalSince(seenAt) <= 12.0
         else { return false }
         return true
     }
