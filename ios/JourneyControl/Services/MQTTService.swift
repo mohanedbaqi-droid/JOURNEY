@@ -9,6 +9,26 @@ final class MQTTService: ObservableObject {
     @Published private(set) var espDiagnosticFiles: [String: URL] = [:]
     @Published private(set) var espDiagnosticReports: [String: String] = [:]
     @Published private(set) var espDiagnosticStatus: [String: String] = [:]
+    @Published private(set) var espDiagnosticRecording: Set<String> = []
+    private var diagnosticCursors: [String: UInt32] = [:]
+    private var recordingTasks: [String: Task<Void, Never>] = [:]
+    func startESPDiagnosticRecording(for deviceID: String) {
+        guard !espDiagnosticRecording.contains(deviceID), !defaults.bool(forKey: "journey.demo.enabled") else { return }
+        espDiagnosticRecording.insert(deviceID)
+        diagnosticCursors[deviceID] = nil
+        espDiagnosticFiles[deviceID] = nil
+        espDiagnosticReports[deviceID] = nil
+        recordingTasks[deviceID] = Task { @MainActor in
+            while !Task.isCancelled {
+                if self.diagnosticRequests[deviceID] == nil { self.requestESPDiagnostics(for: deviceID) }
+                do { try await Task.sleep(for: .seconds(5)) } catch { break }
+            }
+        }
+    }
+    func stopESPDiagnosticRecording(for deviceID: String) {
+        recordingTasks.removeValue(forKey: deviceID)?.cancel()
+        espDiagnosticRecording.remove(deviceID)
+    }
     private var diagnosticAssemblers: [String: ESPDiagnosticAssembler] = [:]
     private var diagnosticRequests: [String: UUID] = [:]
 
@@ -16,16 +36,18 @@ final class MQTTService: ObservableObject {
         guard !defaults.bool(forKey: "journey.demo.enabled") else { return }
         let token = UUID()
         diagnosticAssemblers[deviceID] = ESPDiagnosticAssembler()
-        guard bluetooth.send(VehicleCommand(action: .espDiagnostics), to: deviceID) else {
+        guard bluetooth.send(VehicleCommand(action: .espDiagnostics, diagnosticSince: espDiagnosticRecording.contains(deviceID) ? diagnosticCursors[deviceID] : nil), to: deviceID) else {
             espDiagnosticStatus[deviceID] = JL("اتصل بالـESP عبر BLE أولاً", "Connect to ESP over BLE first")
             return
         }
         diagnosticRequests[deviceID] = token
-        espDiagnosticReports[deviceID] = nil
-        espDiagnosticFiles[deviceID] = nil
+        if !espDiagnosticRecording.contains(deviceID) {
+            espDiagnosticReports[deviceID] = nil
+            espDiagnosticFiles[deviceID] = nil
+        }
         espDiagnosticStatus[deviceID] = JL("جاري سحب التشخيص…", "Downloading diagnostics…")
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(15))
+            try? await Task.sleep(for: .seconds(45))
             if self.diagnosticRequests[deviceID] == token {
                 self.diagnosticRequests[deviceID] = nil
                 self.espDiagnosticStatus[deviceID] = JL("لم يكتمل التقرير؛ تحقق من الاتصال وإصدار ESP 12.85", "Report incomplete; check connection and ESP 12.85 firmware")
@@ -121,10 +143,21 @@ final class MQTTService: ObservableObject {
                 guard let self, self.diagnosticRequests[deviceID] != nil else { return }
                 var assembler=self.diagnosticAssemblers[deviceID] ?? ESPDiagnosticAssembler()
                 if let report=assembler.accept(packet) {
-                    self.espDiagnosticReports[deviceID]=report
+                    self.diagnosticCursors[deviceID]=ESPDiagnosticAssembler.logCursor(in: report)
+                    let recording=self.espDiagnosticRecording.contains(deviceID)
+                    let combined=recording ? (self.espDiagnosticReports[deviceID] ?? "") + "\n=== Capture \(Date()) ===\n" + report : report
+                    self.espDiagnosticReports[deviceID]=String(combined.suffix(300_000))
                     let filename="JOURNEY-ESP-diagnostics-\(Int(Date().timeIntervalSince1970)).txt"
-                    let url=FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
-                    if (try? report.write(to: url, atomically: true, encoding: .utf8)) != nil { self.espDiagnosticFiles[deviceID]=url }
+                    let url=recording ? (self.espDiagnosticFiles[deviceID] ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)) : FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(filename)
+                    do {
+                        if recording && FileManager.default.fileExists(atPath: url.path) {
+                            let file=try FileHandle(forWritingTo: url)
+                            defer { try? file.close() }
+                            try file.seekToEnd()
+                            try file.write(contentsOf: Data(("\n=== Capture \(Date()) ===\n" + report).utf8))
+                        } else { try report.write(to: url, atomically: true, encoding: .utf8) }
+                        self.espDiagnosticFiles[deviceID]=url
+                    } catch { self.espDiagnosticStatus[deviceID]=JL("وصل التقرير لكن تعذر حفظ الملف", "Report received but file could not be saved") }
                     self.espDiagnosticStatus[deviceID]=JL("اكتمل تقرير ESP", "ESP report complete")
                     self.diagnosticRequests[deviceID]=nil
                 }

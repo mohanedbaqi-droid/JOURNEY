@@ -13,6 +13,7 @@ jobs:
         run: |
           g++ ESP32/tests/thermal_policy_test.cpp -o /tmp/thermal-test && /tmp/thermal-test
           g++ ESP32/tests/modem_parsing_test.cpp -o /tmp/modem-test && /tmp/modem-test
+          g++ ESP32/tests/log_buffer_test.cpp -o /tmp/log-test && /tmp/log-test
           g++ ESP32/tests/fuel_polling_test.cpp -o /tmp/fuel-test && /tmp/fuel-test
       - uses: arduino/setup-arduino-cli@v2
       - name: Install platform and libraries
@@ -26,7 +27,7 @@ jobs:
         run: |
           mkdir -p /tmp/JOURNEY_ESP32S3_V12_85
           cp ESP32/JOURNEY_ESP32S3_OBD_BLE_V12_65.ino /tmp/JOURNEY_ESP32S3_V12_85/JOURNEY_ESP32S3_V12_85.ino
-          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h ESP32/EspThermalPolicy.h ESP32/JourneyModemParsing.h ESP32/FuelPollingPolicy.h /tmp/JOURNEY_ESP32S3_V12_85/
+          cp ESP32/ObdBleService.cpp ESP32/ObdBleService.h ESP32/config.h ESP32/EspThermalPolicy.h ESP32/JourneyModemParsing.h ESP32/FuelPollingPolicy.h ESP32/JourneyDiagnosticSerial.h ESP32/JourneyDiagnosticSerial.cpp ESP32/JourneyLogBuffer.h /tmp/JOURNEY_ESP32S3_V12_85/
           arduino-cli compile --build-path /tmp/journey-esp-build --build-property compiler.cpp.extra_flags=-fstack-usage --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=default,PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-esp /tmp/JOURNEY_ESP32S3_V12_85
       - name: Verify telemetry publisher stack usage
         run: python3 ESP32/tests/check_stack_usage.py /tmp/journey-esp-build

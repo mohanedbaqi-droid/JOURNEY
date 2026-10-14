@@ -15,8 +15,10 @@ import Foundation
         precondition(b.accept(packet(2, 1, 2, "42")) == "AB")
         precondition(b.accept(packet(3, 0, 2, "43")) == nil) // new report clears previous pieces
         precondition(b.accept(packet(3, 1, 2, "44")) == "CD")
-        precondition(b.accept(packet(4, 0, 129, "41")) == nil)
+        precondition(b.accept(packet(4, 0, 513, "41")) == nil)
         precondition(b.accept(packet(4, 0, 1, String(repeating: "41", count: 49))) == nil)
+        precondition(ESPDiagnosticAssembler.logCursor(in: "status\nLOG_END=123\nlog") == 123)
+        precondition(ESPDiagnosticAssembler.logCursor(in: "no cursor") == nil)
         print("ESP diagnostic chunk checks passed")
     }
 }

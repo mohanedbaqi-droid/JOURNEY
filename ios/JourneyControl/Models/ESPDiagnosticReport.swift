@@ -12,7 +12,7 @@ struct ESPDiagnosticAssembler {
     private var count = 0
     private var chunks: [Int: Data] = [:]
     mutating func accept(_ packet: ESPDiagnosticChunk) -> String? {
-        guard (1...128).contains(packet.dn), (0..<packet.dn).contains(packet.di),
+        guard (1...512).contains(packet.dn), (0..<packet.dn).contains(packet.di),
               !packet.dx.isEmpty, packet.dx.utf8.count <= 96, packet.dx.utf8.count % 2 == 0 else { return nil }
         let bytes = Array(packet.dx.utf8)
         var decoded = Data()
@@ -30,5 +30,11 @@ struct ESPDiagnosticAssembler {
         var report = Data()
         for i in 0..<count { guard let part=chunks[i] else { return nil }; report.append(part) }
         return String(data: report, encoding: .utf8)
+    }
+}
+
+extension ESPDiagnosticAssembler {
+    static func logCursor(in report: String) -> UInt32? {
+        report.components(separatedBy: "\n").first(where: { $0.hasPrefix("LOG_END=") }).flatMap { UInt32($0.dropFirst(8)) }
     }
 }

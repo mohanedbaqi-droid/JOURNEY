@@ -1,3 +1,4 @@
+#include "JourneyDiagnosticSerial.h"
 #include "ObdBleService.h"
 #include "config.h"
 #include <ctype.h>
@@ -146,7 +147,7 @@ void ObdBleService::requestAdapterDiscovery(const String& transport) {
     wifiDiscoveryRequested_ = true;
     data_.discoveredWifiNetworks = "";
     status_ = "wifi_networks_searching";
-    Serial0.println("[OBD WIFI] robust scan queued");
+    JourneySerial.println("[OBD WIFI] robust scan queued");
   } else {
     wifiDiscoveryActive_ = false;
     wifiDiscoveryRequested_ = false;
@@ -154,7 +155,7 @@ void ObdBleService::requestAdapterDiscovery(const String& transport) {
     discoveredBleCount_ = 0;
     data_.discoveredAdapters = "";
     status_ = "adapter_searching";
-    Serial0.println("[OBD BLE] full discovery queued (21s, all advertisers)");
+    JourneySerial.println("[OBD BLE] full discovery queued (21s, all advertisers)");
   }
   nextActionAt_ = 0;
 }
@@ -233,7 +234,7 @@ bool ObdBleService::requestElmConsole(const String& input) {
   if (cmd.isEmpty() || cmd.length() > 32) return false;
   // Lab console is intentionally read-only-ish: reject reset/EEPROM and Mode 04 erase.
   if (cmd == "04" || cmd.startsWith("ATZ") || cmd.startsWith("ATD")) return false;
-  Serial0.printf("[ELM LAB TX] %s\n", cmd.c_str());
+  JourneySerial.printf("[ELM LAB TX] %s\n", cmd.c_str());
   send(cmd.c_str(), 0xB0);
   return true;
 }
@@ -257,7 +258,7 @@ bool ObdBleService::startCanMonitor() {
   writeChar_->writeValue(reinterpret_cast<uint8_t*>(const_cast<char*>(cmd.c_str())), cmd.length(), writeChar_->canWrite());
   canMonitorActive_ = true;
   status_ = "can_monitor_active";
-  Serial0.println("[BCM PROBE] passive CAN monitor STARTED. Open/close door, lights and indicators now; then type CAN_MONITOR_STOP");
+  JourneySerial.println("[BCM PROBE] passive CAN monitor STARTED. Open/close door, lights and indicators now; then type CAN_MONITOR_STOP");
   return true;
 }
 
@@ -273,7 +274,7 @@ bool ObdBleService::stopCanMonitor() {
   mode_ = QueryMode::Init;
   status_ = "can_monitor_stopped_reinitializing";
   nextActionAt_ = millis() + 350;
-  Serial0.println("[BCM PROBE] passive CAN monitor STOPPED; normal OBD polling will resume automatically");
+  JourneySerial.println("[BCM PROBE] passive CAN monitor STOPPED; normal OBD polling will resume automatically");
   return true;
 }
 
@@ -344,7 +345,7 @@ void ObdBleService::onScan(BLEAdvertisedDevice device) {
   const bool isPreferred = !instance_->preferredAddress_.isEmpty() && address == instance_->preferredAddress_;
   if (!alreadyListed && devices.length() + item.length() + 3 <= 2000) {
     ++instance_->discoveredBleCount_;
-    Serial0.printf("[OBD BLE] #%u %s\n", static_cast<unsigned>(instance_->discoveredBleCount_), item.c_str());
+    JourneySerial.printf("[OBD BLE] #%u %s\n", static_cast<unsigned>(instance_->discoveredBleCount_), item.c_str());
     if (isPreferred) {
       devices = devices.isEmpty() ? item : item + " | " + devices;
     } else {
@@ -392,7 +393,7 @@ void ObdBleService::onNotify(BLERemoteCharacteristic*, uint8_t* bytes, size_t le
         instance_->canLineBuffer_ = "";
         line.trim();
         if (line.isEmpty()) continue;
-        Serial0.printf("[CAN RAW] %s\n", line.c_str());
+        JourneySerial.printf("[CAN RAW] %s\n", line.c_str());
 
         // Normalize separators while preserving hexadecimal tokens.
         line.replace(":", " ");
@@ -431,7 +432,7 @@ void ObdBleService::onNotify(BLERemoteCharacteristic*, uint8_t* bytes, size_t le
           dataBytes[dataLen++] = static_cast<uint8_t>(value);
         }
         if (dataLen && instance_->applyConfirmedBcmFrame(static_cast<uint16_t>(parsedId), dataBytes, dataLen)) {
-          Serial0.printf("[BCM] decoded %03lX len=%u doors=%d lock=%d light=%d L=%d R=%d\n",
+          JourneySerial.printf("[BCM] decoded %03lX len=%u doors=%d lock=%d light=%d L=%d R=%d\n",
                          parsedId, dataLen, instance_->data_.doorsOpen, instance_->data_.locked,
                          instance_->data_.headlightsOn, instance_->data_.leftSignalOn,
                          instance_->data_.rightSignalOn);
@@ -481,18 +482,18 @@ bool ObdBleService::connectCandidate() {
   // forever even though KONNWEI is powered. Try both normal BLE address types
   // without starting a general discovery scan (which can disturb phone BLE).
   const BLEAddress target(candidateAddress_.c_str());
-  Serial0.printf("[OBD BLE] direct connect %s type=PUBLIC\n", candidateAddress_.c_str());
+  JourneySerial.printf("[OBD BLE] direct connect %s type=PUBLIC\n", candidateAddress_.c_str());
   bool connected = client_->connect(target, BLE_ADDR_PUBLIC, OBD_CONNECT_TIMEOUT_MS) && client_->isConnected();
   if (!connected) {
-    Serial0.printf("[OBD BLE] retry %s type=RANDOM\n", candidateAddress_.c_str());
+    JourneySerial.printf("[OBD BLE] retry %s type=RANDOM\n", candidateAddress_.c_str());
     connected = client_->connect(target, BLE_ADDR_RANDOM, OBD_CONNECT_TIMEOUT_MS) && client_->isConnected();
   }
   if (!connected) {
     status_ = "connect_failed";
-    Serial0.printf("[OBD BLE] connect failed %s (PUBLIC+RANDOM)\n", candidateAddress_.c_str());
+    JourneySerial.printf("[OBD BLE] connect failed %s (PUBLIC+RANDOM)\n", candidateAddress_.c_str());
     return false;
   }
-  Serial0.printf("[OBD BLE] link connected %s\n", candidateAddress_.c_str());
+  JourneySerial.printf("[OBD BLE] link connected %s\n", candidateAddress_.c_str());
   if (!findElmCharacteristics()) {
     client_->disconnect();
     status_ = "unsupported_gatt";
@@ -543,7 +544,7 @@ void ObdBleService::send(const char* text, uint8_t pid) {
   pendingCommand_ = text;
   if (pendingCommand_ == "012F") {
     fuelCache_.attempted(millis());
-    Serial0.println("[FUEL] request PID 012F; next attempt in 300 seconds");
+    JourneySerial.println("[FUEL] request PID 012F; next attempt in 300 seconds");
   }
   pendingPid_ = pid;
   commandPending_ = true;
@@ -572,7 +573,7 @@ void ObdBleService::decodePid(const String& compact) {
         data_.fuelLevelPercent = fuelCache_.percent(); data_.fuelLevelValid = true;
         if (storage_.getUChar("fuelPercent", 255) != data_.fuelLevelPercent)
           storage_.putUChar("fuelPercent", data_.fuelLevelPercent);
-        Serial0.printf("[FUEL] confirmed %u%%; holding until next successful sample\n", data_.fuelLevelPercent);
+        JourneySerial.printf("[FUEL] confirmed %u%%; holding until next successful sample\n", data_.fuelLevelPercent);
       }
       break;
     case 8: at = compact.indexOf("411F"); if (at >= 0) { int a = byteAt(4), b = byteAt(6); if (a >= 0 && b >= 0) data_.engineRuntimeSeconds = a * 256 + b; } break;
@@ -717,7 +718,7 @@ void ObdBleService::consumeReply() {
   data_.lastReply = reply_;
   if (pendingPid_ == 0xB0) {
     String lab = reply_; lab.replace("\r", " "); lab.replace("\n", " "); lab.trim();
-    Serial0.printf("[ELM LAB RX] %s\n", lab.c_str());
+    JourneySerial.printf("[ELM LAB RX] %s\n", lab.c_str());
   }
   commandPending_ = false;
   commandRetries_ = 0;
@@ -732,7 +733,7 @@ void ObdBleService::consumeReply() {
     const bool accepted = pendingCommand_ == "ATZ"
       ? reply_.indexOf("ELM") >= 0 || reply_.indexOf("OK") >= 0
       : reply_.indexOf("OK") >= 0;
-    Serial0.printf("[BCM RESTORE] %s => %s\n", pendingCommand_.c_str(), reply_.c_str());
+    JourneySerial.printf("[BCM RESTORE] %s => %s\n", pendingCommand_.c_str(), reply_.c_str());
     reply_ = "";
     if (!accepted) {
       // Do not treat STOPPED, '?' or an old prompt as an acknowledgement.
@@ -750,7 +751,7 @@ void ObdBleService::consumeReply() {
   if (mode_ == QueryMode::VerifyLive) {
     const int rpmAt = compact.indexOf("410C");
     const bool valid = rpmAt >= 0 && rpmAt + 8 <= static_cast<int>(compact.length());
-    Serial0.printf("[BCM VERIFY RPM] %s\n", reply_.c_str());
+    JourneySerial.printf("[BCM VERIFY RPM] %s\n", reply_.c_str());
     if (valid) {
       activePid_ = 1;
       decodePid(compact);
@@ -821,7 +822,7 @@ void ObdBleService::consumeReply() {
     data_.vin = decodeVin(reply_);
     bool vinValid = data_.vin.length() == 17;
     for (size_t i = 0; i < data_.vin.length() && vinValid; ++i) vinValid = isalnum(static_cast<unsigned char>(data_.vin[i]));
-    Serial0.printf("[OBD VIN] %s\n", vinValid ? data_.vin.c_str() : "decode_failed");
+    JourneySerial.printf("[OBD VIN] %s\n", vinValid ? data_.vin.c_str() : "decode_failed");
     if (!vinValid) {
       data_.vin = ""; data_.currentPid = ""; status_ = "vin_invalid_no_advance";
       data_.connected = false;
@@ -851,7 +852,7 @@ void ObdBleService::consumeReply() {
     else if (activeStandardPid_ == 0x42) activePid_ = 9;
     if (activePid_ != saved) decodePid(compact);
     activePid_ = saved;
-    Serial0.printf("[OBD SCAN] %s => %s\n", data_.currentPid.c_str(), reply_.c_str());
+    JourneySerial.printf("[OBD SCAN] %s => %s\n", data_.currentPid.c_str(), reply_.c_str());
   } else if (mode_ == QueryMode::Normal) {
     if (activePid_ == 0x70) {
       if (compact.indexOf("43") < 0) { status_ = "dtc_stored_invalid_reply"; data_.currentPid = ""; return; }
@@ -945,7 +946,7 @@ void ObdBleService::poll() {
     delay(120);
     int found = WiFi.scanNetworks(false, true);
     if (found < 0) {
-      Serial0.printf("[OBD WIFI] first scan rc=%d, retrying\n", found);
+      JourneySerial.printf("[OBD WIFI] first scan rc=%d, retrying\n", found);
       WiFi.scanDelete();
       delay(250);
       found = WiFi.scanNetworks(false, true);
@@ -958,11 +959,11 @@ void ObdBleService::poll() {
         if (data_.discoveredWifiNetworks.length() + ssid.length() + 3 <= 1800) data_.discoveredWifiNetworks += ssid;
       }
       status_ = data_.discoveredWifiNetworks.isEmpty() ? "wifi_networks_not_found" : "wifi_networks_found";
-      Serial0.printf("[OBD WIFI] scan complete found=%d listedBytes=%u\n", found,
+      JourneySerial.printf("[OBD WIFI] scan complete found=%d listedBytes=%u\n", found,
                      static_cast<unsigned>(data_.discoveredWifiNetworks.length()));
     } else {
       status_ = "wifi_scan_failed";
-      Serial0.printf("[OBD WIFI] scan failed rc=%d\n", found);
+      JourneySerial.printf("[OBD WIFI] scan failed rc=%d\n", found);
     }
     WiFi.scanDelete();
     nextActionAt_ = millis() + 500;
@@ -982,13 +983,13 @@ void ObdBleService::poll() {
     for (int pass = 0; pass < 3; ++pass) {
       scan->setActiveScan(pass == 2);
       const uint8_t seconds = 7;
-      Serial0.printf("[OBD BLE] discovery pass %d/3 active=%d\n", pass + 1, pass == 2);
+      JourneySerial.printf("[OBD BLE] discovery pass %d/3 active=%d\n", pass + 1, pass == 2);
       scan->start(seconds, false);
       scan->clearResults();
       delay(120);
     }
     status_ = discoveredBleCount_ ? "adapter_search_complete" : "adapter_not_found";
-    Serial0.printf("[OBD BLE] discovery complete count=%u bytes=%u\n",
+    JourneySerial.printf("[OBD BLE] discovery complete count=%u bytes=%u\n",
                    static_cast<unsigned>(discoveredBleCount_),
                    static_cast<unsigned>(data_.discoveredAdapters.length()));
     nextActionAt_ = millis() + 750;
@@ -1284,7 +1285,7 @@ void ObdBleService::rawFail(const char* reason) {
   rawLastFailure_=reason; rawReconnects_++;
   failureHistory_[failureHistoryNext_] = String(millis()/1000) + "s: " + reason + " phase=" + rawPhase_ + " stage=" + rawStage_;
   failureHistoryNext_ = (failureHistoryNext_ + 1) % 8;
-  Serial0.printf("[JOURNEY CAN] reconnect=%lu reason=%s phase=%u stage=%u\n",(unsigned long)rawReconnects_,reason,rawPhase_,rawStage_);
+  JourneySerial.printf("[JOURNEY CAN] reconnect=%lu reason=%s phase=%u stage=%u\n",(unsigned long)rawReconnects_,reason,rawPhase_,rawStage_);
   journeyRaw_=false; data_.rpmValid=false; data_.bcmStateValid=false;
   commandPending_=false; data_.connected=false;
   status_="journey_can_reconnecting";
@@ -1341,7 +1342,7 @@ void ObdBleService::pollJourneyRaw() {
     if (++rawFuelSetup_ < 3) { rawSend(commands[rawFuelSetup_]); return; }
     rawPhase_ = 6; rawFuelReply_ = "";
     fuelCache_.attempted(now); data_.currentPid = "012F";
-    Serial0.println("[FUEL] request PID 012F; next attempt in 300 seconds");
+    JourneySerial.println("[FUEL] request PID 012F; next attempt in 300 seconds");
     rawSend("012F"); return;
   }
   if (rawPhase_ == 6) {

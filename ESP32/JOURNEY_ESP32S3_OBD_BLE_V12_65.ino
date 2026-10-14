@@ -1,3 +1,4 @@
+#include "JourneyDiagnosticSerial.h"
 #include <Arduino.h>
 #include <esp_system.h>
 #include <driver/temperature_sensor.h>
@@ -100,12 +101,12 @@ void beginBatteryGauge() {
     if (batteryWire.endTransmission() == 0) {
       batteryBusReady = true;
       batteryBoardRevision = i == 0 ? "V2" : "V1";
-      Serial0.printf("[BAT] MAX17048 %s SDA=%d SCL=%d\n", batteryBoardRevision, pins[i][0], pins[i][1]);
+      JourneySerial.printf("[BAT] MAX17048 %s SDA=%d SCL=%d\n", batteryBoardRevision, pins[i][0], pins[i][1]);
       return;
     }
     batteryWire.end();
   }
-  Serial0.println("[BAT] MAX17048 not detected; battery data unavailable");
+  JourneySerial.println("[BAT] MAX17048 not detected; battery data unavailable");
 }
 
 bool readGaugeWord(uint8_t reg, uint16_t& value) {
@@ -394,10 +395,11 @@ void startLocalOta() {
     }
   );
   otaServer.begin();
-  Serial0.println("[OTA] HTTP server ready; enable ESP Wi-Fi from the app to use it");
+  JourneySerial.println("[OTA] HTTP server ready; enable ESP Wi-Fi from the app to use it");
 }
 
 volatile bool diagnosticsRequested = false;
+uint32_t diagnosticLogSince = 0;
 void publishState();
 void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource source);
 bool queueRemotePress(int pin, bool keepRemotePowered);
@@ -465,7 +467,7 @@ void refreshCellularStatus(bool attachData) {
   const String op = lastQuote > firstQuote ? operatorReply.substring(firstQuote + 1, lastQuote) : String();
   cellularNetwork = cellularRegistered ? (op.isEmpty() ? "4G" : op) : "غير متاح";
   cellularStatus = cellularDataAttached ? "data_attached" : (cellularRegistered ? "registered" : "checking");
-  Serial0.printf("[CELL] registered=%d ip=%d signal=%d mode=%d status=%s\n",
+  JourneySerial.printf("[CELL] registered=%d ip=%d signal=%d mode=%d status=%s\n",
     cellularRegistered, cellularDataAttached, cellularSignalDbm, static_cast<int>(PPP.mode()), cellularStatus.c_str());
 }
 
@@ -479,12 +481,12 @@ void startCellularPpp() {
   const bool simResponded = modemQueryLine("AT+CPIN?", "+CPIN:", simReply, 1500);
   if (simResponded && simReply.indexOf("READY") < 0 && cellularSimPin.isEmpty()) {
     cellularStatus = "pin_required";
-    Serial0.printf("[CELL] SIM check status=%s\n", cellularStatus.c_str());
+    JourneySerial.printf("[CELL] SIM check status=%s\n", cellularStatus.c_str());
     return;
   }
   // An unanswered query can mean the modem retained data/CMUX mode.
   // Let PPP.begin perform its command-mode recovery instead of blocking retries.
-  if (!simResponded) Serial0.println("[CELL] SIM query unanswered; attempting UART mode recovery");
+  if (!simResponded) JourneySerial.println("[CELL] SIM query unanswered; attempting UART mode recovery");
   modem.end();
   standaloneGnssStarted = false;
   gnssPowered = false;
@@ -492,7 +494,7 @@ void startCellularPpp() {
   PPP.setApn(cellularApn.c_str());
   PPP.setPin(cellularSimPin.isEmpty() ? nullptr : cellularSimPin.c_str());
   PPP.setPins(MODEM_TX_PIN, MODEM_RX_PIN, -1, -1, ESP_MODEM_FLOW_CONTROL_NONE);
-  Serial0.println("[CELL] starting PPP");
+  JourneySerial.println("[CELL] starting PPP");
   if (!PPP.begin(PPP_MODEM_SIM7600, 1, MODEM_BAUD)) {
     cellularStatus = simResponded ? "data_failed" : "sim_or_modem_unavailable";
     return;
@@ -532,8 +534,8 @@ void pollCellular() {
   if (PPP.hasIP()) cellularDialAt = millis();
   if (PPP.started() && !PPP.hasIP()) {
     if (PPP.mode() == ESP_MODEM_MODE_COMMAND && cellularRegistered) {
-      if (!PPP.mode(ESP_MODEM_MODE_CMUX)) { cellularStatus = "data_failed"; Serial0.println("[CELL] CMUX dial failed"); }
-      else { cellularStatus = "checking"; cellularDialAt = millis(); Serial0.println("[CELL] PPP dial started"); }
+      if (!PPP.mode(ESP_MODEM_MODE_CMUX)) { cellularStatus = "data_failed"; JourneySerial.println("[CELL] CMUX dial failed"); }
+      else { cellularStatus = "checking"; cellularDialAt = millis(); JourneySerial.println("[CELL] PPP dial started"); }
     }
     // Registration may take longer than boot; keep trying and recover after
     // loss of data instead of leaving a started-but-undialled PPP forever.
@@ -559,7 +561,7 @@ void applyHotspot() {
     return;
   }
   if (hotspotRunning) return;
-  if (hotspotPassword.length() < 8) { Serial0.println("[HOTSPOT] password_required"); return; }
+  if (hotspotPassword.length() < 8) { JourneySerial.println("[HOTSPOT] password_required"); return; }
   IPAddress ap_ip(192, 168, 8, 1);
   IPAddress ap_mask(255, 255, 255, 0);
   IPAddress lease(192, 168, 8, 2);
@@ -569,7 +571,7 @@ void applyHotspot() {
   if (!WiFi.AP.create(hotspotSsid.c_str(), hotspotPassword.c_str(), 1, 0, 4)) return;
   if (!WiFi.AP.waitStatusBits(ESP_NETIF_STARTED_BIT, 1500)) return;
   hotspotRunning = WiFi.AP.enableNAPT(true);
-  Serial0.printf("[HOTSPOT] %s\n", hotspotRunning ? "ON" : "FAILED");
+  JourneySerial.printf("[HOTSPOT] %s\n", hotspotRunning ? "ON" : "FAILED");
 }
 
 int connectionPriorityRank(const String& route) {
@@ -618,12 +620,12 @@ void applyInternetPriority() {
     activeInternetRoute = desired;
     if (desired == InternetRoute::CELLULAR) {
       Network.setDefaultInterface(PPP);
-      Serial0.println("[NET] CELLULAR priority");
+      JourneySerial.println("[NET] CELLULAR priority");
     } else if (desired == InternetRoute::WIFI) {
       Network.setDefaultInterface(WiFi.STA);
-      Serial0.println("[NET] WIFI fallback");
+      JourneySerial.println("[NET] WIFI fallback");
     } else {
-      Serial0.println("[NET] offline");
+      JourneySerial.println("[NET] offline");
     }
   }
   applyHotspot();
@@ -670,9 +672,9 @@ void handlePhoneBleDisconnectedForKeyless();
 class BleCommandCallbacks final : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* characteristic) override {
     const auto value = characteristic->getValue();
-    Serial0.printf("[BLE v12.65] write received, bytes=%u\n", static_cast<unsigned>(value.length()));
+    JourneySerial.printf("[BLE v12.65] write received, bytes=%u\n", static_cast<unsigned>(value.length()));
     if (!bleCommandQueue || value.length() == 0 || value.length() > 512) {
-      Serial0.println("[BLE v12.65] command rejected: empty, too large, or queue unavailable");
+      JourneySerial.println("[BLE v12.65] command rejected: empty, too large, or queue unavailable");
       return;
     }
     BleCommandFrame frame{};
@@ -686,10 +688,10 @@ class BleCommandCallbacks final : public BLECharacteristicCallbacks {
       BleCommandFrame stale{};
       (void)xQueueReceive(bleCommandQueue, &stale, 0);
       queued = xQueueSend(bleCommandQueue, &frame, 0) == pdTRUE;
-      Serial0.printf("[BLE] queue pressure: dropped oldest bytes=%u, newest=%u\n",
+      JourneySerial.printf("[BLE] queue pressure: dropped oldest bytes=%u, newest=%u\n",
                      static_cast<unsigned>(stale.length), static_cast<unsigned>(frame.length));
     }
-    Serial0.printf("[BLE] command %s, bytes=%u\n", queued ? "queued" : "queue_error", static_cast<unsigned>(frame.length));
+    JourneySerial.printf("[BLE] command %s, bytes=%u\n", queued ? "queued" : "queue_error", static_cast<unsigned>(frame.length));
   }
 };
 
@@ -697,12 +699,12 @@ class BleServerCallbacks final : public BLEServerCallbacks {
   void onConnect(BLEServer*) override {
     bleClientConnected = true;
     bleOwnerSyncPending = true;
-    Serial0.println("[BLE v12.65] iPhone connected — owner sync queued");
+    JourneySerial.println("[BLE v12.65] iPhone connected — owner sync queued");
   }
 
   void onDisconnect(BLEServer*) override {
     bleClientConnected = false;
-    Serial0.println("[BLE v12.65] iPhone disconnected — keyless departure timer armed");
+    JourneySerial.println("[BLE v12.65] iPhone disconnected — keyless departure timer armed");
     handlePhoneBleDisconnectedForKeyless();
     BLEDevice::startAdvertising();
   }
@@ -779,7 +781,7 @@ void clearAllOwnersFromSerial() {
   keylessSessionOpen = false;
   keylessHadPresence = false;
   keylessDisconnectConfirmPending = false;
-  Serial0.println("[OWNER RESET] All owner devices cleared. owners=0");
+  JourneySerial.println("[OWNER RESET] All owner devices cleared. owners=0");
   publishOwnerState();
 }
 
@@ -807,10 +809,10 @@ void publishOwnerState() {
   if (n > 0 && n < sizeof(payload) - 1) {
     bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(payload), n);
     if (bleClientConnected) bleStateCharacteristic->notify();
-    Serial0.printf("[OWNER SYNC] compact bytes=%u owners=%u uptime=%lu\n",
+    JourneySerial.printf("[OWNER SYNC] compact bytes=%u owners=%u uptime=%lu\n",
                    static_cast<unsigned>(n), static_cast<unsigned>(ownerCount()), millis() / 1000);
   } else {
-    Serial0.printf("[OWNER SYNC] ERROR compact bytes=%u\n", static_cast<unsigned>(n));
+    JourneySerial.printf("[OWNER SYNC] ERROR compact bytes=%u\n", static_cast<unsigned>(n));
   }
 }
 
@@ -838,7 +840,7 @@ void handlePhoneBleDisconnectedForKeyless() {
     keylessDisconnectConfirmPending = true;
     keylessDisconnectConfirmAt = millis() + KEYLESS_DISCONNECT_CONFIRM_MS;
     lastEvent = "keyless_ble_disconnected";
-    Serial0.printf("[KEYLESS] BLE lost; lock armed in %lu ms\n",
+    JourneySerial.printf("[KEYLESS] BLE lost; lock armed in %lu ms\n",
                    static_cast<unsigned long>(keylessLockDelayMs));
   }
 }
@@ -890,30 +892,30 @@ void pollNfc() {
 }
 
 void pollSerialSetup() {
-  while (Serial0.available()) {
-    const char c = static_cast<char>(Serial0.read());
+  while (JourneySerial.available()) {
+    const char c = static_cast<char>(JourneySerial.read());
     if (c == '\r') continue;
     if (c != '\n' && serialInput.length() < 80) { serialInput += c; continue; }
     serialInput.trim();
     if (serialInput == "NFC_ENROLL") {
       nfcEnrollPending = true;
       nfcEnrollAt = millis();
-      Serial0.println("[NFC] Tap card within 30 seconds while owner phone is nearby");
+      JourneySerial.println("[NFC] Tap card within 30 seconds while owner phone is nearby");
     } else if (serialInput == "NFC_FORGET") {
       preferences.remove("nfcUid");
-      Serial0.println("[NFC] Card removed");
+      JourneySerial.println("[NFC] Card removed");
     } else if (serialInput == "OWNER_RESET_ALL") {
       clearAllOwnersFromSerial();
     } else if (serialInput == "BCM_PROBE" || serialInput == "CAN_MONITOR_START") {
-      if (!obd.startCanMonitor()) Serial0.println("[BCM PROBE] start failed: wait until KONNWEI shows connected and no OBD command is pending");
+      if (!obd.startCanMonitor()) JourneySerial.println("[BCM PROBE] start failed: wait until KONNWEI shows connected and no OBD command is pending");
     } else if (serialInput == "CAN_MONITOR_STOP") {
-      if (!obd.stopCanMonitor()) Serial0.println("[BCM PROBE] monitor was not active");
+      if (!obd.stopCanMonitor()) JourneySerial.println("[BCM PROBE] monitor was not active");
     } else if (serialInput.startsWith("ELM:")) {
       String raw = serialInput.substring(4); raw.trim();
-      if (!obd.requestElmConsole(raw)) Serial0.println("[ELM LAB] command rejected/busy; wait for OBD connected. ATZ/ATD*/Mode04 are blocked here");
+      if (!obd.requestElmConsole(raw)) JourneySerial.println("[ELM LAB] command rejected/busy; wait for OBD connected. ATZ/ATD*/Mode04 are blocked here");
     } else if (serialInput == "BCM_HELP") {
-      Serial0.println("[BCM PROBE] Commands: BCM_PROBE, CAN_MONITOR_STOP, ELM:ATI, ELM:ATDP, ELM:ATDPN, ELM:ATH1, ELM:ATH0");
-      Serial0.println("[BCM PROBE] ATMA is passive and can only see buses physically wired inside the adapter. This test tells us whether body traffic reaches KONNWEI.");
+      JourneySerial.println("[BCM PROBE] Commands: BCM_PROBE, CAN_MONITOR_STOP, ELM:ATI, ELM:ATDP, ELM:ATDPN, ELM:ATH1, ELM:ATH0");
+      JourneySerial.println("[BCM PROBE] ATMA is passive and can only see buses physically wired inside the adapter. This test tells us whether body traffic reaches KONNWEI.");
     }
     serialInput = "";
   }
@@ -965,7 +967,7 @@ void updateKeylessPresenceState() {
     // stale state instead of assuming the old session is still valid.
     const bool sessionOutOfSync = !keylessSessionOpen || locked || !remotePowered;
     if (sessionOutOfSync && !keylessUnlockInProgress) {
-      Serial0.printf("[KEYLESS] RESYNC needed session=%d locked=%d remote=%d\n",
+      JourneySerial.printf("[KEYLESS] RESYNC needed session=%d locked=%d remote=%d\n",
                      keylessSessionOpen, locked, remotePowered);
       // Reserve this approach session BEFORE power/pulse changes can trigger
       // another state pass from the BLE command task.
@@ -986,14 +988,14 @@ void updateKeylessPresenceState() {
   nfcLockedUntilDeparture = false;
   if (manualRemotePowerOffLatch) {
     manualRemotePowerOffLatch = false;
-    Serial0.println("[KEYLESS] manual remote-power OFF latch cleared after departure");
+    JourneySerial.println("[KEYLESS] manual remote-power OFF latch cleared after departure");
   }
   keylessUnlockInProgress = false;
   if (!keylessHadPresence) return;
   const uint32_t awayFor = now - lastAnyPhoneNearbyAt;
   if (now - lastKeylessAwayLogAt >= 1000) {
     lastKeylessAwayLogAt = now;
-    Serial0.printf("[KEYLESS] away=%lu/%lu ms session=%d locked=%d\n",
+    JourneySerial.printf("[KEYLESS] away=%lu/%lu ms session=%d locked=%d\n",
                    static_cast<unsigned long>(awayFor), static_cast<unsigned long>(keylessLockDelayMs),
                    keylessSessionOpen, locked);
   }
@@ -1008,7 +1010,7 @@ void updateKeylessPresenceState() {
       doorsOpen = false;
       keylessSessionOpen = false;
       lastEvent = "keyless_lock_departure";
-      Serial0.println("[KEYLESS] DEPARTURE LOCK queued=1");
+      JourneySerial.println("[KEYLESS] DEPARTURE LOCK queued=1");
       publishState();
     }
   }
@@ -1019,14 +1021,14 @@ void updateKeylessPresenceState() {
     // v12.58: one departure must produce only one physical LOCK pulse.
     if (keylessDepartureLockIssued) {
       keylessDisconnectConfirmPending = false;
-      Serial0.println("[KEYLESS] disconnect-confirm satisfied by departure lock");
+      JourneySerial.println("[KEYLESS] disconnect-confirm satisfied by departure lock");
     } else if (queueRemotePress(LOCK_PIN, false)) {
       keylessDisconnectConfirmPending = false;
       locked = true;
       doorsOpen = false;
       keylessSessionOpen = false;
       lastEvent = "keyless_lock_disconnect_confirm";
-      Serial0.println("[KEYLESS] DISCONNECT CONFIRM LOCK queued=1");
+      JourneySerial.println("[KEYLESS] DISCONNECT CONFIRM LOCK queued=1");
       publishState();
     }
   }
@@ -1060,7 +1062,7 @@ void setRemotePower(bool enabled) {
   const bool changed = remotePowered != enabled;
   digitalWrite(REMOTE_POWER_PIN, enabled ? LOW : HIGH);
   remotePowered = enabled;
-  Serial0.printf("[REMOTE] GPIO%d (BD140) = %s\n", REMOTE_POWER_PIN, enabled ? "ON (LOW)" : "OFF (HIGH)");
+  JourneySerial.printf("[REMOTE] GPIO%d (BD140) = %s\n", REMOTE_POWER_PIN, enabled ? "ON (LOW)" : "OFF (HIGH)");
   // v12.37: publish the REAL ESP output state at the exact power transition.
   // The iPhone no longer guesses this state from a button press.
   if (changed) {
@@ -1503,10 +1505,10 @@ void publishState() {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(corePayload), coreWritten);
       bleStateCharacteristic->notify();
       delay(15);
-      Serial0.printf("[BLE] core state bytes=%u owners=%u event=%s\n",
+      JourneySerial.printf("[BLE] core state bytes=%u owners=%u event=%s\n",
                      static_cast<unsigned>(coreWritten), static_cast<unsigned>(ownerCount()), lastEvent.c_str());
     } else {
-      Serial0.printf("[BLE] ERROR core state too large bytes=%u\n", static_cast<unsigned>(coreWritten));
+      JourneySerial.printf("[BLE] ERROR core state too large bytes=%u\n", static_cast<unsigned>(coreWritten));
     }
 
     // Replay the oldest pending event over BLE until the iPhone acknowledges it.
@@ -1603,7 +1605,7 @@ void publishState() {
       bleStateCharacteristic->setValue((uint8_t*)bodyPayload,bodyWritten);
       bleStateCharacteristic->notify(); delay(12);
     }
-    Serial0.printf("[JOURNEY READ] rpm=%u valid=%d door=%d/%d lamp=%d/%d L=%d R=%d turnValid=%d %s\n",
+    JourneySerial.printf("[JOURNEY READ] rpm=%u valid=%d door=%d/%d lamp=%d/%d L=%d R=%d turnValid=%d %s\n",
       c.rpm,c.rpmValid,c.doorsOpen,c.doorsValid,c.headlightsOn,c.lightsValid,c.leftSignalOn,c.rightSignalOn,c.turnsValid,c.readDiagnostics.c_str());
 
     // Send OBD telemetry as a second partial packet. The app can merge it, but
@@ -1638,11 +1640,11 @@ void publishState() {
     if (teleWritten > 0 && teleWritten < BLE_STATE_CAPACITY - 1) {
       bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(telePayload), teleWritten);
       bleStateCharacteristic->notify();
-      Serial0.printf("[BLE OBD] telemetry bytes=%u connected=%d rpm=%u speed=%u coolant=%d V=%.2f progress=%u\n",
+      JourneySerial.printf("[BLE OBD] telemetry bytes=%u connected=%d rpm=%u speed=%u coolant=%d V=%.2f progress=%u\n",
                      static_cast<unsigned>(teleWritten), c.connected, c.rpm, c.speedKph, c.coolantC, c.batteryVoltage, c.scanProgress);
       delay(15);
     } else {
-      Serial0.printf("[BLE OBD] ERROR telemetry too large bytes=%u\n", static_cast<unsigned>(teleWritten));
+      JourneySerial.printf("[BLE OBD] ERROR telemetry too large bytes=%u\n", static_cast<unsigned>(teleWritten));
     }
 
     // Discovery is sent in small chunks so ALL nearby BLE advertisers can reach
@@ -1678,12 +1680,12 @@ void publishState() {
         if (discoveryWritten > 0 && discoveryWritten < BLE_STATE_CAPACITY - 1) {
           bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(discoveryPayload), discoveryWritten);
           bleStateCharacteristic->notify();
-          Serial0.printf("[BLE] discovery %s chunk=%u bytes=%u done=%d\n",
+          JourneySerial.printf("[BLE] discovery %s chunk=%u bytes=%u done=%d\n",
                          kind, static_cast<unsigned>(chunkNo + 1),
                          static_cast<unsigned>(discoveryWritten), remaining.isEmpty());
           delay(12);
         } else {
-          Serial0.printf("[BLE] discovery %s chunk skipped, bytes=%u\n",
+          JourneySerial.printf("[BLE] discovery %s chunk skipped, bytes=%u\n",
                          kind, static_cast<unsigned>(discoveryWritten));
           break;
         }
@@ -1809,7 +1811,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   const String phoneId = doc["phoneID"] | "";
   const String action = doc["action"] | "";
   const String ownerTarget = doc["ownerTarget"] | "";
-  Serial0.printf("[CMD] src=%s action=%s, bytes=%u\n", source == CommandSource::MQTT ? "NET" : "BLE", action.c_str(), static_cast<unsigned>(length));
+  JourneySerial.printf("[CMD] src=%s action=%s, bytes=%u\n", source == CommandSource::MQTT ? "NET" : "BLE", action.c_str(), static_cast<unsigned>(length));
   if (id.isEmpty() || phoneId.isEmpty() || (id == lastCommandId && action != "keyless_presence")) return;
 
   // v12.65: normal commands follow the saved priority. Keyless/proximity
@@ -1830,14 +1832,14 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     const int bleRank = connectionPriorityRank("BLE");
     const int cloudRank = connectionPriorityRank(internetRouteName(activeInternetRoute));
     if (cloudRank < bleRank) {
-      Serial0.printf("[CMD] BLE skipped by priority while cloud is live: %s\n", action.c_str());
+      JourneySerial.printf("[CMD] BLE skipped by priority while cloud is live: %s\n", action.c_str());
       return;
     }
   }
 
   if (action == "owner_status") {
     lastCommandId = id;
-    Serial0.printf("[OWNER SYNC] request from phone owner=%s count=%u\n",
+    JourneySerial.printf("[OWNER SYNC] request from phone owner=%s count=%u\n",
                    ownerIndex(phoneId) >= 0 ? "YES" : "NO", static_cast<unsigned>(ownerCount()));
     publishOwnerState();
     return;
@@ -1960,6 +1962,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   }
   lastOwnerActivityAt = millis();
   if (action == "esp_diagnostics") {
+    diagnosticLogSince = doc["diagnosticSince"] | uint32_t(0);
     diagnosticsRequested = true;
     lastCommandId = id;
     return;
@@ -1983,7 +1986,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
         mqtt.disconnect();
         WiFi.disconnect(false, false);
         generalWifiStatus = "paused_for_obd_wifi";
-        Serial0.println("[OBD WIFI] STA reserved; general Wi-Fi paused (settings preserved)");
+        JourneySerial.println("[OBD WIFI] STA reserved; general Wi-Fi paused (settings preserved)");
       } else if (generalWifiEnabled && !generalWifiSsid.isEmpty()) {
         // Returning to BLE releases STA and restores normal Internet Wi-Fi.
         generalWifiLastConnectAttemptAt = 0;
@@ -2166,7 +2169,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     applyInternetPriority();
     lastCommandId = id;
     lastEvent = "connection_priority_saved";
-    Serial0.printf("[NET] priority=%s\n", connectionPriorityCsv.c_str());
+    JourneySerial.printf("[NET] priority=%s\n", connectionPriorityCsv.c_str());
     publishState();
     return;
   }
@@ -2180,7 +2183,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     if (enabled && String(obd.statusText()).startsWith("wifi_")) {
       lastCommandId = id;
       lastEvent = "general_wifi_conflicts_with_obd_wifi";
-      Serial0.println("[WIFI] rejected: OBD Wi-Fi owns STA; select BLE OBD or forget OBD Wi-Fi first");
+      JourneySerial.println("[WIFI] rejected: OBD Wi-Fi owns STA; select BLE OBD or forget OBD Wi-Fi first");
       publishState();
       return;
     }
@@ -2272,7 +2275,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   if (action == "keyless_presence") {
     const int index = ownerIndex(phoneId);
     const bool reportedNearby = doc["presence"]["nearby"] | false;
-    Serial0.printf("[KEYLESS RX] owner=%s index=%d nearby=%d session=%d locked=%d remote=%d maintenance=%d\n",
+    JourneySerial.printf("[KEYLESS RX] owner=%s index=%d nearby=%d session=%d locked=%d remote=%d maintenance=%d\n",
                    index >= 0 ? "YES" : "NO", index, reportedNearby,
                    keylessSessionOpen, locked, remotePowered, maintenanceMode);
     if (index >= 0) {
@@ -2285,12 +2288,12 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
         publishVehicleEvent(lastEvent.c_str(), reportedNearby ? "اقترب الهاتف من السيارة" : "ابتعد الهاتف عن السيارة");
       }
       updateKeylessPresenceState();
-      Serial0.printf("[KEYLESS RX] after update: nearbyAny=%d session=%d locked=%d remote=%d edge=%d\n",
+      JourneySerial.printf("[KEYLESS RX] after update: nearbyAny=%d session=%d locked=%d remote=%d edge=%d\n",
                      anyOwnerNearby(), keylessSessionOpen, locked, remotePowered, wasNearby != reportedNearby);
       // Heartbeats update presence/timestamp only; periodic state publishing handles UI.
     } else {
       lastEvent = "rejected_unknown_phone";
-      Serial0.println("[KEYLESS RX] rejected: phone is not an authorised owner");
+      JourneySerial.println("[KEYLESS RX] rejected: phone is not an authorised owner");
       publishState();
     }
     return;
@@ -2333,7 +2336,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     if (action == "lock") {
       nfcLockedUntilDeparture = true;
       keylessSessionOpen = false;
-      Serial0.println("[KEYLESS] manual lock latch: auto-unlock blocked until departure");
+      JourneySerial.println("[KEYLESS] manual lock latch: auto-unlock blocked until departure");
     }
   }
   else if (action == "unlock" || action == "keyless_unlock") {
@@ -2365,6 +2368,9 @@ void publishDiagnostics() {
   report += "Cellular enabled=" + String(cellularEnabled) + " status=" + cellularStatus + " registered=" + cellularRegistered + " IP=" + cellularDataAttached + " signal=" + cellularSignalDbm + " PPPstarted=" + PPP.started() + " mode=" + static_cast<int>(PPP.mode()) + "\n";
   report += "GPS valid=" + String(gpsValid) + " GNSSpowered=" + gnssPowered + " cloud=" + mqtt.connected() + "\n";
   report += obd.diagnosticReport();
+  uint32_t logEnd=0; bool logLost=false;
+  const String logs=JourneySerial.readLog(diagnosticLogSince,logEnd,logLost);
+  report += "\nLOG_END=" + String(logEnd) + "\nLOG_GAP=" + String(logLost) + "\n--- UART + ESP-IDF logs (recent 8 KiB / incremental) ---\n" + logs;
   const uint32_t seq = millis();
   const size_t count = (report.length()+47)/48;
   const char* hex="0123456789ABCDEF";
@@ -2389,7 +2395,7 @@ void connectWifi() {
   WiFi.mode(hotspotEnabled ? WIFI_AP_STA : WIFI_STA);
   WiFi.begin(generalWifiSsid.c_str(), generalWifiPassword.c_str());
   generalWifiStatus = "connecting";
-  Serial0.printf("[WIFI] connecting ssid=%s\n", generalWifiSsid.c_str());
+  JourneySerial.printf("[WIFI] connecting ssid=%s\n", generalWifiSsid.c_str());
 }
 
 void pollGeneralWifi() {
@@ -2415,7 +2421,7 @@ void pollGeneralWifi() {
       generalWifiScanActive = true;
       generalWifiScanStartedAt = millis();
       generalWifiStatus = "searching";
-      Serial0.println("[WIFI] one-shot scan started");
+      JourneySerial.println("[WIFI] one-shot scan started");
     }
   }
 
@@ -2443,7 +2449,7 @@ void pollGeneralWifi() {
       WiFi.scanDelete();
       generalWifiStatus = generalWifiDiscoveredNetworks.isEmpty() ? "networks_not_found" : "networks_found";
       generalWifiDiscoveryDirty = true;
-      Serial0.printf("[WIFI] scan complete found=%d listed=%u\n", found, static_cast<unsigned>(generalWifiDiscoveredNetworks.length()));
+      JourneySerial.printf("[WIFI] scan complete found=%d listed=%u\n", found, static_cast<unsigned>(generalWifiDiscoveredNetworks.length()));
       if (!generalWifiEnabled && !hotspotRunning && !hotspotEnabled) {
         WiFi.disconnect(true, false);
         WiFi.mode(WIFI_OFF);
@@ -2464,7 +2470,7 @@ void pollGeneralWifi() {
   if (WiFi.status() == WL_CONNECTED) {
     if (generalWifiStatus != "connected") {
       generalWifiStatus = "connected";
-      Serial0.printf("[WIFI] connected ssid=%s ip=%s rssi=%d\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      JourneySerial.printf("[WIFI] connected ssid=%s ip=%s rssi=%d\n", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
       publishState();
     }
   } else {
@@ -2534,11 +2540,11 @@ void bleCommandTask(void*) {
 
 void setup() {
   statePublishMutex = xSemaphoreCreateMutex();
-  Serial0.begin(115200);
+  JourneySerial.begin(115200);
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.85");
+  JourneySerial.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.85");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
@@ -2580,7 +2586,7 @@ void setup() {
     ownerPhones[0].phoneId = preferences.getString("trustedPhone", "");
     if (!ownerPhones[0].phoneId.isEmpty()) preferences.putString("owner0", ownerPhones[0].phoneId);
   }
-  Serial0.printf("[OWNER BOOT] owners=%u admin=%s\n", static_cast<unsigned>(ownerCount()),
+  JourneySerial.printf("[OWNER BOOT] owners=%u admin=%s\n", static_cast<unsigned>(ownerCount()),
                  ownerPhones[0].phoneId.isEmpty() ? "NONE" : "SAVED");
   delay(500);
   commandTopic = String("journey/") + DEVICE_ID + "/cmd";
@@ -2606,15 +2612,15 @@ void setup() {
     nfcReady = nfc.getFirmwareVersion() != 0;
     if (nfcReady) {
       nfc.SAMConfig();
-      Serial0.println("[NFC] PN532 ready");
-    } else Serial0.println("[NFC] PN532 absent; card control disabled");
+      JourneySerial.println("[NFC] PN532 ready");
+    } else JourneySerial.println("[NFC] PN532 absent; card control disabled");
   }
   bleCommandQueue = xQueueCreate(24, sizeof(BleCommandFrame));
   if (bleCommandQueue) {
     xTaskCreatePinnedToCore(bleCommandTask, "bleCmd", 16384, nullptr, 3, nullptr, 1);
   }
   if (xTaskCreatePinnedToCore(remoteTimerTask, "remoteTimer", 4096, nullptr, 4, nullptr, 1) != pdPASS) {
-    Serial0.println("[REMOTE] timer task allocation failed; restarting before enabling control");
+    JourneySerial.println("[REMOTE] timer task allocation failed; restarting before enabling control");
     ESP.restart();
   }
   advertiseBle();
@@ -2650,7 +2656,7 @@ void loop() {
   static uint32_t lastMemoryLogAt = 0;
   if (millis() - lastMemoryLogAt >= 10000) {
     lastMemoryLogAt = millis();
-    Serial0.printf("[MEM] loop stack free=%u heap=%u\n", unsigned(uxTaskGetStackHighWaterMark(nullptr)), unsigned(ESP.getFreeHeap()));
+    JourneySerial.printf("[MEM] loop stack free=%u heap=%u\n", unsigned(uxTaskGetStackHighWaterMark(nullptr)), unsigned(ESP.getFreeHeap()));
   }
   publishDiagnostics();
   pollEspHealth();

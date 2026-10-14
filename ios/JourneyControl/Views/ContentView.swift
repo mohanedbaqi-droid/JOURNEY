@@ -115,7 +115,9 @@ struct ContentView: View {
                     .environmentObject(proximity)
                     .preferredColorScheme(preferredScheme)
             }
-            .sheet(isPresented: $showingLocalDiagnostics) {
+            .sheet(isPresented: $showingLocalDiagnostics, onDismiss: {
+                if let id=devices.selectedDevice?.deviceID { mqtt.stopESPDiagnosticRecording(for: id) }
+            }) {
                 NavigationStack {
                     ESPStatusView(
                         vehicle: devices.selectedDevice.map { mqtt.state(for: $0.deviceID) } ?? VehicleState(),
@@ -126,7 +128,10 @@ struct ContentView: View {
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
-                                Button(JL("إغلاق", "Close")) { showingLocalDiagnostics = false }
+                                Button(JL("إغلاق", "Close")) {
+                                    if let id=devices.selectedDevice?.deviceID { mqtt.stopESPDiagnosticRecording(for: id) }
+                                    showingLocalDiagnostics = false
+                                }
                             }
                         }
                 }
@@ -1304,6 +1309,14 @@ private struct ESPStatusView: View {
                 } label: {
                     Label(JL("سحب تشخيص ESP", "Download ESP diagnostics"), systemImage: "square.and.arrow.down")
                 }.disabled(deviceID == nil || !vehicle.online)
+                if let deviceID {
+                    Button {
+                        if mqtt.espDiagnosticRecording.contains(deviceID) { mqtt.stopESPDiagnosticRecording(for: deviceID) }
+                        else { mqtt.startESPDiagnosticRecording(for: deviceID) }
+                    } label: {
+                        Label(mqtt.espDiagnosticRecording.contains(deviceID) ? JL("إيقاف التسجيل", "Stop recording") : JL("بدء تسجيل السجل", "Start log recording"), systemImage: "record.circle")
+                    }.disabled(!vehicle.online && !mqtt.espDiagnosticRecording.contains(deviceID))
+                }
                 if let deviceID, let status=mqtt.espDiagnosticStatus[deviceID] { Text(status).font(.caption) }
                 if let deviceID, let report=mqtt.espDiagnosticReports[deviceID] {
                     if let url=mqtt.espDiagnosticFiles[deviceID] {
@@ -1311,7 +1324,7 @@ private struct ESPStatusView: View {
                     }
                     Text(report).font(.caption.monospaced()).textSelection(.enabled)
                 }
-                Text(JL("تقرير حالة وآخر أسباب فصل CAN منذ تشغيل القطعة، بدون طلب فحص أعطال السيارة وبدون تغيير المخارج.", "Current status and recent CAN disconnect reasons since boot; does not scan vehicle trouble codes or change outputs.")).font(.caption).foregroundStyle(.secondary)
+                Text(JL("تقرير كامل للحالة مع آخر 8KB من رسائل البرنامج. للتسجيل المستمر اترك الصفحة مفتوحة؛ الملف يبيّن إذا فقدنا جزءًا أو صار ريست.", "Full status plus recent 8KB of program logs. Keep this page open for recording; the file marks gaps or reboots.")).font(.caption).foregroundStyle(.secondary)
             }
             Section(JL("صحة ESP", "ESP health")) {
                 if vehicle.online && !vehicle.espBoard.isEmpty {
