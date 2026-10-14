@@ -50,7 +50,7 @@ constexpr uint32_t GPS_FIX_MAX_AGE_MS = 30000;
 constexpr uint16_t REMOTE_BUTTON_SERIES_RESISTOR_OHMS = 1000;
 // نبضة زر الريموت: 450ms.
 constexpr uint32_t OUTPUT_PULSE_MS = 450;
-constexpr bool ALLOW_REMOTE_START = true; // Existing owner/OBD/stationary checks still apply.
+constexpr bool ALLOW_REMOTE_START = true; // Phone requires Face ID; remote-start command has no vehicle-state gates.
 // ترتيب التوصيل النهائي للريموت:
 // GPIO4 قفل، GPIO5 فتح، GPIO6 تشغيل، GPIO7 إنذار.
 // GPIO10 يذهب إلى قاعدة BD140: HIGH يطفئ طاقة الريموت و LOW يشغّلها.

@@ -1305,7 +1305,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.81";
+  doc["firmwareVersion"] = "12.82";
   doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
   doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
@@ -2278,12 +2278,9 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   else if (action == "keyless_unlock") { pin = UNLOCK_PIN; keepRemotePowered = true; }
   else if (action == "horn") pin = ALARM_PIN;
   else if (action == "remote_start") {
-    const ObdSnapshot& snapshot = obd.snapshot();
-    if (!ALLOW_REMOTE_START || !snapshot.connected || snapshot.speedKph > 0) {
-      lastEvent = "start_rejected_safety";
-      publishState();
-      return;
-    }
+    // Face ID is required by the phone before sending this owner command.
+    // The owner requested no vehicle-state gates; send the factory remote's
+    // normal two-pulse start sequence regardless of lock/OBD/RPM/speed state.
     pin = START_PIN;
     keepRemotePowered = false;
   }
@@ -2485,7 +2482,7 @@ void setup() {
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.81");
+  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.82");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
