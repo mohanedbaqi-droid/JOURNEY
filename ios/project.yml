@@ -3,7 +3,6 @@ options:
   bundleIdPrefix: com.example
   deploymentTarget:
     iOS: "18.0"
-    watchOS: "10.0"
 packages:
   CocoaMQTT:
     url: https://github.com/emqx/CocoaMQTT.git
@@ -32,8 +31,6 @@ targets:
     dependencies:
       - package: CocoaMQTT
       - target: JourneyWidgetExtension
-      - target: JourneyWatchApp
-        embed: true
   JourneyWidgetExtension:
     type: app-extension
     platform: iOS
@@ -58,23 +55,3 @@ targets:
         MARKETING_VERSION: 2.4.53
         CURRENT_PROJECT_VERSION: 85
 
-  JourneyWatchApp:
-    type: application
-    platform: watchOS
-    deploymentTarget: "10.0"
-    sources:
-      - JourneyWatch
-      - WatchShared
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.abuseif.journey.watchkitapp
-        PRODUCT_NAME: JourneyWatch
-        INFOPLIST_FILE: JourneyWatch/Info.plist
-        GENERATE_INFOPLIST_FILE: NO
-        SDKROOT: watchos
-        TARGETED_DEVICE_FAMILY: "4"
-        SWIFT_VERSION: 5.9
-        DEVELOPMENT_TEAM: 6778LWD4ZB
-        CODE_SIGN_STYLE: Automatic
-        MARKETING_VERSION: 2.4.53
-        CURRENT_PROJECT_VERSION: 85
