@@ -42,7 +42,7 @@ String JourneyDiagnosticSerial::readLog(uint32_t since,uint32_t& end,bool& lost)
   portEXIT_CRITICAL(&logMux);
   bytes[length]=0;
   // A wrapped ring may begin inside a UTF-8 character; omit the partial leading line.
-  size_t first=0;
-  if(lost) { while(first<length && bytes[first]!='\n') ++first; if(first<length) ++first; }
-  return String(bytes.data()+first);
+  size_t lineStart=0;
+  if(lost) { while(lineStart<length && bytes[lineStart]!='\n') ++lineStart; if(lineStart<length) ++lineStart; }
+  return String(bytes.data()+lineStart);
 }
