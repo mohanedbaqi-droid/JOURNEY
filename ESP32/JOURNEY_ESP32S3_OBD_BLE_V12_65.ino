@@ -31,6 +31,7 @@
 
 #include "ObdBleService.h"
 #include "config.h"
+#include "JourneyCloudConfig.h"
 #include "JourneyModemParsing.h"
 
 // Network/OBD libraries need headroom beyond Arduino's default 8 KiB loop.
@@ -147,6 +148,8 @@ PulseOutput outputs[] = {
   {LIGHTS_PIN, false, 0}, {LEFT_SIGNAL_PIN, false, 0}, {RIGHT_SIGNAL_PIN, false, 0}
 };
 
+String legacyCommandTopic;
+String legacyStateTopic;
 String commandTopic;
 String stateTopic;
 String eventTopic;
@@ -367,7 +370,7 @@ bool obdWifiStaReserved = false;
 enum class CommandSource : uint8_t { BLE, MQTT };
 
 bool settingsReady() {
-  return String(MQTT_HOST) != "CHANGE_ME" && String(MQTT_ROOT_CA).length() > 40;
+  return journeyCloudConfigReady(MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD, MQTT_ROOT_CA);
 }
 
 void startLocalOta() {
@@ -1328,7 +1331,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.85";
+  doc["firmwareVersion"] = "12.86";
   doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
   doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
@@ -1747,6 +1750,7 @@ void publishState() {
   }
   if (mqtt.connected()) {
     mqtt.publish(stateTopic.c_str(), reinterpret_cast<const uint8_t*>(payload), written, true);
+    if (legacyStateTopic != stateTopic) mqtt.publish(legacyStateTopic.c_str(), reinterpret_cast<const uint8_t*>(payload), written, true);
   }
 }
 
@@ -2354,7 +2358,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
 }
 
 void handleCommand(char* topic, byte* bytes, unsigned int length) {
-  if (String(topic) != commandTopic) return;
+  if (String(topic) != commandTopic && String(topic) != legacyCommandTopic) return;
   processCommandPayload(bytes, length, CommandSource::MQTT);
 }
 
@@ -2365,7 +2369,7 @@ void publishDiagnostics() {
   if (!guard.acquired) return;
   diagnosticsRequested = false;
   String report; report.reserve(4096);
-  report = "JOURNEY ESP diagnostics v12.85\nUptime=" + String(millis()/1000) + "s resetReason=" + String(static_cast<int>(esp_reset_reason())) + " heap=" + String(ESP.getFreeHeap()) + " minHeap=" + String(ESP.getMinFreeHeap()) + " loopStackFree=" + String(uxTaskGetStackHighWaterMark(nullptr)) + "\n";
+  report = "JOURNEY ESP diagnostics v12.86\nUptime=" + String(millis()/1000) + "s resetReason=" + String(static_cast<int>(esp_reset_reason())) + " heap=" + String(ESP.getFreeHeap()) + " minHeap=" + String(ESP.getMinFreeHeap()) + " loopStackFree=" + String(uxTaskGetStackHighWaterMark(nullptr)) + "\n";
   report += "ESP temperature=" + String(espTemperatureC) + " valid=" + espTemperatureValid + " batteryV=" + espBatteryVoltage + " percent=" + espBatteryPercent + " valid=" + espBatteryValid + "\n";
   report += "WiFi enabled=" + String(generalWifiEnabled) + " status=" + generalWifiStatus + " scan=" + generalWifiScanActive + " connected=" + (WiFi.status()==WL_CONNECTED) + " RSSI=" + WiFi.RSSI() + "\n";
   report += "Cellular enabled=" + String(cellularEnabled) + " status=" + cellularStatus + " registered=" + cellularRegistered + " IP=" + cellularDataAttached + " signal=" + cellularSignalDbm + " PPPstarted=" + PPP.started() + " mode=" + static_cast<int>(PPP.mode()) + "\n";
@@ -2513,6 +2517,7 @@ void ensureMqtt() {
   const String clientId = String(DEVICE_ID) + "-" + String((uint32_t)ESP.getEfuseMac(), HEX);
   if (mqtt.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
     mqtt.subscribe(commandTopic.c_str(), 1);
+    if (legacyCommandTopic != commandTopic) mqtt.subscribe(legacyCommandTopic.c_str(), 1);
     lastEvent = "mqtt_connected";
     publishState();
   }
@@ -2572,7 +2577,7 @@ void setup() {
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  JourneySerial.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.85");
+  JourneySerial.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.86");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
@@ -2617,9 +2622,11 @@ void setup() {
   JourneySerial.printf("[OWNER BOOT] owners=%u admin=%s\n", static_cast<unsigned>(ownerCount()),
                  ownerPhones[0].phoneId.isEmpty() ? "NONE" : "SAVED");
   delay(500);
-  commandTopic = String("journey/") + DEVICE_ID + "/cmd";
-  stateTopic = String("journey/") + DEVICE_ID + "/state";
-  eventTopic = String("journey/") + DEVICE_ID + "/events";
+  commandTopic = MQTT_COMMAND_TOPIC;
+  legacyCommandTopic = String("journey/") + DEVICE_ID + "/cmd";
+  legacyStateTopic = String("journey/") + DEVICE_ID + "/state";
+  stateTopic = MQTT_STATE_TOPIC;
+  eventTopic = MQTT_EVENT_TOPIC;
 
   for (auto &output : outputs) {
     // High-impedance is the safe idle state for direct negative remote buttons.
@@ -2677,6 +2684,7 @@ void setup() {
     mqtt.setCallback(handleCommand);
     mqtt.setBufferSize(4608);
   }
+  if (!settingsReady()) JourneySerial.println("[CLOUD] configuration incomplete: set MQTT password and PEM CA certificate");
   if (generalWifiEnabled) connectWifi();
 }
 

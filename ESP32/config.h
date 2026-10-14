@@ -31,11 +31,19 @@ constexpr char WIFI_SSID[] = "CHANGE_ME";
 constexpr char WIFI_PASSWORD[] = "CHANGE_ME";
 
 
-constexpr char MQTT_HOST[] = "CHANGE_ME";
+// EMQX Serverless broker (TLS only). Do not change this to the WebSocket port.
+constexpr char MQTT_HOST[] = "jcff3170.ala.us-east-1.emqxsl.com";
 constexpr uint16_t MQTT_PORT = 8883;
-constexpr char MQTT_USERNAME[] = "CHANGE_ME";
+constexpr char MQTT_USERNAME[] = "journey_esp";
+// Paste the password of the journey_esp account before compiling. Keep it out
+// of source control and never use the app account here.
 constexpr char MQTT_PASSWORD[] = "CHANGE_ME";
-constexpr char DEVICE_ID[] = "journey-esp32s3-01";
+constexpr char DEVICE_ID[] = "27A77884";
+// These must match the EMQX authorization rules for journey_esp.
+constexpr char MQTT_TOPIC_ROOT[] = "journey/27A77884";
+constexpr char MQTT_COMMAND_TOPIC[] = "journey/27A77884/commands/control";
+constexpr char MQTT_STATE_TOPIC[] = "journey/27A77884/telemetry/state";
+constexpr char MQTT_EVENT_TOPIC[] = "journey/27A77884/telemetry/events";
 
 // Waveshare ESP32-S3-SIM7670G-4G modem UART.
 constexpr int MODEM_RX_PIN = 17;
@@ -86,7 +94,8 @@ constexpr int PN532_IRQ_PIN = 21;
 constexpr int PN532_RESET_PIN = 47;
 constexpr bool ENABLE_PN532 = true;
 
-// ألصق شهادة Root CA الخاصة بالـ broker بين السطرين.
+// ألصق شهادة CA التي تُنزّلها من صفحة Deployment Overview في EMQX بين السطرين.
+// TLS يبقى إلزامي؛ لا تستخدم setInsecure() في جهاز السيارة.
 constexpr char MQTT_ROOT_CA[] = R"PEM(
 )PEM";
 
