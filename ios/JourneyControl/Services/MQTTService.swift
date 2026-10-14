@@ -428,18 +428,25 @@ final class MQTTService: ObservableObject {
             return true
         }
 
-        // All normal vehicle controls and diagnostics use confirmed MQTT first,
-        // regardless of the phone's Bluetooth status or stored route ordering.
-        if publishCloud(command, to: deviceID) { return true }
-
-        // Cellular/Wi-Fi MQTT unavailable: authenticated local BLE fallback.
-        if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
-            lastCommand = command.action
-            lastCommandAt = Date()
-            record(command.action)
-            lastError = nil
-            return true
+        // Prefer the selected transport when it is actually available.
+        // Cellular and Wi-Fi share one authenticated MQTT path; BLE remains local.
+        for route in connectionPriorityOrder {
+            if route == "BLE" {
+                if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
+                    lastCommand = command.action
+                    lastCommandAt = Date()
+                    record(command.action)
+                    lastError = nil
+                    return true
+                }
+            } else if cloudRouteMatches(route, deviceID: deviceID) {
+                if publishCloud(command, to: deviceID) { return true }
+            }
         }
+        // Some older ESP firmware omits internetRoute. Permit its fresh MQTT
+        // telemetry as fallback, without accepting a stale cached online flag.
+        if publishCloud(command, to: deviceID) { return true }
+        lastError = JL("لا يوجد اتصال مؤكد بالسيارة عبر الإنترنت أو البلوتوث", "No confirmed vehicle connection over Internet or Bluetooth")
         return false
     }
 
