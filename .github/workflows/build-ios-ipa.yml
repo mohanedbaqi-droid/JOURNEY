@@ -32,7 +32,7 @@ jobs:
 
       - name: Generate Xcode project
         working-directory: ios
-        run: xcodegen generate --spec project-no-watch.yml
+        run: xcodegen generate --spec project.yml
 
       - name: Resolve packages
         working-directory: ios
@@ -72,9 +72,14 @@ jobs:
           test "$APP_BUILD" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$WIDGET_INFO")"
           test -f "$APP/PlugIns/JourneyWidget.appex/JourneyWidget"
 
-          # Temporary SideStore build: no watch app / watch extension App IDs.
-          test ! -d "$APP/Watch"
-          test ! -d "$APP/PlugIns/JourneyWatch.app"
+          # Restore the companion Watch app after App ID slots became available.
+          WATCH_APP="$APP/Watch/JourneyWatch.app"
+          WATCH_INFO="$WATCH_APP/Info.plist"
+          test -f "$WATCH_APP/JourneyWatch"
+          test "$APP_VERSION" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$WATCH_INFO")"
+          test "$APP_BUILD" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$WATCH_INFO")"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_INFO")" = "com.abuseif.journey.watchkitapp"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH_INFO")" = "com.abuseif.journey"
           python3 ios/Tests/verify_widget_binary.py "$APP"
 
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_INFO")" = "com.abuseif.journey"
@@ -89,6 +94,7 @@ jobs:
 
           # Preserve desired App Group entitlements for the installation signing tool.
           codesign --force --sign - --entitlements ios/JourneyWidget/JourneyWidget.entitlements "$APP/PlugIns/JourneyWidget.appex"
+          codesign --force --sign - "$WATCH_APP"
           codesign --force --sign - --entitlements ios/JourneyControl/JourneyControl.entitlements "$APP"
           codesign -d --entitlements :- "$APP"
           codesign -d --entitlements :- "$APP/PlugIns/JourneyWidget.appex"
