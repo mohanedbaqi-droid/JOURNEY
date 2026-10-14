@@ -49,3 +49,19 @@ inline bool journeyGpsFix(const char* response, double& lat, double& lon) {
   lon = nextLon;
   return true;
 }
+
+// CEREG? returns <n>,<stat>[,...]; 1=home, 5=roaming. Ignore optional location fields.
+inline bool journeyNetworkRegistered(const char* reply) {
+  if (!reply) return false;
+  const char* p = std::strstr(reply, "+CEREG:");
+  if (!p) return false;
+  p += 7;
+  char* end = nullptr;
+  std::strtol(p, &end, 10);
+  if (end == p) return false;
+  while (*end == ' ') ++end;
+  if (*end != ',') return false;
+  p = end + 1;
+  const long state = std::strtol(p, &end, 10);
+  return end != p && (state == 1 || state == 5);
+}

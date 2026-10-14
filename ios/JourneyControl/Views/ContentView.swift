@@ -2779,6 +2779,7 @@ private struct MQTTSettingsView: View {
         case "data_attached": return JL("الإنترنت متصل", "Internet connected")
         case "checking": return JL("جاري الفحص", "Checking")
         case "pin_required": return JL("تحتاج SIM PIN", "SIM PIN required")
+        case "sim_or_modem_unavailable": return JL("الشريحة أو المودم ما رد على الفحص", "SIM or modem did not respond")
         case "sim_missing": return JL("الشريحة غير موجودة", "SIM missing")
         case "registration_failed": return JL("فشل تسجيل الشبكة", "Network registration failed")
         case "data_failed": return JL("فشل اتصال البيانات", "Data connection failed")

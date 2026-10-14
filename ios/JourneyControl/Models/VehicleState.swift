@@ -30,6 +30,7 @@ struct VehicleState: Codable {
     var ownerStateKnown = false
     var coreStatePacket = false
     var obdTelemetryPacket = false
+    var wifiDiscoveryOnly = false
     var wifiStatePacket = false
     var cellularStatePacket = false
     var vehicleEventPacket = false
@@ -203,6 +204,28 @@ struct VehicleState: Codable {
 
     init() {}
 
+    mutating func mergeWifiPacket(_ packet: VehicleState) {
+        if !packet.wifiDiscoveryOnly {
+        self.wifiEnabled = packet.wifiEnabled
+        self.wifiConnected = packet.wifiConnected
+        if !packet.wifiSSID.isEmpty { self.wifiSSID = packet.wifiSSID }
+        self.wifiRSSI = packet.wifiRSSI
+        self.wifiIP = packet.wifiIP
+        self.wifiStatus = packet.wifiStatus
+        self.cloudConnected = packet.cloudConnected
+        if !packet.otaAddress.isEmpty || !packet.wifiConnected { self.otaAddress = packet.otaAddress }
+        }
+        if packet.wifiDiscoveryReset { self.wifiDiscoveredNetworks = "" }
+        if !packet.wifiDiscoveredNetworks.isEmpty {
+            let current = Set(self.wifiDiscoveredNetworks.components(separatedBy: " | ").filter { !$0.isEmpty })
+            let additions = packet.wifiDiscoveredNetworks.components(separatedBy: " | ").filter { !$0.isEmpty && !current.contains($0) }
+            if !additions.isEmpty {
+                if !self.wifiDiscoveredNetworks.isEmpty { self.wifiDiscoveredNetworks += " | " }
+                self.wifiDiscoveredNetworks += additions.joined(separator: " | ")
+            }
+        }
+    }
+
     init(from decoder: Decoder) throws {
         let box = try decoder.container(keyedBy: CodingKeys.self)
         let compact = try decoder.container(keyedBy: CompactCodingKeys.self)
@@ -233,6 +256,7 @@ struct VehicleState: Codable {
         let compactObdTelemetryPacket = (try compact.decodeIfPresent(Int.self, forKey: .obdTelemetry) ?? 0) == 1
         obdTelemetryPacket = fullObdTelemetryPacket || compactObdTelemetryPacket
         wifiStatePacket = try box.decodeIfPresent(Bool.self, forKey: .wifiStatePacket) ?? false
+        wifiDiscoveryOnly = box.contains(.wifiDiscoveredNetworks) && !box.contains(.wifiEnabled)
         let compactCellPacket = (try compact.decodeIfPresent(Int.self, forKey: .cellPacket) ?? 0) == 1
         cellularStatePacket = (try box.decodeIfPresent(Bool.self, forKey: .cellularStatePacket) ?? false) || compactCellPacket
         if espHealthPacket || gpsStatePacket || obdTelemetryPacket || wifiStatePacket || cellularStatePacket { partialState = true }

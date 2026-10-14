@@ -319,6 +319,8 @@ bool generalWifiScanRequested = false;
 bool generalWifiScanActive = false;
 bool generalWifiDiscoveryDirty = false;
 uint32_t generalWifiLastConnectAttemptAt = 0;
+uint32_t generalWifiScanStartedAt = 0;
+constexpr uint32_t GENERAL_WIFI_SCAN_TIMEOUT_MS = 20000;
 
 // v12.62: runtime SIM / cellular settings controlled from the iPhone.
 bool cellularEnabled = false;
@@ -451,7 +453,8 @@ void refreshCellularStatus(bool attachData) {
     cellularNetwork = "غير متاح";
     return;
   }
-  cellularRegistered = PPP.hasIP() || PPP.attached();
+  const String registration = PPP.cmd("AT+CEREG?", 1000);
+  cellularRegistered = PPP.hasIP() || journeyNetworkRegistered(registration.c_str()) || PPP.attached();
   cellularDataAttached = PPP.hasIP();
   cellularSignalDbm = journeyCsqDbm(PPP.RSSI());
   // Avoid the core 3.3.0 operatorName() string cast; parse the bounded AT reply.
@@ -460,7 +463,9 @@ void refreshCellularStatus(bool attachData) {
   const int lastQuote = firstQuote >= 0 ? operatorReply.indexOf('"', firstQuote + 1) : -1;
   const String op = lastQuote > firstQuote ? operatorReply.substring(firstQuote + 1, lastQuote) : String();
   cellularNetwork = cellularRegistered ? (op.isEmpty() ? "4G" : op) : "غير متاح";
-  cellularStatus = cellularDataAttached ? "data_attached" : (cellularRegistered ? "registered" : "registration_failed");
+  cellularStatus = cellularDataAttached ? "data_attached" : (cellularRegistered ? "registered" : "checking");
+  Serial0.printf("[CELL] registered=%d ip=%d signal=%d mode=%d status=%s\n",
+    cellularRegistered, cellularDataAttached, cellularSignalDbm, static_cast<int>(PPP.mode()), cellularStatus.c_str());
 }
 
 void startCellularPpp() {
@@ -468,6 +473,14 @@ void startCellularPpp() {
   if (cellularAttempted && millis() - lastCellularAttemptAt < CELLULAR_RETRY_MS) return;
   cellularAttempted = true;
   lastCellularAttemptAt = millis();
+  modem.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+  String simReply;
+  const bool simResponded = modemQueryLine("AT+CPIN?", "+CPIN:", simReply, 1500);
+  if (!simResponded || (simReply.indexOf("READY") < 0 && cellularSimPin.isEmpty())) {
+    cellularStatus = simResponded ? "pin_required" : "sim_or_modem_unavailable";
+    Serial0.printf("[CELL] SIM check status=%s\n", cellularStatus.c_str());
+    return;
+  }
   modem.end();
   standaloneGnssStarted = false;
   gnssPowered = false;
@@ -512,10 +525,11 @@ void pollCellular() {
   cellularTestRequested = false;
   lastCellularPollAt = millis();
   refreshCellularStatus(true);
+  if (PPP.hasIP()) cellularDialAt = millis();
   if (PPP.started() && !PPP.hasIP()) {
     if (PPP.mode() == ESP_MODEM_MODE_COMMAND && cellularRegistered) {
-      if (!PPP.mode(ESP_MODEM_MODE_CMUX)) cellularStatus = "data_failed";
-      else cellularStatus = "checking";
+      if (!PPP.mode(ESP_MODEM_MODE_CMUX)) { cellularStatus = "data_failed"; Serial0.println("[CELL] CMUX dial failed"); }
+      else { cellularStatus = "checking"; cellularDialAt = millis(); Serial0.println("[CELL] PPP dial started"); }
     }
     // Registration may take longer than boot; keep trying and recover after
     // loss of data instead of leaving a started-but-undialled PPP forever.
@@ -1305,7 +1319,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.83";
+  doc["firmwareVersion"] = "12.84";
   doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
   doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
@@ -1682,12 +1696,11 @@ void publishState() {
       uint16_t chunkNo = 0;
       if (remaining.isEmpty()) {
         JsonDocument emptyDoc;
-        emptyDoc["partialState"] = true;
         emptyDoc["wifiStatePacket"] = true;
         emptyDoc["wifiDiscoveryReset"] = true;
         emptyDoc["wifiDiscoveryDone"] = true;
         emptyDoc["wifiDiscoveredNetworks"] = "";
-        emptyDoc["wifiStatus"] = generalWifiStatus;
+        // Status is sent separately; discovery packets must not reset connection state.
         char* const emptyPayload = statePublishBuffers.ble;
         const size_t n = serializeJson(emptyDoc, emptyPayload, BLE_STATE_CAPACITY);
         if (n > 0 && n < BLE_STATE_CAPACITY-1) {
@@ -1696,21 +1709,21 @@ void publishState() {
         }
       }
       while (!remaining.isEmpty() && chunkNo < 40) {
-        int cut = min(170, static_cast<int>(remaining.length()));
+        int cut = min(24, static_cast<int>(remaining.length()));
         if (cut < static_cast<int>(remaining.length())) {
           const int boundary = remaining.lastIndexOf(" | ", cut);
           if (boundary > 0) cut = boundary;
+          else { const int end = remaining.indexOf(" | "); cut = end < 0 ? remaining.length() : end; }
         }
         String chunk = remaining.substring(0, cut);
         remaining.remove(0, cut);
         if (remaining.startsWith(" | ")) remaining.remove(0, 3);
         JsonDocument wifiDiscoveryDoc;
-        wifiDiscoveryDoc["partialState"] = true;
         wifiDiscoveryDoc["wifiStatePacket"] = true;
         wifiDiscoveryDoc["wifiDiscoveryReset"] = firstChunk;
         wifiDiscoveryDoc["wifiDiscoveryDone"] = remaining.isEmpty();
         wifiDiscoveryDoc["wifiDiscoveredNetworks"] = chunk;
-        wifiDiscoveryDoc["wifiStatus"] = generalWifiStatus;
+        // Status is sent separately.
         char* const wifiDiscoveryPayload = statePublishBuffers.ble;
         const size_t n = serializeJson(wifiDiscoveryDoc, wifiDiscoveryPayload, BLE_STATE_CAPACITY);
         if (n == 0 || n >= BLE_STATE_CAPACITY-1) break;
@@ -2064,6 +2077,8 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     String requestedHotspotPassword = doc["cellularSettings"]["hotspotPassword"] | "Journey2017";
     apn.trim(); username.trim(); simPin.trim(); requestedHotspotSsid.trim();
     if (apn.isEmpty()) apn = "internet";
+    const bool changed = cellularEnabled != enabled || cellularApn != apn ||
+      cellularUsername != username || cellularPassword != password || cellularSimPin != simPin;
     cellularEnabled = enabled;
     cellularApn = apn;
     cellularUsername = username;
@@ -2080,7 +2095,8 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     preferences.putBool("hotspotEnabled", hotspotEnabled);
     preferences.putString("hotspotSsid", hotspotSsid);
     preferences.putString("hotspotPass", hotspotPassword);
-    cellularReconfigureRequested = true;
+    if (changed) cellularReconfigureRequested = true;
+    cellularTestRequested = true;
     lastCommandId = id;
     lastEvent = cellularEnabled ? "cellular_config_saved" : "cellular_disabled";
     publishState();
@@ -2328,6 +2344,7 @@ void handleCommand(char* topic, byte* bytes, unsigned int length) {
 }
 
 void connectWifi() {
+  if (generalWifiScanActive || generalWifiScanRequested) return;
   if (obdWifiStaReserved) { generalWifiStatus = "paused_for_obd_wifi"; return; }
   if (!generalWifiEnabled || generalWifiSsid.isEmpty()) return;
   if (WiFi.status() == WL_CONNECTED) return;
@@ -2360,6 +2377,7 @@ void pollGeneralWifi() {
       generalWifiDiscoveryDirty = true;
     } else {
       generalWifiScanActive = true;
+      generalWifiScanStartedAt = millis();
       generalWifiStatus = "searching";
       Serial0.println("[WIFI] one-shot scan started");
     }
@@ -2395,8 +2413,9 @@ void pollGeneralWifi() {
         WiFi.mode(WIFI_OFF);
       }
       publishState();
-    } else if (found == WIFI_SCAN_FAILED) {
+    } else if (found == WIFI_SCAN_FAILED || millis() - generalWifiScanStartedAt >= GENERAL_WIFI_SCAN_TIMEOUT_MS) {
       generalWifiScanActive = false;
+      WiFi.scanDelete();
       generalWifiStatus = "scan_failed";
       generalWifiDiscoveryDirty = true;
       if (!generalWifiEnabled && !hotspotRunning && !hotspotEnabled) WiFi.mode(WIFI_OFF);
@@ -2404,6 +2423,7 @@ void pollGeneralWifi() {
     }
   }
 
+  if (generalWifiScanActive || generalWifiScanRequested) return;
   if (!generalWifiEnabled) return;
   if (WiFi.status() == WL_CONNECTED) {
     if (generalWifiStatus != "connected") {
@@ -2482,7 +2502,7 @@ void setup() {
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.83");
+  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.84");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);

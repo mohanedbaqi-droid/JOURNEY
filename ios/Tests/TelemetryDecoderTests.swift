@@ -48,6 +48,14 @@ enum AppConfig { static let phoneID = "test-owner" }
    precondition(cell.cellularStatePacket && cell.partialState && cell.cellularStateKnown && cell.cellularEnabled && cell.cellularDataAttached && cell.cellularSignalDBm == -75)
    let missing = try decode.decode(VehicleState.self, from: Data(#"{"p":1,"on":1}"#.utf8))
    precondition(!missing.cellularStateKnown)
+   var wifi = try decode.decode(VehicleState.self, from: Data(#"{"wifiStatePacket":true,"wifiEnabled":true,"wifiConnected":true,"wifiSSID":"Home","wifiIP":"192.168.1.5","wifiStatus":"connected","otaAddress":"http://192.168.1.5"}"#.utf8))
+   let discovery = try decode.decode(VehicleState.self, from: Data(#"{"wifiStatePacket":true,"wifiDiscoveryReset":true,"wifiDiscoveryDone":true,"wifiDiscoveredNetworks":"Home | Garage"}"#.utf8))
+   wifi.mergeWifiPacket(discovery)
+   precondition(wifi.wifiEnabled && wifi.wifiConnected && wifi.wifiIP == "192.168.1.5" && wifi.otaAddress == "http://192.168.1.5")
+   precondition(wifi.wifiDiscoveredNetworks == "Home | Garage" && wifi.wifiStatus == "connected")
+   let off = try decode.decode(VehicleState.self, from: Data(#"{"wifiStatePacket":true,"wifiEnabled":false,"wifiConnected":false,"wifiStatus":"off"}"#.utf8))
+   wifi.mergeWifiPacket(off)
+   precondition(!wifi.wifiEnabled && !wifi.wifiConnected && wifi.otaAddress.isEmpty)
    print("Telemetry decoder checks passed")
  }
 }

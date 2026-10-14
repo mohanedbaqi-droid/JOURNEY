@@ -6,6 +6,12 @@ int main() {
   assert(journeyCsqDbm(31) == -51);
   assert(journeyCsqDbm(99) == -120);
   assert(journeyCsqDbm(-1) == -120);
+  assert(journeyNetworkRegistered("\r\n+CEREG: 0,1\r\nOK"));
+  assert(journeyNetworkRegistered("+CEREG: 2,5,\"1234\",\"5678\",7"));
+  assert(!journeyNetworkRegistered("+CEREG: 0,2"));
+  assert(!journeyNetworkRegistered("+CEREG: 0,3"));
+  assert(!journeyNetworkRegistered("ERROR"));
+  assert(!journeyNetworkRegistered("+CEREG: bad"));
   double lat = 1, lon = 2;
   assert(journeyGpsFix("+CGPSINFO:3030.000000,N,04748.000000,E,131026,120000.0,5,0,0\r\nOK", lat, lon));
   assert(std::fabs(lat - 30.5) < 0.000001 && std::fabs(lon - 47.8) < 0.000001);

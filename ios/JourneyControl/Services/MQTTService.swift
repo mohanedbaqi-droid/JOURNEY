@@ -787,23 +787,7 @@ final class MQTTService: ObservableObject {
                 if !state.hotspotSSID.isEmpty { merged.hotspotSSID = state.hotspotSSID }
                 merged.internetRoute = state.internetRoute
             } else if state.wifiStatePacket {
-                merged.wifiEnabled = state.wifiEnabled
-                merged.wifiConnected = state.wifiConnected
-                if !state.wifiSSID.isEmpty { merged.wifiSSID = state.wifiSSID }
-                merged.wifiRSSI = state.wifiRSSI
-                merged.wifiIP = state.wifiIP
-                merged.wifiStatus = state.wifiStatus
-                merged.cloudConnected = state.cloudConnected
-                if !state.otaAddress.isEmpty || !state.wifiConnected { merged.otaAddress = state.otaAddress }
-                if state.wifiDiscoveryReset { merged.wifiDiscoveredNetworks = "" }
-                if !state.wifiDiscoveredNetworks.isEmpty {
-                    let current = Set(merged.wifiDiscoveredNetworks.components(separatedBy: " | ").filter { !$0.isEmpty })
-                    let additions = state.wifiDiscoveredNetworks.components(separatedBy: " | ").filter { !$0.isEmpty && !current.contains($0) }
-                    if !additions.isEmpty {
-                        if !merged.wifiDiscoveredNetworks.isEmpty { merged.wifiDiscoveredNetworks += " | " }
-                        merged.wifiDiscoveredNetworks += additions.joined(separator: " | ")
-                    }
-                }
+                merged.mergeWifiPacket(state)
             } else if state.obdTelemetryPacket {
                 lastObdAt[deviceID] = Date()
                 merged.rpmValid = state.rpmValid; merged.coolantValid = state.coolantValid; merged.speedValid = state.speedValid
