@@ -93,7 +93,7 @@ final class MQTTService: ObservableObject {
     init() {
         bluetooth.onState = { [weak self] deviceID, state in
             Task { @MainActor in
-                self?.lastCloudStateAt[deviceID] = Date()
+                // BLE packets are local only; they must not refresh the MQTT freshness clock.
                 self?.receive(state, from: deviceID)
             }
         }
@@ -320,7 +320,7 @@ final class MQTTService: ObservableObject {
 
         mqtt.didConnectAck = { [weak self] mqtt, ack in
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, self.client === mqtt else { return }
                 if ack == .accept {
                     self.connection = .connected
                     self.lastError = nil
@@ -342,14 +342,18 @@ final class MQTTService: ObservableObject {
             else { return }
             let deviceID = String(parts[1])
             DispatchQueue.main.async {
-                self?.receive(state, from: deviceID)
+                guard let self, self.client === mqtt else { return }
+                self.lastCloudStateAt[deviceID] = Date()
+                self.receive(state, from: deviceID)
             }
         }
 
         mqtt.didDisconnect = { [weak self] _, error in
             DispatchQueue.main.async {
-                self?.connection = .disconnected
-                if let error { self?.lastError = error.localizedDescription }
+                guard let self, self.client === mqtt else { return }
+                self.connection = .disconnected
+                self.lastCloudStateAt.removeAll()
+                if let error { self.lastError = error.localizedDescription }
             }
         }
 
@@ -856,6 +860,11 @@ final class MQTTService: ObservableObject {
     }
 
     private func persistOwnerState(_ state: VehicleState, for deviceID: String) {
+        // Never overwrite a verified owner snapshot with a disconnected/default 0/10 packet.
+        guard state.ownerStateKnown else { return }
+        if state.authorizedPhoneCount == 0,
+           let previous = cachedOwnerState(for: deviceID),
+           previous.authorizedPhoneCount > 0 { return }
         let snapshot = OwnerSnapshot(
             trustedPhoneConfigured: state.trustedPhoneConfigured,
             authorizedPhoneCount: state.authorizedPhoneCount,
