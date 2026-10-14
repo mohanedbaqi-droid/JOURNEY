@@ -72,24 +72,9 @@ jobs:
           test "$APP_BUILD" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$WIDGET_INFO")"
           test -f "$APP/PlugIns/JourneyWidget.appex/JourneyWidget"
 
-          # Verify that the native watchOS companion is truly embedded,
-          # not merely present as Xcode source files. Xcode 16 stores it
-          # in Watch/; newer Xcode builds may embed it in PlugIns/.
-          if [ -d "$APP/Watch/JourneyWatch.app" ]; then
-            WATCH_APP="$APP/Watch/JourneyWatch.app"
-          elif [ -d "$APP/PlugIns/JourneyWatch.app" ]; then
-            WATCH_APP="$APP/PlugIns/JourneyWatch.app"
-          else
-            echo "The watchOS companion is missing from the iPhone app"
-            exit 1
-          fi
-          test -f "$WATCH_APP/Info.plist"
-          test -f "$WATCH_APP/JourneyWatch"
-          test "$APP_VERSION" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$WATCH_APP/Info.plist")"
-          test "$APP_BUILD" = "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$WATCH_APP/Info.plist")"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_APP/Info.plist")" = "com.abuseif.journey.watchkitapp"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH_APP/Info.plist")" = "com.abuseif.journey"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :DTPlatformName' "$WATCH_APP/Info.plist")" = "watchos"
+          # The IPA intentionally contains no Apple Watch companion.
+          test ! -d "$APP/Watch/JourneyWatch.app"
+          test ! -d "$APP/PlugIns/JourneyWatch.app"
           python3 ios/Tests/verify_widget_binary.py "$APP"
 
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_INFO")" = "com.abuseif.journey"
@@ -102,31 +87,6 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO"
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
 
-          # SideStore's free-Apple-ID signing changes the containing iPhone
-          # bundle ID to com.abuseif.journey.<development-team>. The watchOS
-          # WKCompanionAppBundleIdentifier must point at that installed ID.
-          # Apply this only to IPA packaging: the Xcode project itself keeps
-          # the original companion identifier for normal development signing.
-          SIDESTORE_IPHONE_ID="com.abuseif.journey.6778LWD4ZB"
-          SIDESTORE_WATCH_ID="${SIDESTORE_IPHONE_ID}.watchkitapp"
-          /usr/libexec/PlistBuddy -c "Set :WKCompanionAppBundleIdentifier $SIDESTORE_IPHONE_ID" "$WATCH_APP/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $SIDESTORE_WATCH_ID" "$WATCH_APP/Info.plist"
-          # A watch app must (a) refer to the signed iPhone app and
-          # (b) have its own bundle ID nested under that iPhone app's ID.
-          # SideStore changes the iPhone bundle ID but does not adjust these
-          # nested watch metadata values during resignment.
-          test "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH_APP/Info.plist")" = "$SIDESTORE_IPHONE_ID"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$WATCH_APP/Info.plist")" = "$SIDESTORE_WATCH_ID"
-          case "$SIDESTORE_WATCH_ID" in
-            "$SIDESTORE_IPHONE_ID".*) ;;
-            *) echo "Watch bundle identifier has invalid iPhone-prefix relationship"; exit 1 ;;
-          esac
-          echo "SideStore watch companion corrected to $SIDESTORE_IPHONE_ID"
-          echo "SideStore watch bundle corrected to $SIDESTORE_WATCH_ID"
-
-          # Re-sign nested bundles after changing the plist. The final
-          # installer must still provide correct iPhone/watch provisioning.
-          codesign --force --sign - "$WATCH_APP"
           # Preserve desired App Group entitlements for the installation signing tool.
           codesign --force --sign - --entitlements ios/JourneyWidget/JourneyWidget.entitlements "$APP/PlugIns/JourneyWidget.appex"
           codesign --force --sign - --entitlements ios/JourneyControl/JourneyControl.entitlements "$APP"
