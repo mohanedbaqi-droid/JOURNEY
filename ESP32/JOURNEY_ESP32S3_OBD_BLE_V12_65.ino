@@ -400,6 +400,9 @@ void startLocalOta() {
 
 volatile bool diagnosticsRequested = false;
 uint32_t diagnosticLogSince = 0;
+String diagnosticTransferReport;
+volatile bool diagnosticTransferPending = false;
+TaskHandle_t diagnosticTransferTaskHandle = nullptr;
 void publishState();
 void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource source);
 bool queueRemotePress(int pin, bool keepRemotePowered);
@@ -2357,7 +2360,7 @@ void handleCommand(char* topic, byte* bytes, unsigned int length) {
 
 // On-demand read-only report. Uses small hex chunks so UTF-8 and 185-byte ATT MTUs are safe.
 void publishDiagnostics() {
-  if (!diagnosticsRequested || !bleClientConnected || !bleStateCharacteristic) return;
+  if (!diagnosticsRequested || !bleClientConnected || !bleStateCharacteristic || !diagnosticTransferTaskHandle) return;
   StatePublishGuard guard;
   if (!guard.acquired) return;
   diagnosticsRequested = false;
@@ -2371,17 +2374,41 @@ void publishDiagnostics() {
   uint32_t logEnd=0; bool logLost=false;
   const String logs=JourneySerial.readLog(diagnosticLogSince,logEnd,logLost);
   report += "\nLOG_END=" + String(logEnd) + "\nLOG_GAP=" + String(logLost) + "\n--- UART + ESP-IDF logs (recent 8 KiB / incremental) ---\n" + logs;
-  const uint32_t seq = millis();
-  const size_t count = (report.length()+47)/48;
-  const char* hex="0123456789ABCDEF";
-  for (size_t i=0; i<count; ++i) {
-    String encoded; encoded.reserve(96);
-    for (size_t j=i*48; j<report.length() && j<(i+1)*48; ++j) { uint8_t b=report[j]; encoded += hex[b>>4]; encoded += hex[b&15]; }
-    JsonDocument packet; packet["ds"]=seq; packet["di"]=i; packet["dn"]=count; packet["dx"]=encoded;
-    const size_t n=serializeJson(packet,statePublishBuffers.ble,180);
-    if (!n || n>=180) break;
-    bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(statePublishBuffers.ble),n);
-    bleStateCharacteristic->notify(); delay(12);
+  diagnosticTransferReport = report;
+  diagnosticTransferPending = true;
+}
+
+// Keep CAN polling and remote-control commands responsive during large log downloads.
+void diagnosticTransferTask(void*) {
+  for (;;) {
+    String report;
+    if (diagnosticTransferPending) {
+      StatePublishGuard guard;
+      if (guard.acquired && diagnosticTransferPending) {
+        report=diagnosticTransferReport;
+        diagnosticTransferReport="";
+        diagnosticTransferPending=false;
+      }
+    }
+    if (report.isEmpty()) { vTaskDelay(pdMS_TO_TICKS(20)); continue; }
+    const uint32_t seq=millis();
+    const size_t count=(report.length()+47)/48;
+    const char* hex="0123456789ABCDEF";
+    for (size_t i=0; i<count && bleClientConnected; ++i) {
+      String encoded; encoded.reserve(96);
+      for (size_t j=i*48; j<report.length() && j<(i+1)*48; ++j) {
+        const uint8_t byte=report[j]; encoded += hex[byte>>4]; encoded += hex[byte&15];
+      }
+      { StatePublishGuard guard;
+        if (!guard.acquired) { --i; vTaskDelay(pdMS_TO_TICKS(10)); continue; }
+        JsonDocument packet; packet["ds"]=seq; packet["di"]=i; packet["dn"]=count; packet["dx"]=encoded;
+        const size_t n=serializeJson(packet,statePublishBuffers.ble,180);
+        if (!n || n>=180 || !bleStateCharacteristic) break;
+        bleStateCharacteristic->setValue(reinterpret_cast<uint8_t*>(statePublishBuffers.ble),n);
+        bleStateCharacteristic->notify();
+      }
+      vTaskDelay(pdMS_TO_TICKS(15));
+    }
   }
 }
 
@@ -2540,6 +2567,7 @@ void bleCommandTask(void*) {
 
 void setup() {
   statePublishMutex = xSemaphoreCreateMutex();
+  xTaskCreatePinnedToCore(diagnosticTransferTask, "diagTransfer", 6144, nullptr, 1, &diagnosticTransferTaskHandle, 1);
   JourneySerial.begin(115200);
   delay(2000);
   beginBatteryGauge();
