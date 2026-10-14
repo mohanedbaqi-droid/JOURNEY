@@ -386,11 +386,11 @@ void startLocalOta() {
     []() {
       HTTPUpload& upload = otaServer.upload();
       if (upload.status == UPLOAD_FILE_START) {
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(Serial);
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(JourneySerial);
       } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(Serial);
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(JourneySerial);
       } else if (upload.status == UPLOAD_FILE_END) {
-        if (!Update.end(true)) Update.printError(Serial);
+        if (!Update.end(true)) Update.printError(JourneySerial);
       }
     }
   );
