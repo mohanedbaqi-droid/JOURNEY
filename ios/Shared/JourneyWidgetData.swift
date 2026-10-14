@@ -47,7 +47,7 @@ struct JourneyWidgetSnapshot: Codable, Equatable {
         var s = self
         s.online = online && fresh(stateAt, at: now, seconds: 12)
         if !s.online || !fresh(obdAt, at: now, seconds: 5) {
-            s.rpm = nil; s.speed = nil; s.coolant = nil; s.fuel = nil; s.battery = nil; s.obdConnected = false
+            s.rpm = nil; s.speed = nil; s.coolant = nil; s.battery = nil; s.obdConnected = false
         }
         if !s.online || !fresh(bodyAt, at: now, seconds: 5) {
             s.locked = nil; s.doorKnownMask = 0; s.doorOpenMask = 0

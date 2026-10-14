@@ -1305,7 +1305,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.82";
+  doc["firmwareVersion"] = "12.83";
   doc["espBoard"] = "Waveshare ESP32-S3 SIM7670G";
   doc["espBoardRevision"] = batteryBoardRevision;
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
@@ -2482,7 +2482,7 @@ void setup() {
   delay(2000);
   beginBatteryGauge();
   Network.begin();
-  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.82");
+  Serial0.println("\n[JOURNEY] Waveshare ESP32-S3 SIM7670G — firmware v12.83");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);

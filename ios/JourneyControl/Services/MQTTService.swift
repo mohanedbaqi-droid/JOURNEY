@@ -821,8 +821,10 @@ final class MQTTService: ObservableObject {
                 merged.rpm = state.rpm
                 merged.speedKph = state.speedKph
                 merged.coolantC = state.coolantC
-                merged.fuelLevelPercent = state.fuelLevelPercent
-                merged.fuelLevelValid = state.fuelLevelValid
+                if state.fuelLevelValid {
+                    merged.fuelLevelPercent = state.fuelLevelPercent
+                    merged.fuelLevelValid = true
+                }
                 if state.batteryVoltage > 0 { merged.batteryVoltage = state.batteryVoltage }
                 merged.canAwake = state.canAwake
                 merged.ignitionState = state.ignitionState
@@ -846,6 +848,7 @@ final class MQTTService: ObservableObject {
             }
             if let rssi = bluetoothRSSIByDevice[deviceID] { merged.bluetoothRSSI = rssi }
             vehicles[deviceID] = merged
+            persistFuelState(merged, for: deviceID)
             lastStateAt[deviceID] = Date()
             // v12.51: keyless/core updates are partial packets too. They previously
             // returned before notification processing, so approach/departure events
@@ -861,6 +864,10 @@ final class MQTTService: ObservableObject {
         }
 
         var merged = state
+        if !state.fuelLevelValid, let previous, previous.fuelLevelValid {
+            merged.fuelLevelPercent = previous.fuelLevelPercent
+            merged.fuelLevelValid = true
+        }
         // A fresh full state received from the broker proves the ESP is reachable
         // through the Internet even when BLE is out of range.
         if connection == .connected && !bluetooth.isConnected(to: deviceID) {
@@ -871,6 +878,7 @@ final class MQTTService: ObservableObject {
         merged.ownerStateKnown = true
         if let rssi = bluetoothRSSIByDevice[deviceID] { merged.bluetoothRSSI = rssi }
         vehicles[deviceID] = merged
+        persistFuelState(merged, for: deviceID)
         persistOwnerState(merged, for: deviceID)
         lastStateAt[deviceID] = Date()
         VehicleNotificationService.shared.notifyChanges(
@@ -882,6 +890,14 @@ final class MQTTService: ObservableObject {
 
     private func ownerCacheKey(for deviceID: String) -> String {
         "journey.owner.snapshot.\(deviceID)"
+    }
+
+    private func persistFuelState(_ state: VehicleState, for deviceID: String) {
+        guard state.fuelLevelValid, (0...100).contains(state.fuelLevelPercent) else { return }
+        let key = "journey.fuel.lastConfirmed.\(deviceID)"
+        if defaults.object(forKey: key) as? Int != state.fuelLevelPercent {
+            defaults.set(state.fuelLevelPercent, forKey: key)
+        }
     }
 
     private func persistOwnerState(_ state: VehicleState, for deviceID: String) {
@@ -902,6 +918,10 @@ final class MQTTService: ObservableObject {
               let snapshot = try? JSONDecoder().decode(OwnerSnapshot.self, from: data)
         else { return nil }
         var state = VehicleState()
+        if let fuel = defaults.object(forKey: "journey.fuel.lastConfirmed.\(deviceID)") as? Int,
+           (0...100).contains(fuel) {
+            state.fuelLevelPercent = fuel; state.fuelLevelValid = true
+        }
         state.trustedPhoneConfigured = snapshot.trustedPhoneConfigured
         state.authorizedPhoneCount = snapshot.authorizedPhoneCount
         state.ownerAdminPhone = snapshot.ownerAdminPhone

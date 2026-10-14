@@ -4,6 +4,7 @@
 #include <BLEDevice.h>
 #include <Preferences.h>
 #include <WiFi.h>
+#include "FuelPollingPolicy.h"
 
 struct ObdSnapshot {
   bool rpmValid = false, coolantValid = false, speedValid = false;
@@ -83,6 +84,9 @@ class ObdBleService {
   static void onNotify(BLERemoteCharacteristic* characteristic, uint8_t* data, size_t length, bool notify);
 
  private:
+  JourneyFuelCache fuelCache_;
+  uint8_t rawFuelSetup_ = 0;
+  String rawFuelReply_;
   bool journeyRaw_ = false, rawPrompt_ = false, rawBad_ = false;
   uint8_t rawPhase_ = 0, rawSetup_ = 0, rawStage_ = 0;
   uint32_t rawDeadline_ = 0, rawStarted_ = 0, rawFrames_ = 0, rawCycles_ = 0;

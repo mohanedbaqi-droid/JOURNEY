@@ -41,6 +41,9 @@ ScanCallbacks scanCallbacks;
 void ObdBleService::begin() {
   instance_ = this;
   storage_.begin("journey-obd", false);
+  if (fuelCache_.restorePercent(storage_.getUChar("fuelPercent", 255))) {
+    data_.fuelLevelPercent = fuelCache_.percent(); data_.fuelLevelValid = true;
+  }
   preferredName_ = storage_.getString("adapter", OBD_BLE_NAME);
   preferredAddress_ = storage_.getString("adapterAddr", OBD_BLE_ADDRESS);
   preferredTransport_ = storage_.getString("transport", "BLE");
@@ -538,6 +541,10 @@ void ObdBleService::send(const char* text, uint8_t pid) {
     writeChar_->writeValue(reinterpret_cast<uint8_t*>(const_cast<char*>(command.c_str())), command.length(), response);
   }
   pendingCommand_ = text;
+  if (pendingCommand_ == "012F") {
+    fuelCache_.attempted(millis());
+    Serial0.println("[FUEL] request PID 012F; next attempt in 300 seconds");
+  }
   pendingPid_ = pid;
   commandPending_ = true;
   commandRetries_ = 0;
@@ -559,7 +566,15 @@ void ObdBleService::decodePid(const String& compact) {
     case 4: at = compact.indexOf("410F"); if (at >= 0) { int v = byteAt(4); if (v >= 0) data_.intakeAirC = v - 40; } break;
     case 5: at = compact.indexOf("4104"); if (at >= 0) { int v = byteAt(4); if (v >= 0) data_.engineLoadPercent = (v * 100) / 255; } break;
     case 6: at = compact.indexOf("4111"); if (at >= 0) { int v = byteAt(4); if (v >= 0) data_.throttlePercent = (v * 100) / 255; } break;
-    case 7: at = compact.indexOf("412F"); if (at >= 0) { int v = byteAt(4); if (v >= 0) { data_.fuelLevelPercent = (v * 100) / 255; data_.fuelLevelValid = true; } } break;
+    case 7:
+      at = compact.indexOf("412F");
+      if (at >= 0 && fuelCache_.acceptRawByte(byteAt(4))) {
+        data_.fuelLevelPercent = fuelCache_.percent(); data_.fuelLevelValid = true;
+        if (storage_.getUChar("fuelPercent", 255) != data_.fuelLevelPercent)
+          storage_.putUChar("fuelPercent", data_.fuelLevelPercent);
+        Serial0.printf("[FUEL] confirmed %u%%; holding until next successful sample\n", data_.fuelLevelPercent);
+      }
+      break;
     case 8: at = compact.indexOf("411F"); if (at >= 0) { int a = byteAt(4), b = byteAt(6); if (a >= 0 && b >= 0) data_.engineRuntimeSeconds = a * 256 + b; } break;
     case 9: at = compact.indexOf("4142"); if (at >= 0) { int a = byteAt(4), b = byteAt(6); if (a >= 0 && b >= 0) data_.batteryVoltage = (a * 256 + b) / 1000.0f; lastVoltageAt_ = lastEcuReplyAt_ = millis(); } break;
   }
@@ -650,7 +665,8 @@ bool ObdBleService::isSupportedStandardPid(uint16_t pid) const {
 }
 
 void ObdBleService::sendNextStandardPid() {
-  while (scanPid_ <= 0xC0 && !isSupportedStandardPid(scanPid_)) ++scanPid_;
+  while (scanPid_ <= 0xC0 && (!isSupportedStandardPid(scanPid_) ||
+         (scanPid_ == 0x2F && !fuelCache_.due(millis())))) ++scanPid_;
   if (scanPid_ > 0xC0) {
     if (!elmValidated_ || !ecuValidated_ || data_.totalResponses == 0 || data_.supportedPids == 0) {
       data_.standardScanComplete = false;
@@ -707,6 +723,11 @@ void ObdBleService::consumeReply() {
   commandRetries_ = 0;
   ++data_.totalResponses;
   ++rateWindowResponses_;
+  if (pendingPid_ == 7) {
+    activePid_ = 7; decodePid(compact);
+    data_.currentPid = ""; reply_ = "";
+    return;
+  }
   if (mode_ == QueryMode::BcmSetup || mode_ == QueryMode::ResumeLive) {
     const bool accepted = pendingCommand_ == "ATZ"
       ? reply_.indexOf("ELM") >= 0 || reply_.indexOf("OK") >= 0
@@ -1014,6 +1035,12 @@ void ObdBleService::poll() {
   consumeReply();
   if (commandPending_) {
     if (now < commandDeadlineAt_) return;
+    if (pendingCommand_ == "012F") {
+      // No repeated fuel retries and no fabricated zero when the ECU sleeps.
+      commandPending_ = false; reply_ = ""; data_.currentPid = "";
+      nextActionAt_ = now + OBD_COMMAND_GAP_MS;
+      return;
+    }
     if (mode_ == QueryMode::BcmSetup || mode_ == QueryMode::ResumeLive || mode_ == QueryMode::VerifyLive) {
       commandPending_ = false;
       data_.connected = false;
@@ -1069,6 +1096,7 @@ void ObdBleService::poll() {
   }
   if (now < nextActionAt_) return;
   if (mode_ == QueryMode::CanSleep) {
+    if (fuelCache_.due(now)) { data_.currentPid = "012F"; send("012F", 7); return; }
     // Keep KONNWEI/ELM awake without dropping BLE. Alternate an adapter-local
     // voltage read (ATRV) with a lightweight 0100 probe for CAN wake-up.
     if (!sleepProbeToggle_) {
@@ -1169,6 +1197,9 @@ void ObdBleService::poll() {
     send("03", 0x70);
     return;
   }
+  if (mode_ == QueryMode::Normal && fuelCache_.due(now)) {
+    data_.currentPid = "012F"; send("012F", 7); return;
+  }
   if (dtcStage_ > 0 && dtcStage_ < 3 && now >= nextDtcCheckAt_) {
     if (dtcStage_ == 0 || dtcStage_ >= 3) {
       dtcStage_ = 0;
@@ -1255,8 +1286,12 @@ void ObdBleService::pollJourneyRaw() {
     if(!have) break;
     if(ch=='>' || ch=='\r' || ch=='\n') {
       rawLine_.trim(); rawLine_.toUpperCase();
-      if(rawLine_.indexOf("BUFFER FULL")>=0 || rawLine_.indexOf("ERROR")>=0 || rawLine_=="?") rawBad_=true;
+      if(rawLine_.indexOf("BUFFER FULL")>=0 ||
+         ((rawPhase_!=6 && rawPhase_!=8) && (rawLine_.indexOf("ERROR")>=0 || rawLine_=="?"))) rawBad_=true;
       if(rawLine_=="OK") rawAck_="OK";
+      if (rawPhase_ == 6 && rawFuelReply_.length() + rawLine_.length() <= 600) {
+        rawFuelReply_ += rawLine_; rawFuelReply_ += '\n';
+      }
       if(rawPhase_==3 || rawPhase_==4) {
         char copy[240]; rawLine_.toCharArray(copy,sizeof(copy)); char *save=nullptr;
         char *id=strtok_r(copy," ",&save), *dlc=strtok_r(nullptr," ",&save);
@@ -1281,6 +1316,38 @@ void ObdBleService::pollJourneyRaw() {
   }
   if(rawBad_) { rawFail("rx_overflow_or_elm_error"); return; }
   const uint32_t now=millis();
+  // Fuel is a five-minute request, separate from the fast passive CAN loop.
+  // Switch the ELM to formatted OBD, request once, then restore passive CAN.
+  if (rawPhase_ == 5) {
+    if (!rawPrompt_) { if (now >= rawDeadline_) rawFail("fuel_setup_timeout"); return; }
+    if (rawAck_ != "OK") { rawFail("fuel_setup_rejected"); return; }
+    const char* commands[] = {"ATCAF1", "ATCM000", "ATCF000"};
+    if (++rawFuelSetup_ < 3) { rawSend(commands[rawFuelSetup_]); return; }
+    rawPhase_ = 6; rawFuelReply_ = "";
+    fuelCache_.attempted(now); data_.currentPid = "012F";
+    Serial0.println("[FUEL] request PID 012F; next attempt in 300 seconds");
+    rawSend("012F"); return;
+  }
+  if (rawPhase_ == 6) {
+    if (!rawPrompt_) {
+      if (now >= rawDeadline_) { rawPhase_ = 8; rawSend(""); }
+      return;
+    }
+    String compact;
+    for (size_t i=0; i<rawFuelReply_.length(); ++i)
+      if (isxdigit(rawFuelReply_[i])) compact += char(toupper(rawFuelReply_[i]));
+    const uint8_t saved = activePid_; activePid_ = 7; decodePid(compact); activePid_ = saved;
+    rawPhase_ = 7; rawSend("ATCAF0"); return;
+  }
+  if (rawPhase_ == 8) {
+    if (!rawPrompt_) { if (now >= rawDeadline_) rawFail("fuel_stop_timeout"); return; }
+    rawPhase_ = 7; rawSend("ATCAF0"); return;
+  }
+  if (rawPhase_ == 7) {
+    if (!rawPrompt_) { if (now >= rawDeadline_) rawFail("fuel_restore_timeout"); return; }
+    if (rawAck_ != "OK") { rawFail("fuel_restore_rejected"); return; }
+    rawPhase_ = 1; rawStage_ = 0; rawSend("ATCM7C3"); return;
+  }
   const char* setup[]={"ATS1","ATH1","ATD1","ATCAF0","ATSP6"};
   if(rawPhase_==0) {
     if(!rawPrompt_) { if(now>=rawDeadline_) rawFail("prompt_timeout"); return; }
@@ -1311,6 +1378,9 @@ void ObdBleService::pollJourneyRaw() {
     if(clearRequested_ || diagnosticScanRequested_) {
       journeyRaw_=false; canMonitorActive_=false; reply_=""; commandPending_=false;
       bcmRecoveryActive_=true; mode_=QueryMode::ResumeLive; setupStep_=0; nextActionAt_=now; return;
+    }
+    if (fuelCache_.due(now)) {
+      rawFuelSetup_ = 0; rawPhase_ = 5; rawSend("ATCAF1"); return;
     }
     if(rawStage_==0) rawStage_=1;
     else if(rawStage_==1) { rawCycles_++; rawStage_=rawCycles_%5==0?2:0; }

@@ -835,7 +835,7 @@ struct ContentView: View {
             }
             HStack {
                 metric(JL("فولت البطارية", "Battery voltage"), value: state.batteryVoltage > 0 ? String(format: "%.2f V", state.batteryVoltage) : "—")
-                metric(JL("بنزين", "Fuel"), value: state.obdConnected && state.fuelLevelValid ? "\(state.fuelLevelPercent)%" : "—")
+                metric(JL("بنزين", "Fuel"), value: state.fuelLevelValid ? "\(state.fuelLevelPercent)%" : "—")
                 metric(JL("OBD رد/ث", "OBD responses/s"), value: state.obdConnected ? "\(state.obdResponseRate)" : "—")
             }
             HStack {
