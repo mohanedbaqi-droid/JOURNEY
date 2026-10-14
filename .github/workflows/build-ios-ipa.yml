@@ -94,6 +94,10 @@ jobs:
 
           # Preserve desired App Group entitlements for the installation signing tool.
           codesign --force --sign - --entitlements ios/JourneyWidget/JourneyWidget.entitlements "$APP/PlugIns/JourneyWidget.appex"
+          # SideStore appends this owner signing team to the iPhone bundle ID.
+          # Keep the Watch companion reference aligned with that installed ID.
+          /usr/libexec/PlistBuddy -c "Set :WKCompanionAppBundleIdentifier com.abuseif.journey.6778LWD4ZB" "$WATCH_INFO"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :WKCompanionAppBundleIdentifier' "$WATCH_INFO")" = "com.abuseif.journey.6778LWD4ZB"
           codesign --force --sign - "$WATCH_APP"
           codesign --force --sign - --entitlements ios/JourneyControl/JourneyControl.entitlements "$APP"
           codesign -d --entitlements :- "$APP"
