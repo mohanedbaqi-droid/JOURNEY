@@ -681,9 +681,15 @@ final class MQTTService: ObservableObject {
         if state.ownerStatePacket {
             var merged = previous ?? VehicleState()
             merged.online = bluetooth.isConnected(to: deviceID) || state.online
-            merged.trustedPhoneConfigured = state.trustedPhoneConfigured
-            merged.authorizedPhoneCount = state.authorizedPhoneCount
-            merged.ownerAdminPhone = state.ownerAdminPhone
+            // A transient zero-owner packet must not downgrade an existing verified owner.
+            // The ESP remains authoritative once a non-empty owner snapshot arrives.
+            let previousHasOwner = (previous?.authorizedPhoneCount ?? 0) > 0
+            let incomingOwnerEmpty = state.authorizedPhoneCount == 0 && !state.trustedPhoneConfigured
+            if !(previousHasOwner && incomingOwnerEmpty) {
+                merged.trustedPhoneConfigured = state.trustedPhoneConfigured
+                merged.authorizedPhoneCount = state.authorizedPhoneCount
+                merged.ownerAdminPhone = state.ownerAdminPhone
+            }
             merged.pendingOwnerPhone = state.pendingOwnerPhone
             merged.lastEvent = state.lastEvent
             merged.uptimeSeconds = state.uptimeSeconds
