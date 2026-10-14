@@ -1092,8 +1092,8 @@ bool queueRemotePress(int pin, bool keepRemotePowered) {
   }
   if (pin == START_PIN) {
     // OEM remote start requires two separate presses.
-    scheduledRemotePulsePin = START_PIN;
     scheduledRemotePulseAt = millis() + remotePulseMs + 450;
+    scheduledRemotePulsePin = START_PIN;
   }
   if (!keepRemotePowered) {
     remotePowerOffAt = millis() + remotePulseMs +
