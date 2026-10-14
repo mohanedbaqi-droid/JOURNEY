@@ -1113,6 +1113,13 @@ void ObdBleService::poll() {
   }
   if (mode_ == QueryMode::Init) {
     if (setupStep_ >= INIT_COUNT) {
+      if (preferredTransport_ == "BLE" && preferredName_.indexOf("KONNWEI") >= 0) {
+        // Journey live data comes from passive CAN. Do not automatically
+        // request VIN, supported-PID masks or a full standard-PID scan.
+        mode_ = QueryMode::Normal;
+        startJourneyRaw();
+        return;
+      }
       mode_ = QueryMode::Handshake;
       status_ = "connecting_ecu";
       nextActionAt_ = now + OBD_COMMAND_GAP_MS;
@@ -1141,6 +1148,13 @@ void ObdBleService::poll() {
   if (mode_ == QueryMode::ResumeLive) {
     constexpr uint8_t RESUME_COUNT = sizeof(RESUME_LIVE_COMMANDS) / sizeof(RESUME_LIVE_COMMANDS[0]);
     if (setupStep_ >= RESUME_COUNT) {
+      if (preferredTransport_ == "BLE" && preferredName_.indexOf("KONNWEI") >= 0) {
+        // Restore formatting for the explicitly requested DTC command, with
+        // no extra RPM PID verification or automatic discovery scan.
+        mode_ = QueryMode::Normal; bcmRecoveryActive_ = false;
+        nextActionAt_ = millis();
+        return;
+      }
       mode_ = QueryMode::VerifyLive;
       status_ = "bcm_verifying_rpm";
       nextActionAt_ = millis();
