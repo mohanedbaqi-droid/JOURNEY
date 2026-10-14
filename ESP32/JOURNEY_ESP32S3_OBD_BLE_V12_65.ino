@@ -476,11 +476,14 @@ void startCellularPpp() {
   modem.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
   String simReply;
   const bool simResponded = modemQueryLine("AT+CPIN?", "+CPIN:", simReply, 1500);
-  if (!simResponded || (simReply.indexOf("READY") < 0 && cellularSimPin.isEmpty())) {
-    cellularStatus = simResponded ? "pin_required" : "sim_or_modem_unavailable";
+  if (simResponded && simReply.indexOf("READY") < 0 && cellularSimPin.isEmpty()) {
+    cellularStatus = "pin_required";
     Serial0.printf("[CELL] SIM check status=%s\n", cellularStatus.c_str());
     return;
   }
+  // An unanswered query can mean the modem retained data/CMUX mode.
+  // Let PPP.begin perform its command-mode recovery instead of blocking retries.
+  if (!simResponded) Serial0.println("[CELL] SIM query unanswered; attempting UART mode recovery");
   modem.end();
   standaloneGnssStarted = false;
   gnssPowered = false;
@@ -490,7 +493,7 @@ void startCellularPpp() {
   PPP.setPins(MODEM_TX_PIN, MODEM_RX_PIN, -1, -1, ESP_MODEM_FLOW_CONTROL_NONE);
   Serial0.println("[CELL] starting PPP");
   if (!PPP.begin(PPP_MODEM_SIM7600, 1, MODEM_BAUD)) {
-    cellularStatus = "data_failed";
+    cellularStatus = simResponded ? "data_failed" : "sim_or_modem_unavailable";
     return;
   }
   if (ENABLE_GNSS) gnssPowered = !PPP.cmd("AT+CGNSSPWR=1", 1000).isEmpty();
