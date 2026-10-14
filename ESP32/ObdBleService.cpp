@@ -5,6 +5,8 @@
 ObdBleService* ObdBleService::instance_ = nullptr;
 
 namespace {
+// Keep absent adapters from starving modem and health updates in loop().
+constexpr uint32_t OBD_CONNECT_TIMEOUT_MS = 2500;
 const char* INIT_COMMANDS[] = {"ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"};
 // Sent after each short BCM monitor window.  These are deliberately issued
 // through the normal request/reply path; writing them blindly caused KONNWEI
@@ -477,10 +479,10 @@ bool ObdBleService::connectCandidate() {
   // without starting a general discovery scan (which can disturb phone BLE).
   const BLEAddress target(candidateAddress_.c_str());
   Serial0.printf("[OBD BLE] direct connect %s type=PUBLIC\n", candidateAddress_.c_str());
-  bool connected = client_->connect(target, BLE_ADDR_PUBLIC);
+  bool connected = client_->connect(target, BLE_ADDR_PUBLIC, OBD_CONNECT_TIMEOUT_MS) && client_->isConnected();
   if (!connected) {
     Serial0.printf("[OBD BLE] retry %s type=RANDOM\n", candidateAddress_.c_str());
-    connected = client_->connect(target, BLE_ADDR_RANDOM);
+    connected = client_->connect(target, BLE_ADDR_RANDOM, OBD_CONNECT_TIMEOUT_MS) && client_->isConnected();
   }
   if (!connected) {
     status_ = "connect_failed";
