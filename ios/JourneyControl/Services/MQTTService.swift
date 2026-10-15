@@ -272,7 +272,7 @@ final class MQTTService: ObservableObject {
     var settings: Settings {
         let savedPort = UInt16(exactly: defaults.integer(forKey: "journey.mqtt.port"))
         return Settings(
-            host: defaults.string(forKey: "journey.mqtt.host") ?? "",
+            host: defaults.string(forKey: "journey.mqtt.host").flatMap { $0.isEmpty ? nil : $0 } ?? AppConfig.defaultBrokerHost,
             port: (savedPort ?? 0) == 0 ? AppConfig.defaultBrokerPort : (savedPort ?? AppConfig.defaultBrokerPort),
             username: defaults.string(forKey: "journey.mqtt.username") ?? "",
             password: readPassword()
@@ -335,9 +335,9 @@ final class MQTTService: ObservableObject {
 
         mqtt.didReceiveMessage = { [weak self] _, message, _ in
             let parts = message.topic.split(separator: "/")
-            guard !message.retained, parts.count == 3,
+            guard !message.retained, parts.count == 4,
                   parts[0] == "journey",
-                  parts[2] == "state",
+                  parts[2] == "telemetry", parts[3] == "state",
                   let data = message.string?.data(using: .utf8),
                   let state = try? JSONDecoder().decode(VehicleState.self, from: data)
             else { return }
