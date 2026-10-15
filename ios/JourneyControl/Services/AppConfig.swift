@@ -4,6 +4,7 @@ import Security
 enum AppConfig {
     static let cellularCarrier = "Zain Iraq"
     static let cellularAPN = "internet"
+    static let defaultBrokerHost = "jcff3170.ala.us-east-1.emqxsl.com"
     static let defaultBrokerPort: UInt16 = 8883
     static let keychainService = "com.example.JourneyControl.mqtt"
     static let bleServiceUUID = "AF10A000-17B7-4A86-A7D7-9A3B40C8D001"
@@ -45,6 +46,6 @@ enum AppConfig {
         return stable
     }
 
-    static let allStateTopics = "journey/+/state"
-    static func commandTopic(for deviceID: String) -> String { "journey/\(deviceID)/cmd" }
+    static let allStateTopics = "journey/+/telemetry/state"
+    static func commandTopic(for deviceID: String) -> String { "journey/\(deviceID)/commands/control" }
 }
