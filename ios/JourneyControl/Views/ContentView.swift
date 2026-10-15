@@ -2224,7 +2224,7 @@ private struct MQTTSettingsView: View {
     @State private var hotspotSSID = "JOURNEY-4G"
     @State private var hotspotPassword = "Journey2017"
     @State private var cellularMessage: String?
-    @State private var connectionPriority: [String] = ["CELLULAR", "WIFI", "BLE"]
+    @State private var connectionPriority: [String] = ["CELLULAR", "BLE"]
     @State private var priorityMessage: String?
 
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
@@ -2318,7 +2318,7 @@ private struct MQTTSettingsView: View {
                 }
 
                 Section {
-                    ForEach(Array(connectionPriority.enumerated()), id: \.element) { index, route in
+                    ForEach(Array(connectionPriority.filter { $0 != "WIFI" }.enumerated()), id: \.element) { index, route in
                         HStack(spacing: 12) {
                             Text("\(index + 1)")
                                 .font(.caption.bold())
@@ -2368,90 +2368,6 @@ private struct MQTTSettingsView: View {
                 }
 
                 Section {
-                    Toggle(JL("تشغيل Wi-Fi بالـESP", "Enable ESP Wi-Fi"), isOn: $wifiEnabled)
-                        .tint(JourneyTheme.accent)
-                        .onChange(of: wifiEnabled) { _, enabled in
-                            if !enabled { setWifiEnabled(false) }
-                        }
-
-                    HStack {
-                        Label(
-                            vehicle.wifiConnected ? JL("متصل: \(vehicle.wifiSSID)", "Connected: \(vehicle.wifiSSID)") : wifiStatusText(vehicle.wifiStatus),
-                            systemImage: vehicle.wifiConnected ? "wifi" : "wifi.slash"
-                        )
-                        .foregroundStyle(vehicle.wifiConnected ? .green : .secondary)
-                        Spacer()
-                        if vehicle.wifiConnected {
-                            Text("\(vehicle.wifiRSSI) dBm")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if !vehicle.wifiIP.isEmpty {
-                        LabeledContent("IP", value: vehicle.wifiIP)
-                    }
-                    LabeledContent(JL("التحكم عن بُعد", "Remote access"), value: vehicle.cloudConnected ? JL("ONLINE عبر الإنترنت", "ONLINE over Internet") : JL("غير متصل بالسحابة", "Cloud disconnected"))
-                        .foregroundStyle(vehicle.cloudConnected ? .green : .secondary)
-
-                    Button {
-                        searchWifi()
-                    } label: {
-                        Label(vehicle.wifiStatus == "searching" ? JL("جاري البحث...", "Searching…") : JL("بحث عن الشبكات", "Search networks"), systemImage: "magnifyingglass")
-                    }
-                    .disabled(vehicle.wifiStatus == "searching" || selectedDeviceID == nil)
-
-                    if !wifiNetworks.isEmpty {
-                        Picker(JL("الشبكة", "Network"), selection: $wifiSSID) {
-                            Text(JL("اختر شبكة", "Select network")).tag("")
-                            ForEach(wifiNetworks, id: \.self) { network in
-                                Text(network).tag(network)
-                            }
-                        }
-                    } else {
-                        TextField(JL("اسم الشبكة SSID", "Network name SSID"), text: $wifiSSID)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                    }
-
-                    SecureField(JL("كلمة مرور الشبكة", "Network password"), text: $wifiPassword)
-
-                    HStack {
-                        Button {
-                            connectWifi()
-                        } label: {
-                            Label(JL("اتصال", "Connect"), systemImage: "wifi")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!wifiEnabled || wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedDeviceID == nil)
-
-                        Spacer()
-
-                        Button(role: .destructive) {
-                            forgetWifi()
-                        } label: {
-                            Label(JL("نسيان الشبكة", "Forget network"), systemImage: "trash")
-                        }
-                        .disabled(selectedDeviceID == nil)
-                    }
-
-                    if let wifiMessage {
-                        Text(JLStored(wifiMessage))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(JL("البحث يدوي فقط، وماكو Scan مستمر. بهالشكل نقلل تأثير Wi-Fi على BLE أثناء الاستخدام الطبيعي.", "Search is manual only, with no continuous scan. This reduces Wi-Fi interference with BLE during normal use."))
-                    Text(JL("إذا الإنترنت شغال، أوامر السيارة تروح MQTT عبر الشريحة أو Wi-Fi؛ BLE يبقى للدخول الذكي، ويرجع fallback محلي فقط إذا انقطع الإنترنت.", "With Internet available, vehicle commands use MQTT over cellular or Wi-Fi. BLE handles smart entry and provides local fallback when Internet is unavailable."))
-                        .font(.footnote)
-                        .foregroundStyle(.green)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Label(JL("Wi-Fi الـESP", "ESP Wi-Fi"), systemImage: "wifi")
-                }
-
-                Section {
                     Toggle(JL("تشغيل الشريحة / 4G", "Enable cellular / 4G"), isOn: $cellularEnabled)
                         .tint(.green)
                         .onChange(of: cellularEnabled) { _, enabled in
@@ -2475,7 +2391,7 @@ private struct MQTTSettingsView: View {
                     }
                     LabeledContent(JL("تسجيل الشبكة", "Network registration"), value: vehicle.cellularRegistered ? JL("مسجل", "Registered") : JL("غير مسجل", "Not registered"))
                     LabeledContent(JL("بيانات الإنترنت", "Internet data"), value: vehicle.cellularDataAttached ? JL("متصلة", "Connected") : JL("غير متصلة", "Disconnected"))
-                    LabeledContent(JL("مسار الإنترنت", "Internet route"), value: vehicle.internetRoute == "CELLULAR" ? JL("الشريحة", "Cellular") : (vehicle.internetRoute == "WIFI" ? "Wi-Fi" : JL("غير متصل", "Disconnected")))
+                    LabeledContent(JL("مسار الإنترنت", "Internet route"), value: vehicle.internetRoute == "CELLULAR" ? JL("الشريحة", "Cellular") : JL("غير متصل", "Disconnected"))
                         .foregroundStyle(vehicle.internetRoute == "CELLULAR" ? .green : .secondary)
 
                     TextField("APN", text: $cellularAPN)
@@ -2487,25 +2403,6 @@ private struct MQTTSettingsView: View {
                     SecureField(JL("كلمة مرور APN - اختيارية", "APN password — Optional"), text: $cellularPassword)
                     SecureField(JL("SIM PIN - إذا الشريحة تحتاجه", "SIM PIN — If required"), text: $cellularSimPin)
                         .keyboardType(.numberPad)
-
-                    Toggle(JL("بث نت الشريحة كنقطة اتصال", "Share cellular Internet as a hotspot"), isOn: $hotspotEnabled)
-                        .tint(.green)
-                    if hotspotEnabled {
-                        TextField(JL("اسم نقطة الاتصال", "Hotspot name"), text: $hotspotSSID)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                        SecureField(JL("كلمة مرور نقطة الاتصال", "Hotspot password"), text: $hotspotPassword)
-                        HStack {
-                            Label(vehicle.hotspotRunning ? JL("نقطة الاتصال شغالة", "Hotspot active") : JL("نقطة الاتصال متوقفة", "Hotspot off"), systemImage: vehicle.hotspotRunning ? "personalhotspot" : "wifi.slash")
-                                .foregroundStyle(vehicle.hotspotRunning ? .green : .secondary)
-                            Spacer()
-                            if vehicle.hotspotRunning {
-                                Text(vehicle.hotspotSSID)
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
 
                     HStack {
                         Button {
@@ -2724,7 +2621,7 @@ private struct MQTTSettingsView: View {
             username: cellularUsername,
             password: cellularPassword,
             simPin: cellularSimPin,
-            hotspotEnabled: hotspotEnabled,
+            hotspotEnabled: false,
             hotspotSSID: hotspotSSID,
             hotspotPassword: hotspotPassword
         )
@@ -2749,7 +2646,7 @@ private struct MQTTSettingsView: View {
             username: cellularUsername,
             password: cellularPassword,
             simPin: cellularSimPin,
-            hotspotEnabled: hotspotEnabled,
+            hotspotEnabled: false,
             hotspotSSID: hotspotSSID,
             hotspotPassword: hotspotPassword
         )
