@@ -402,11 +402,11 @@ final class MQTTService: ObservableObject {
     }
 
     private var connectionPriorityOrder: [String] {
-        let raw = defaults.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,WIFI,BLE"
+        let raw = defaults.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,BLE"
         let parsed = raw.split(separator: ",").map { String($0) }
-        let allowed = ["BLE", "CELLULAR", "WIFI"]
+        let allowed = ["BLE", "CELLULAR"]
         let clean = parsed.filter { allowed.contains($0) }
-        return clean.count == 3 && Set(clean).count == 3 ? clean : ["CELLULAR", "WIFI", "BLE"]
+        return clean.count == 2 && Set(clean).count == 2 ? clean : ["CELLULAR", "BLE"]
     }
 
     private func cloudRouteMatches(_ route: String, deviceID: String) -> Bool {
@@ -430,7 +430,7 @@ final class MQTTService: ObservableObject {
         }
 
         // Prefer the selected transport when it is actually available.
-        // Cellular and Wi-Fi share one authenticated MQTT path; BLE remains local.
+        // Cellular uses authenticated MQTT; BLE remains local. Wi-Fi is unsupported.
         for route in connectionPriorityOrder {
             if route == "BLE" {
                 if bluetooth.isConnected(to: deviceID), bluetooth.send(command, to: deviceID) {
@@ -452,7 +452,7 @@ final class MQTTService: ObservableObject {
     }
 
     func saveConnectionPriority(_ order: [String], to deviceID: String) -> Bool {
-        guard order.count == 3, Set(order) == Set(["BLE", "CELLULAR", "WIFI"]) else {
+        guard order.count == 2, Set(order) == Set(["BLE", "CELLULAR"]) else {
             lastError = JL("ترتيب الاتصال غير صحيح", "Invalid connection order")
             return false
         }
