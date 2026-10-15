@@ -1525,7 +1525,7 @@ private struct OBDStatusView: View {
                     .font(.headline)
                     .foregroundStyle(vehicle.obdConnected ? .green : .orange)
 
-                    Text(JL("ESP يرسل طلبات OBD القياسية للقراءة فقط عبر BLE أو Wi‑Fi؛ أوامر التحكم غير مستخدمة، ومسح الأخطاء لا يتم إلا بتأكيدك.", "ESP sends standard read-only OBD requests over BLE or Wi-Fi. Control commands are not used. Clearing codes requires your confirmation."))
+                    Text(JL("ESP يرسل طلبات OBD القياسية للقراءة فقط عبر BLE؛ أوامر التحكم غير مستخدمة، ومسح الأخطاء لا يتم إلا بتأكيدك.", "ESP sends standard read-only OBD requests over BLE. Control commands are not used. Clearing codes requires your confirmation."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
@@ -1552,31 +1552,22 @@ private struct OBDStatusView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(JL("اتصال OBD", "OBD connection")).font(.headline)
-                        Picker(JL("نوع الاتصال", "Connection type"), selection: $transport) {
-                            Text("BLE").tag("BLE")
-                        }
-                        .pickerStyle(.segmented)
-                        Text(transport == "BLE" ? JL("القطعة الأساسية KONNWEI محفوظة داخل ESP. البحث العام يعمل فقط عند ضغط الزر لتغيير القطعة.", "The primary KONNWEI adapter is saved on ESP. General scanning starts only when you tap the button to change adapters.") : JL("ESP يبحث عن شبكات Wi‑Fi القريبة؛ اختر شبكة قطعة OBD ثم أدخل الباسورد إذا موجود.", "ESP searches nearby Wi-Fi networks. Select the OBD adapter network, then enter its password if needed."))
+                        Text(JL("اتصال KONNWEI عبر Bluetooth BLE فقط.", "KONNWEI connects through Bluetooth BLE only."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Button(transport == "BLE" ? JL("بحث ESP عن قطع BLE", "ESP search for BLE adapters") : JL("بحث ESP عن شبكات Wi‑Fi", "ESP search for Wi-Fi networks"), systemImage: "magnifyingglass") { searchAdapters() }
+                        Button(JL("بحث ESP عن قطع BLE", "ESP search for BLE adapters"), systemImage: "magnifyingglass") { searchAdapters() }
                             .buttonStyle(.bordered)
                             .disabled(deviceID == nil)
-                        TextField(transport == "BLE" ? JL("اسم القطعة كما يظهر بالبلوتوث، مثال V-LINK", "Bluetooth adapter name, e.g. V-LINK") : JL("اسم شبكة Wi‑Fi لقطعة OBD", "OBD adapter Wi-Fi network name"), text: $adapterName)
+                        TextField(JL("اسم القطعة بالبلوتوث", "Bluetooth adapter name"), text: $adapterName)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                             .textFieldStyle(.roundedBorder)
-                        if false {
-                            SecureField(JL("باسورد الشبكة (إن وجد)", "Network password (if any)"), text: $wifiPassword).textFieldStyle(.roundedBorder)
-                            TextField(JL("عنوان قطعة OBD", "OBD adapter address"), text: $wifiHost).keyboardType(.numbersAndPunctuation).textFieldStyle(.roundedBorder)
-                            TextField(JL("المنفذ", "Port"), text: $wifiPort).keyboardType(.numberPad).textFieldStyle(.roundedBorder)
-                        }
                         Button(JL("اختيار وحفظ واتصال", "Select, save and connect"), systemImage: "checkmark.circle.fill") { saveAdapter() }
                             .buttonStyle(.borderedProminent)
                             .disabled(deviceID == nil || adapterName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        let discovered = transport == "BLE" ? vehicle.obdDiscoveredAdapters : vehicle.obdDiscoveredWifiNetworks
+                        let discovered = vehicle.obdDiscoveredAdapters
                         if !discovered.isEmpty {
-                            Text(transport == "BLE" ? JL("قطع ظهرت للـESP: \(discovered)", "Adapters found by ESP: \(discovered)") : JL("شبكات ظهرت للـESP: \(discovered)", "Networks found by ESP: \(discovered)"))
+                            Text(JL("قطع ظهرت للـESP: \(discovered)", "Adapters found by ESP: \(discovered)"))
                                 .font(.caption).foregroundStyle(JourneyTheme.accent)
                             ForEach(discovered.components(separatedBy: " | ").filter { !$0.isEmpty }, id: \.self) { name in
                                 Button { adapterName = name } label: {
@@ -1637,7 +1628,7 @@ private struct OBDStatusView: View {
     private func saveAdapter() {
         guard let deviceID else { return }
         let name = adapterName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let command = VehicleCommand(action: .obdSelect, obdAdapter: OBDAdapterSelection(name: name, transport: transport, password: wifiPassword, host: wifiHost, port: Int(wifiPort) ?? 35000))
+        let command = VehicleCommand(action: .obdSelect, obdAdapter: OBDAdapterSelection(name: name, transport: "BLE", password: "", host: "", port: 0))
         statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? JL("تم حفظ الاسم؛ ESP يبحث ويتصل به تلقائياً.", "Name saved; ESP will search and connect automatically.") : JL("تعذر إرسال الاختيار إلى ESP", "Could not send selection to ESP")
     }
 
@@ -2223,8 +2214,6 @@ private struct MQTTSettingsView: View {
     @State private var hotspotSSID = "JOURNEY-4G"
     @State private var hotspotPassword = "Journey2017"
     @State private var cellularMessage: String?
-    @State private var connectionPriority: [String] = ["CELLULAR", "BLE"]
-    @State private var priorityMessage: String?
 
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
     @AppStorage("journey.settings.textSize") private var textSize = "normal"
@@ -2314,56 +2303,6 @@ private struct MQTTSettingsView: View {
                         .foregroundStyle(.green)
                 } header: {
                     Label(tr(JL("الإشعارات", "Notifications"), "Notifications"), systemImage: "bell.badge.fill")
-                }
-
-                Section {
-                    ForEach(Array(connectionPriority.filter { $0 != "WIFI" }.enumerated()), id: \.element) { index, route in
-                        HStack(spacing: 12) {
-                            Text("\(index + 1)")
-                                .font(.caption.bold())
-                                .frame(width: 24, height: 24)
-                                .background(.cyan.opacity(0.16), in: Circle())
-
-                            Label(priorityTitle(route), systemImage: priorityIcon(route))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            Button {
-                                movePriority(at: index, offset: -1)
-                            } label: {
-                                Image(systemName: "arrow.up")
-                            }
-                            .buttonStyle(.borderless)
-                            .disabled(index == 0)
-
-                            Button {
-                                movePriority(at: index, offset: 1)
-                            } label: {
-                                Image(systemName: "arrow.down")
-                            }
-                            .buttonStyle(.borderless)
-                            .disabled(index == connectionPriority.count - 1)
-                        }
-                    }
-
-                    Button {
-                        saveConnectionPriority()
-                    } label: {
-                        Label(JL("حفظ ترتيب الأولوية", "Save priority order"), systemImage: "checkmark.circle.fill")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(selectedDeviceID == nil)
-
-                    if let priorityMessage {
-                        Text(JLStored(priorityMessage))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(JL("ارفع أو نزّل أي مسار. الأوامر العادية تتبع هذا التسلسل، بينما الدخول الذكي Keyless يبقى BLE أولاً حتى يظل سريع.", "Move any route up or down. Normal commands follow this order. Smart entry always prefers BLE for fast response."))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Label(JL("أولوية الاتصال", "Connection priority"), systemImage: "arrow.up.arrow.down")
                 }
 
                 Section {
@@ -2504,56 +2443,7 @@ private struct MQTTSettingsView: View {
                 if !vehicle.cellularAPN.isEmpty { cellularAPN = vehicle.cellularAPN }
                 hotspotEnabled = vehicle.hotspotEnabled
                 if !vehicle.hotspotSSID.isEmpty { hotspotSSID = vehicle.hotspotSSID }
-                loadConnectionPriority()
             }
-        }
-    }
-
-    private func loadConnectionPriority() {
-        let raw = UserDefaults.standard.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,BLE"
-        let values = raw.split(separator: ",").map(String.init)
-        if values.count == 2 && Set(values) == Set(["BLE", "CELLULAR"]) {
-            connectionPriority = values
-        } else {
-            connectionPriority = ["CELLULAR", "BLE"]
-        }
-    }
-
-    private func movePriority(at index: Int, offset: Int) {
-        let target = index + offset
-        guard connectionPriority.indices.contains(index),
-              connectionPriority.indices.contains(target) else { return }
-        connectionPriority.swapAt(index, target)
-        priorityMessage = nil
-    }
-
-    private func saveConnectionPriority() {
-        guard let id = selectedDeviceID else {
-            priorityMessage = JL("ماكو ESP محدد", "No ESP selected")
-            return
-        }
-        if mqtt.saveConnectionPriority(connectionPriority, to: id) {
-            priorityMessage = JL("انحفظ الترتيب بالآيفون وانرسل للـESP", "Order saved on iPhone and sent to ESP")
-        } else {
-            priorityMessage = mqtt.lastError ?? JL("تعذر حفظ الأولوية", "Could not save priority")
-        }
-    }
-
-    private func priorityTitle(_ route: String) -> String {
-        switch route {
-        case "BLE": return "Bluetooth BLE"
-        case "CELLULAR": return JL("الشريحة / 4G", "Cellular / 4G")
-        case "WIFI": return "Wi-Fi"
-        default: return route
-        }
-    }
-
-    private func priorityIcon(_ route: String) -> String {
-        switch route {
-        case "BLE": return "bolt.horizontal.circle"
-        case "CELLULAR": return "cellularbars"
-        case "WIFI": return "wifi"
-        default: return "questionmark.circle"
         }
     }
 
