@@ -156,9 +156,10 @@ final class MQTTService: ObservableObject {
                         continue
                     }
                     guard var state = self.vehicles[deviceID], state.online else { continue }
+                    // Connectivity loss is not a vehicle event. Preserve the last
+                    // known engine and event state until fresh ESP telemetry arrives.
+                    // Otherwise transient BLE/MQTT handoffs create false alerts.
                     state.online = false
-                    state.simulatedEngineRunning = false
-                    state.lastEvent = "esp_disconnected"
                     self.vehicles[deviceID] = state
                 }
             }
@@ -855,7 +856,15 @@ final class MQTTService: ObservableObject {
             merged.online = true
             merged.cloudConnected = true
         }
-        // Every non-partial ESP/MQTT state is authoritative for owner fields.
+        // Full telemetry is not always an owner roster. Keep the last verified
+        // owner snapshot when the ESP temporarily omits owner fields.
+        if merged.authorizedPhoneCount == 0 && !merged.trustedPhoneConfigured,
+           let previous, previous.ownerStateKnown, previous.authorizedPhoneCount > 0 {
+            merged.authorizedPhoneCount = previous.authorizedPhoneCount
+            merged.trustedPhoneConfigured = previous.trustedPhoneConfigured
+            merged.ownerAdminPhone = previous.ownerAdminPhone
+            merged.pendingOwnerPhone = previous.pendingOwnerPhone
+        }
         merged.ownerStateKnown = true
         if let rssi = bluetoothRSSIByDevice[deviceID] { merged.bluetoothRSSI = rssi }
         vehicles[deviceID] = merged
