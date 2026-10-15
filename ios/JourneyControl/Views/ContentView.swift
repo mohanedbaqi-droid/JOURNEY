@@ -1554,7 +1554,6 @@ private struct OBDStatusView: View {
                         Text(JL("اتصال OBD", "OBD connection")).font(.headline)
                         Picker(JL("نوع الاتصال", "Connection type"), selection: $transport) {
                             Text("BLE").tag("BLE")
-                            Text("Wi‑Fi").tag("WIFI")
                         }
                         .pickerStyle(.segmented)
                         Text(transport == "BLE" ? JL("القطعة الأساسية KONNWEI محفوظة داخل ESP. البحث العام يعمل فقط عند ضغط الزر لتغيير القطعة.", "The primary KONNWEI adapter is saved on ESP. General scanning starts only when you tap the button to change adapters.") : JL("ESP يبحث عن شبكات Wi‑Fi القريبة؛ اختر شبكة قطعة OBD ثم أدخل الباسورد إذا موجود.", "ESP searches nearby Wi-Fi networks. Select the OBD adapter network, then enter its password if needed."))
@@ -1567,7 +1566,7 @@ private struct OBDStatusView: View {
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                             .textFieldStyle(.roundedBorder)
-                        if transport == "WIFI" {
+                        if false {
                             SecureField(JL("باسورد الشبكة (إن وجد)", "Network password (if any)"), text: $wifiPassword).textFieldStyle(.roundedBorder)
                             TextField(JL("عنوان قطعة OBD", "OBD adapter address"), text: $wifiHost).keyboardType(.numbersAndPunctuation).textFieldStyle(.roundedBorder)
                             TextField(JL("المنفذ", "Port"), text: $wifiPort).keyboardType(.numberPad).textFieldStyle(.roundedBorder)
@@ -2511,12 +2510,12 @@ private struct MQTTSettingsView: View {
     }
 
     private func loadConnectionPriority() {
-        let raw = UserDefaults.standard.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,WIFI,BLE"
+        let raw = UserDefaults.standard.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,BLE"
         let values = raw.split(separator: ",").map(String.init)
-        if values.count == 3 && Set(values) == Set(["BLE", "CELLULAR", "WIFI"]) {
+        if values.count == 2 && Set(values) == Set(["BLE", "CELLULAR"]) {
             connectionPriority = values
         } else {
-            connectionPriority = ["CELLULAR", "WIFI", "BLE"]
+            connectionPriority = ["CELLULAR", "BLE"]
         }
     }
 
