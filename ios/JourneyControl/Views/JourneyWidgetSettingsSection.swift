@@ -58,7 +58,7 @@ struct JourneyWidgetSettingsSection: View {
                       systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else {
-                Label(JL("صلاحية App Group غير متاحة بالتوقيع الحالي", "App Group entitlement unavailable"),
+                Label(JL("مشاركة App Group غير متاحة؛ نفحص مسار Keychain البديل", "App Group unavailable; checking shared Keychain fallback"),
                       systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange)
             }
