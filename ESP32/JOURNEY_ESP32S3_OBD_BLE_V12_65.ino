@@ -447,7 +447,7 @@ void stopHotspot() {
 }
 
 void applyHotspot() {
-  if (!hotspotEnabled || !PPP.hasIP()) {
+  if (true) { // Hotspot permanently disabled in cellular/BLE firmware.
     stopHotspot();
     return;
   }
@@ -1837,7 +1837,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     uint16_t port = doc["obdAdapter"]["port"] | 35000;
     transport.toUpperCase();
     name.trim();
-    if (transport != "BLE" && transport != "WIFI") {
+    if (transport != "BLE") {
       lastEvent = "obd_transport_invalid";
     } else if (name.isEmpty()) {
       lastEvent = "obd_adapter_name_required";
@@ -1863,7 +1863,13 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   }
   if (action == "obd_search") {
     String transport = doc["obdAdapter"]["transport"] | "BLE";
-    obd.requestAdapterDiscovery(transport);
+    if (transport != "BLE") {
+      lastCommandId = id;
+      lastEvent = "obd_transport_invalid_ble_only";
+      publishState();
+      return;
+    }
+    obd.requestAdapterDiscovery("BLE");
     lastCommandId = id;
     lastEvent = "obd_adapter_search_requested";
     publishState();
@@ -1956,7 +1962,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     cellularUsername = username;
     cellularPassword = password;
     cellularSimPin = simPin;
-    hotspotEnabled = requestedHotspot;
+    hotspotEnabled = false; // No hotspot, including old app payloads.
     if (!requestedHotspotSsid.isEmpty()) hotspotSsid = requestedHotspotSsid;
     if (requestedHotspotPassword.length() >= 8) hotspotPassword = requestedHotspotPassword;
     preferences.putBool("cellEnabled", cellularEnabled);
@@ -1964,7 +1970,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     preferences.putString("cellUser", cellularUsername);
     preferences.putString("cellPass", cellularPassword);
     preferences.putString("cellPin", cellularSimPin);
-    preferences.putBool("hotspotEnabled", hotspotEnabled);
+    preferences.putBool("hotspotEnabled", false);
     preferences.putString("hotspotSsid", hotspotSsid);
     preferences.putString("hotspotPass", hotspotPassword);
     if (PPP.started()) PPP.end();
@@ -2374,8 +2380,7 @@ void setup() {
   hotspotEnabled = preferences.getBool("hotspotEnabled", false);
   hotspotSsid = preferences.getString("hotspotSsid", "JOURNEY-4G");
   hotspotPassword = preferences.getString("hotspotPass", "");
-  connectionPriorityCsv = preferences.getString("connPriority", "CELLULAR,WIFI,BLE");
-  if (!validConnectionPriority(connectionPriorityCsv)) connectionPriorityCsv = "CELLULAR,WIFI,BLE";
+  connectionPriorityCsv = "CELLULAR,BLE"; // Fixed, regardless of legacy NVS priority.
   cellularStatus = cellularEnabled ? "checking" : "disabled";
   generalWifiEnabled = false;
   hotspotEnabled = false;
@@ -2439,7 +2444,7 @@ void setup() {
       cellularDataAttached = true;
       cellularStatus = "data_attached";
       applyInternetPriority();
-      applyHotspot();
+      // Hotspot intentionally disabled.
     } else if (event == ARDUINO_EVENT_PPP_LOST_IP || event == ARDUINO_EVENT_PPP_DISCONNECTED || event == ARDUINO_EVENT_PPP_STOP) {
       cellularDataAttached = false;
       stopHotspot();
