@@ -523,19 +523,21 @@ void applyInternetPriority() {
 }
 
 bool updateFromInternet(const String& url) {
-  // Use the ESP32 network stack, not the modem's AT HTTP mode.  That makes one
-  // OTA uses the active 4G/PPP link only.
+  // OTA is only allowed over cellular PPP with a configured trusted HTTPS CA.
+  // Fail closed instead of downloading executable firmware with disabled TLS checks.
   if (!url.startsWith("https://") || url.indexOf('"') >= 0 || url.indexOf('\r') >= 0 || url.indexOf('\n') >= 0 ||
-      chooseInternetRoute() == InternetRoute::NONE) return false;
+      chooseInternetRoute() != InternetRoute::CELLULAR || String(OTA_ROOT_CA).length() < 40) {
+    lastEvent = "ota_requires_cellular_and_trusted_ca";
+    Serial0.println("[OTA] rejected: 4G PPP and trusted OTA_ROOT_CA required");
+    return false;
+  }
   if (mqtt.connected()) mqtt.disconnect();
   lastEvent = "ota_internet_connecting";
   publishState();
 
   NetworkClientSecure downloadClient;
-  // The update URL is entered only by the authenticated owner. HTTPS still
-  // protects the transfer in transit; certificate pinning can be added once a
-  // dedicated Journey firmware host is configured.
-  downloadClient.setInsecure();
+  // Verify the download host's TLS certificate before writing firmware.
+  downloadClient.setCACert(OTA_ROOT_CA);
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(30000);
