@@ -116,6 +116,9 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private var farSince: [String: Date] = [:]
     private var unlockedByKeyless: Set<String> = []
     private var lastPresenceSent: [String: Date] = [:]
+    private var reconnectScheduled = false
+    private var reconnectFailures = 0
+    private var disconnectGeneration = 0
     private let defaults = UserDefaults.standard
     private let service = CBUUID(string: AppConfig.bleServiceUUID)
     private let commandUUID = CBUUID(string: AppConfig.bleCommandCharacteristicUUID)
@@ -272,6 +275,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard !demoSuspended else { central.cancelPeripheralConnection(peripheral); return }
         if central.isScanning { central.stopScan() }
+        reconnectFailures = 0
+        reconnectScheduled = false
+        disconnectGeneration += 1
+        VehicleNotificationService.shared.clearKeylessDepartureNotice()
         status = JL("BLE متصل", "BLE connected")
         peripheral.discoverServices([service])
         peripheral.readRSSI()
@@ -279,6 +286,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         status = JL("فشل اتصال BLE", "BLE connection failed")
+        reconnectFailures = min(reconnectFailures + 1, 6)
         reconnectAfterDelay()
     }
 
@@ -293,13 +301,18 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
         status = JL("انقطع BLE — إعادة اتصال", "BLE disconnected — reconnecting")
+        reconnectFailures = min(reconnectFailures + 1, 6)
+        disconnectGeneration += 1
+        let departureGeneration = disconnectGeneration
         if let deviceID = deviceIDs[peripheral.identifier] {
             nearSince[deviceID] = nil
             farSince[deviceID] = Date()
             loadKeylessConfig(for: deviceID)
             if let config = keylessConfigs[deviceID], config.enabled {
                 unlockedByKeyless.remove(deviceID)
-                Task { @MainActor in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self, weak peripheral] in
+                    guard let self, self.disconnectGeneration == departureGeneration,
+                          peripheral?.state != .connected, !self.demoSuspended else { return }
                     VehicleNotificationService.shared.notifyKeylessDeparture(
                         vehicleName: "JOURNEY",
                         lockDelaySeconds: config.lockDelaySeconds
@@ -534,8 +547,14 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func reconnectAfterDelay() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            self?.reconnectPreferredDevice(forceScanFallback: true)
+        guard !reconnectScheduled, !demoSuspended else { return }
+        reconnectScheduled = true
+        let delay = min(2.0 * pow(2.0, Double(max(0, reconnectFailures - 1))), 30.0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            self.reconnectScheduled = false
+            guard !self.demoSuspended else { return }
+            self.reconnectPreferredDevice(forceScanFallback: true)
         }
     }
 
