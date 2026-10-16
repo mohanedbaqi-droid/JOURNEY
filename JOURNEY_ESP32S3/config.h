@@ -27,8 +27,7 @@ constexpr bool ENABLE_OUTPUTS = true;
 // غيّرها إلى true لرفعة واحدة فقط إذا بدّلت الآيفون، ثم أرجعها false.
 constexpr bool CLEAR_TRUSTED_PHONE_ON_BOOT = false;
 
-constexpr char WIFI_SSID[] = "CHANGE_ME";
-constexpr char WIFI_PASSWORD[] = "CHANGE_ME";
+// Legacy static Wi-Fi credentials removed: JOURNEY uses cellular PPP + BLE.
 
 
 constexpr char MQTT_HOST[] = "jcff3170.ala.us-east-1.emqxsl.com";
