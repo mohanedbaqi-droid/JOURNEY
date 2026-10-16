@@ -269,7 +269,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         defaults.set(peripheral.identifier.uuidString, forKey: "journey.ble.peripheral.\(wantedID)")
         peripheral.delegate = self
         central.stopScan()
-        central.connect(peripheral)
+        // Duplicate advertisements must never issue overlapping connect calls.
+        if peripheral.state == .disconnected {
+            central.connect(peripheral)
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -301,6 +304,8 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
         status = JL("انقطع BLE — إعادة اتصال", "BLE disconnected — reconnecting")
+        let duration = Int(Date().timeIntervalSince1970)
+        NSLog("[JOURNEY BLE] didDisconnect peripheral=%@ error=%@ timestamp=%d", peripheral.identifier.uuidString, error?.localizedDescription ?? "nil", duration)
         reconnectFailures = min(reconnectFailures + 1, 6)
         disconnectGeneration += 1
         // A transient BLE link loss is not physical departure. Keep the
@@ -458,7 +463,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
         // First reuse an already-connected Journey peripheral when iOS kept it
         // alive while the app was in the background.
-        if let connected = central.retrieveConnectedPeripherals(withServices: [service]).first {
+        if let connected = central.retrieveConnectedPeripherals(withServices: [service]).first(where: {
+            $0.identifier == peripherals[deviceID]?.identifier ||
+            $0.identifier.uuidString == defaults.string(forKey: "journey.ble.peripheral.\(deviceID)")
+        }) {
             peripherals[deviceID] = connected
             deviceIDs[connected.identifier] = deviceID
             defaults.set(connected.identifier.uuidString, forKey: "journey.ble.peripheral.\(deviceID)")
