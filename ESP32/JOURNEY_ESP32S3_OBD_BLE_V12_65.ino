@@ -404,8 +404,17 @@ void refreshCellularStatus(bool attachData) {
   cellularStatus = cellularDataAttached ? "data_attached" : (cellularRegistered ? "registered" : "registration_failed");
 }
 
+// Avoid hammering SIM7670 with repeated PPP.begin calls on SIM/network failure.
+uint32_t lastPppStartAttemptAt = 0;
+bool pppStartAttempted = false;
+constexpr uint32_t PPP_RETRY_INTERVAL_MS = 30000;
+
 void startCellularPpp() {
   if (!cellularEnabled || PPP.started()) return;
+  const uint32_t now = millis();
+  if (pppStartAttempted && now - lastPppStartAttemptAt < PPP_RETRY_INTERVAL_MS) return;
+  lastPppStartAttemptAt = now;
+  pppStartAttempted = true;
   modem.end();
   delay(50);
   PPP.setApn(cellularApn.c_str());
