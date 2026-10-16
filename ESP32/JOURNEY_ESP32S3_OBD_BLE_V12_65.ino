@@ -542,10 +542,16 @@ bool updateFromInternet(const String& url) {
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(30000);
-  if (!http.begin(downloadClient, url)) return false;
+  if (!http.begin(downloadClient, url)) {
+    lastEvent = "ota_https_begin_failed";
+    return false;
+  }
   const int code = http.GET();
   const int total = http.getSize();
   if (code != HTTP_CODE_OK || total <= 0 || total > 3145728 || !Update.begin(static_cast<size_t>(total))) {
+    lastEvent = (code != HTTP_CODE_OK) ? "ota_http_error" :
+                (total <= 0 || total > 3145728) ? "ota_invalid_size" :
+                "ota_flash_begin_failed";
     http.end();
     return false;
   }
@@ -2083,7 +2089,11 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   if (action == "ota_url") {
     const String url = doc["firmwareURL"] | "";
     lastCommandId = id;
-    lastEvent = updateFromInternet(url) ? "ota_internet_complete" : "ota_internet_failed";
+    const bool otaOk = updateFromInternet(url);
+    // Preserve specific OTA failure reasons instead of overwriting them with
+    // a generic error. The next MQTT reconnect can report the real cause.
+    if (otaOk) lastEvent = "ota_internet_complete";
+    else if (!lastEvent.startsWith("ota_")) lastEvent = "ota_internet_failed";
     publishState();
     return;
   }
