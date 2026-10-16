@@ -1699,6 +1699,25 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   // because MQTT reports connected; that state may be stale or unreachable.
   // Owner checks below still apply to all control commands.
 
+  // Proximity is meaningful only over the local BLE link. A remote MQTT
+  // message must never simulate physical presence and trigger auto-unlock.
+  if ((action == "keyless_presence" || action == "keyless_unlock" || action == "keyless_lock") &&
+      source != CommandSource::BLE) {
+    lastCommandId = id;
+    lastEvent = "keyless_requires_local_ble";
+    publishState();
+    return;
+  }
+  // Changing the owner registry requires local access to the vehicle.
+  if ((action == "owner_approve" || action == "owner_reject" ||
+       action == "owner_remove" || action == "owner_clear") &&
+      source != CommandSource::BLE) {
+    lastCommandId = id;
+    lastEvent = "owner_management_requires_local_ble";
+    publishState();
+    return;
+  }
+
   if (action == "owner_status") {
     lastCommandId = id;
     Serial0.printf("[OWNER SYNC] request from phone owner=%s count=%u\n",
