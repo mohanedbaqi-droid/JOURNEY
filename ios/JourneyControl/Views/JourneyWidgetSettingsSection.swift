@@ -58,9 +58,15 @@ struct JourneyWidgetSettingsSection: View {
                       systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else {
-                Label(JL("مشاركة App Group غير متاحة؛ نفحص مسار Keychain البديل", "App Group unavailable; checking shared Keychain fallback"),
-                      systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                if JourneyWidgetStore.extensionAcknowledgedLatestSnapshot {
+                    Label(JL("مشاركة الويدجت تعمل عبر Keychain؛ حاوية App Group غير متاحة بهذا التوقيع", "Widget sharing works through Keychain; App Group container is unavailable with this signing"),
+                          systemImage: "checkmark.shield.fill")
+                        .foregroundStyle(.green)
+                } else {
+                    Label(JL("حاوية App Group غير متاحة؛ نتحقق من مسار Keychain البديل", "App Group container unavailable; checking Keychain fallback"),
+                          systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
             }
             if JourneyWidgetStore.extensionAcknowledgedLatestSnapshot {
                 Label(JL("الويدجت قرأ آخر بيانات فعلاً — المشاركة مؤكدة", "Widget read latest snapshot — sharing confirmed"),
