@@ -278,7 +278,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         reconnectFailures = 0
         reconnectScheduled = false
         disconnectGeneration += 1
-        VehicleNotificationService.shared.clearKeylessDepartureNotice()
+        Task { @MainActor in VehicleNotificationService.shared.clearKeylessDepartureNotice() }
         status = JL("BLE متصل", "BLE connected")
         peripheral.discoverServices([service])
         peripheral.readRSSI()
