@@ -497,7 +497,7 @@ struct ContentView: View {
                         .tracking(5)
                     Text(device.name).font(.headline)
                     Label(
-                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains(JL("متصل", "Connected")) ? (vehicle.internetRoute == "CELLULAR" ? "ONLINE • 4G" : "ONLINE • Wi-Fi") : device.deviceID) : JL("غير متصل", "Disconnected"),
+                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains(JL("متصل", "Connected")) ? "ONLINE • 4G" : device.deviceID) : JL("غير متصل", "Disconnected"),
                         systemImage: vehicle.cloudConnected ? "cloud.fill" : "location.fill"
                     )
                         .font(.caption)
@@ -1505,7 +1505,6 @@ private struct OBDStatusView: View {
     let deviceID: String?
     @StateObject private var faceID = FaceIDAuthenticator()
     @State private var adapterName = ""
-    @State private var transport = "BLE"
     @State private var clearConfirmation = false
     @State private var statusMessage = ""
 
