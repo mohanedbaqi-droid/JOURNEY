@@ -1002,7 +1002,12 @@ void ObdBleService::poll() {
     candidateAddress_ = preferredAddress_;
     candidateName_ = preferredName_ + " [" + preferredAddress_ + "]";
     status_ = "connecting_saved_adapter";
-    if (!connectCandidate()) nextActionAt_ = now + OBD_RECONNECT_DELAY_MS;
+    if (!connectCandidate()) {
+      // A disconnected adapter must not monopolize the shared BLE radio.
+      // Retain automatic recovery, but avoid retrying every four seconds.
+      nextActionAt_ = millis() + 30000UL;
+      Serial0.println("[OBD BLE] adapter unavailable; next direct retry in 30s");
+    }
     return;
   }
   if (preferredTransport_ == "WIFI") {
