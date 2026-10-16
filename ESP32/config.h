@@ -89,6 +89,11 @@ constexpr bool ENABLE_PN532 = true;
 constexpr char MQTT_ROOT_CA[] = R"PEM(
 )PEM";
 
+// Root CA for the HTTPS firmware download host. Required for cellular OTA.
+// Leave empty to disable OTA safely until the trusted firmware host is configured.
+constexpr char OTA_ROOT_CA[] = R"PEM(
+)PEM";
+
 constexpr char BLE_SERVICE_UUID[] = "AF10A000-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr char BLE_COMMAND_UUID[] = "AF10A001-17B7-4A86-A7D7-9A3B40C8D001";
 constexpr char BLE_STATE_UUID[] = "AF10A002-17B7-4A86-A7D7-9A3B40C8D001";
