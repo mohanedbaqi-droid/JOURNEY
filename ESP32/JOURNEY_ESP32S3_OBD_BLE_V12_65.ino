@@ -524,8 +524,7 @@ void applyInternetPriority() {
 
 bool updateFromInternet(const String& url) {
   // Use the ESP32 network stack, not the modem's AT HTTP mode.  That makes one
-  // OTA path work over either the configured 4G/PPP link or the configured
-  // Wi-Fi link, with no manual stop/start of PPP.
+  // OTA uses the active 4G/PPP link only.
   if (!url.startsWith("https://") || url.indexOf('"') >= 0 || url.indexOf('\r') >= 0 || url.indexOf('\n') >= 0 ||
       chooseInternetRoute() == InternetRoute::NONE) return false;
   if (mqtt.connected()) mqtt.disconnect();
@@ -2017,99 +2016,10 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     lastEvent = "priority_fixed_cellular_ble";
     publishState();
     return;
-    JsonArray order = doc["connectionPriority"]["order"].as<JsonArray>();
-    if (order.size() != 3) {
-      lastEvent = "connection_priority_invalid";
-      publishState();
-      return;
-    }
-    String csv;
-    for (JsonVariant item : order) {
-      String route = item.as<String>();
-      route.trim();
-      route.toUpperCase();
-      if (!csv.isEmpty()) csv += ',';
-      csv += route;
-    }
-    if (!validConnectionPriority(csv)) {
-      lastEvent = "connection_priority_invalid";
-      publishState();
-      return;
-    }
-    connectionPriorityCsv = csv;
-    preferences.putString("connPriority", connectionPriorityCsv);
-    applyInternetPriority();
-    lastCommandId = id;
-    lastEvent = "connection_priority_saved";
-    Serial0.printf("[NET] priority=%s\n", connectionPriorityCsv.c_str());
-    publishState();
-    return;
   }
   if (action == "wifi_config" || action == "wifi_search" || action == "wifi_forget") {
     lastCommandId = id;
     lastEvent = "wifi_disabled_cellular_ble_only";
-    publishState();
-    return;
-  }
-  if (action == "wifi_config") {
-    const bool enabled = doc["wifiSettings"]["enabled"] | false;
-    String ssid = doc["wifiSettings"]["ssid"] | "";
-    String password = doc["wifiSettings"]["password"] | "";
-    ssid.trim();
-    // OBD Wi-Fi and normal Internet Wi-Fi cannot use different SSIDs at
-    // the same time because ESP32 exposes a single STA interface.
-    if (enabled && String(obd.statusText()).startsWith("wifi_")) {
-      lastCommandId = id;
-      lastEvent = "general_wifi_conflicts_with_obd_wifi";
-      Serial0.println("[WIFI] rejected: OBD Wi-Fi owns STA; select BLE OBD or forget OBD Wi-Fi first");
-      publishState();
-      return;
-    }
-    generalWifiEnabled = enabled;
-    if (!ssid.isEmpty()) {
-      generalWifiSsid = ssid;
-      generalWifiPassword = password;
-      preferences.putString("wifiSsid", generalWifiSsid);
-      preferences.putString("wifiPassGen", generalWifiPassword);
-    }
-    preferences.putBool("wifiEnabled", generalWifiEnabled);
-    if (!generalWifiEnabled) {
-      WiFi.disconnect(true, false);
-      WiFi.mode(WIFI_OFF);
-      generalWifiStatus = "off";
-    } else if (generalWifiSsid.isEmpty()) {
-      generalWifiStatus = "network_required";
-    } else {
-      WiFi.mode(WIFI_STA);
-      WiFi.begin(generalWifiSsid.c_str(), generalWifiPassword.c_str());
-      generalWifiLastConnectAttemptAt = millis();
-      generalWifiStatus = "connecting";
-    }
-    lastCommandId = id;
-    lastEvent = "wifi_config_saved";
-    publishState();
-    return;
-  }
-  if (action == "wifi_search") {
-    generalWifiScanRequested = true;
-    generalWifiStatus = "searching";
-    lastCommandId = id;
-    lastEvent = "wifi_search_requested";
-    publishState();
-    return;
-  }
-  if (action == "wifi_forget") {
-    generalWifiEnabled = false;
-    generalWifiSsid = "";
-    generalWifiPassword = "";
-    preferences.putBool("wifiEnabled", false);
-    preferences.remove("wifiSsid");
-    preferences.remove("wifiPassGen");
-    WiFi.disconnect(true, true);
-    WiFi.mode(WIFI_OFF);
-    generalWifiStatus = "forgotten";
-    lastCommandId = id;
-    lastEvent = "wifi_forgotten";
     publishState();
     return;
   }
