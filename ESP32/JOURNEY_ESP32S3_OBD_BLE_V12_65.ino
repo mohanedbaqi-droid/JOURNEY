@@ -309,7 +309,7 @@ void applyInternetPriority();
 InternetRoute activeInternetRoute = InternetRoute::NONE;
 // v12.65: user-configurable priority for normal vehicle commands/uplink.
 // Keyless/proximity remains BLE-first regardless of this list.
-String connectionPriorityCsv = "CELLULAR,WIFI,BLE";
+String connectionPriorityCsv = "CELLULAR,BLE";
 // True while a Wi-Fi OBD adapter owns the single STA interface. General Wi-Fi
 // settings stay saved and resume automatically when OBD returns to BLE.
 bool obdWifiStaReserved = false;
@@ -494,7 +494,7 @@ String internetRouteName(InternetRoute route) {
 
 InternetRoute chooseInternetRoute() {
   const bool cellUp = cellularEnabled && PPP.hasIP();
-  const bool wifiUp = generalWifiEnabled && WiFi.status() == WL_CONNECTED;
+  const bool wifiUp = false; // Wi-Fi route permanently disabled; 4G PPP only.
   if (cellUp && wifiUp) {
     return connectionPriorityRank("CELLULAR") <= connectionPriorityRank("WIFI")
       ? InternetRoute::CELLULAR : InternetRoute::WIFI;
@@ -519,7 +519,7 @@ void applyInternetPriority() {
       Serial0.println("[NET] offline");
     }
   }
-  applyHotspot();
+  // Hotspot disabled: cellular data is reserved for the vehicle controller.
 }
 
 bool updateFromInternet(const String& url) {
@@ -2007,6 +2007,10 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     return;
   }
   if (action == "connection_priority") {
+    lastCommandId = id;
+    lastEvent = "priority_fixed_cellular_ble";
+    publishState();
+    return;
     JsonArray order = doc["connectionPriority"]["order"].as<JsonArray>();
     if (order.size() != 3) {
       lastEvent = "connection_priority_invalid";
@@ -2032,6 +2036,12 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     lastCommandId = id;
     lastEvent = "connection_priority_saved";
     Serial0.printf("[NET] priority=%s\n", connectionPriorityCsv.c_str());
+    publishState();
+    return;
+  }
+  if (action == "wifi_config" || action == "wifi_search" || action == "wifi_forget") {
+    lastCommandId = id;
+    lastEvent = "wifi_disabled_cellular_ble_only";
     publishState();
     return;
   }
@@ -2367,7 +2377,12 @@ void setup() {
   connectionPriorityCsv = preferences.getString("connPriority", "CELLULAR,WIFI,BLE");
   if (!validConnectionPriority(connectionPriorityCsv)) connectionPriorityCsv = "CELLULAR,WIFI,BLE";
   cellularStatus = cellularEnabled ? "checking" : "disabled";
-  generalWifiStatus = generalWifiEnabled ? "disconnected" : "off";
+  generalWifiEnabled = false;
+  hotspotEnabled = false;
+  generalWifiScanRequested = false;
+  generalWifiScanActive = false;
+  generalWifiStatus = "off";
+  WiFi.mode(WIFI_OFF);
   if (!generalWifiEnabled && !hotspotRunning && !hotspotEnabled) WiFi.mode(WIFI_OFF);
   keylessLockDelayMs = preferences.getUInt("keylessLockMs", KEYLESS_DEFAULT_LOCK_DELAY_MS);
   lastOwnerActivityAt = millis();
@@ -2446,12 +2461,12 @@ void setup() {
     mqtt.setCallback(handleCommand);
     mqtt.setBufferSize(4608);
   }
-  if (generalWifiEnabled) connectWifi();
+  // Wi-Fi is deliberately disabled in this cellular + BLE build.
 }
 
 void loop() {
   pollEspHealth();
-  pollGeneralWifi();
+  // No Wi-Fi scanning/reconnect loop.
   pollCellular();
   applyInternetPriority();
   if (settingsReady() && activeInternetRoute != InternetRoute::NONE) {
@@ -2465,7 +2480,7 @@ void loop() {
   // by a slow OBD scan/connect attempt.
   obd.poll();
   monitorVehicleEvents();
-  otaServer.handleClient();
+  // Local Wi-Fi HTTP OTA disabled; HTTPS OTA over cellular remains available.
   pollGnss();
   pollSerialSetup();
   pollNfc();
