@@ -1874,7 +1874,7 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     } else if (name.isEmpty()) {
       lastEvent = "obd_adapter_name_required";
     } else {
-      obdWifiStaReserved = (transport == "WIFI");
+      obdWifiStaReserved = false;
       if (obdWifiStaReserved) {
         // Preserve router credentials/settings, but give the only STA to OBD.
         mqtt.disconnect();
@@ -2321,7 +2321,7 @@ void setup() {
   generalWifiEnabled = preferences.getBool("wifiEnabled", false);
   generalWifiSsid = preferences.getString("wifiSsid", "");
   generalWifiPassword = preferences.getString("wifiPassGen", "");
-  cellularEnabled = preferences.getBool("cellEnabled", false);
+  cellularEnabled = preferences.getBool("cellEnabled", ENABLE_CELLULAR);
   cellularApn = preferences.getString("cellApn", CELLULAR_APN);
   cellularUsername = preferences.getString("cellUser", "");
   cellularPassword = preferences.getString("cellPass", "");
