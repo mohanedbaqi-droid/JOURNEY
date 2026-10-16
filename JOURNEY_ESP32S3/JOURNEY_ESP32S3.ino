@@ -439,9 +439,22 @@ void stopCellularPpp() {
   cellularStatus = cellularEnabled ? "disconnected" : "disabled";
 }
 
+TaskHandle_t pppTaskHandle = nullptr;
+void pppTask(void*) {
+  startCellularPpp();
+  pppTaskHandle = nullptr;
+  vTaskDelete(nullptr);
+}
+void requestCellularStart() {
+  if (!cellularEnabled || PPP.started() || pppTaskHandle) return;
+  if (pppStartAttempted && millis() - lastPppStartAttemptAt < PPP_RETRY_INTERVAL_MS) return;
+  if (xTaskCreatePinnedToCore(pppTask, "cellPPP", 16384, nullptr, 1, &pppTaskHandle, 0) != pdPASS) {
+    cellularStatus = "task_create_failed";
+  }
+}
 void pollCellular() {
   if (!cellularEnabled) return;
-  if (!PPP.started()) startCellularPpp();
+  if (!PPP.started()) requestCellularStart();
   if (millis() - lastCellularPollAt < CELLULAR_POLL_INTERVAL_MS) return;
   lastCellularPollAt = millis();
   refreshCellularStatus(true);
@@ -2391,7 +2404,7 @@ void setup() {
   }
   bleCommandQueue = xQueueCreate(24, sizeof(BleCommandFrame));
   if (bleCommandQueue) {
-    xTaskCreatePinnedToCore(bleCommandTask, "bleCmd", 8192, nullptr, 3, nullptr, 1);
+    xTaskCreatePinnedToCore(bleCommandTask, "bleCmd", 16384, nullptr, 3, nullptr, 1);
   }
   advertiseBle();
   startLocalOta();
@@ -2410,8 +2423,7 @@ void setup() {
     }
   });
   if (cellularEnabled) {
-    startCellularPpp();
-    if (ENABLE_GNSS && PPP.started()) PPP.cmd("AT+CGNSSPWR=1", 5000);
+    requestCellularStart();
   } else if (ENABLE_GNSS) {
     modem.begin(MODEM_BAUD, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
     delay(250);
