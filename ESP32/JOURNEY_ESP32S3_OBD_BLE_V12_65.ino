@@ -316,7 +316,7 @@ bool obdWifiStaReserved = false;
 enum class CommandSource : uint8_t { BLE, MQTT };
 
 bool settingsReady() {
-  return String(MQTT_HOST) != "CHANGE_ME" && String(MQTT_ROOT_CA).length() > 40;
+  return String(MQTT_HOST) != "CHANGE_ME" && String(MQTT_ROOT_CA).length() > 40 && String(MQTT_PASSWORD) != "CHANGE_ME" && String(MQTT_PASSWORD).length() > 0;
 }
 
 void startLocalOta() {
