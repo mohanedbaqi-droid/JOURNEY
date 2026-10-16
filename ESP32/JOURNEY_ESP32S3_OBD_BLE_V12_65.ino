@@ -531,9 +531,10 @@ bool updateFromInternet(const String& url) {
     Serial0.println("[OTA] rejected: 4G PPP and trusted OTA_ROOT_CA required");
     return false;
   }
-  if (mqtt.connected()) mqtt.disconnect();
   lastEvent = "ota_internet_connecting";
   publishState();
+  // Deliver status before disconnecting MQTT for the cellular transfer.
+  if (mqtt.connected()) mqtt.disconnect();
 
   NetworkClientSecure downloadClient;
   // Verify the download host's TLS certificate before writing firmware.
@@ -586,13 +587,9 @@ class BleCommandCallbacks final : public BLECharacteristicCallbacks {
     frame.bytes[frame.length] = '\0';
     bool queued = xQueueSend(bleCommandQueue, &frame, 0) == pdTRUE;
     if (!queued) {
-      // Never leave the BLE command path permanently wedged. Drop the oldest
-      // stale frame and make room for the newest user command.
-      BleCommandFrame stale{};
-      (void)xQueueReceive(bleCommandQueue, &stale, 0);
-      queued = xQueueSend(bleCommandQueue, &frame, 0) == pdTRUE;
-      Serial0.printf("[BLE] queue pressure: dropped oldest bytes=%u, newest=%u\n",
-                     static_cast<unsigned>(stale.length), static_cast<unsigned>(frame.length));
+      // Reject newest on overload; never silently discard a prior vehicle command.
+      Serial0.printf("[BLE] queue full: rejected newest command bytes=%u\n",
+                     static_cast<unsigned>(frame.length));
     }
     Serial0.printf("[BLE] command %s, bytes=%u\n", queued ? "queued" : "queue_error", static_cast<unsigned>(frame.length));
   }
