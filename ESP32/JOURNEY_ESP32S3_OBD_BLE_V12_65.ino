@@ -2280,7 +2280,9 @@ void ensureMqtt() {
   const String clientId = String(DEVICE_ID) + "-" + String((uint32_t)ESP.getEfuseMac(), HEX);
   if (mqtt.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
     mqtt.subscribe(commandTopic.c_str(), 1);
-    lastEvent = "mqtt_connected";
+    // Preserve an actionable OTA failure after reconnect, so the iPhone can
+    // retrieve it instead of seeing only the generic MQTT connected event.
+    if (!lastEvent.startsWith("ota_")) lastEvent = "mqtt_connected";
     publishState();
   }
 }
