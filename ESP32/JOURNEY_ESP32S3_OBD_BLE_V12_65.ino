@@ -1770,6 +1770,22 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
     return;
   }
   if (action == "owner_register" || action == "keyless_config") {
+    // Never enroll the first administrator remotely via MQTT. The initial
+    // pairing must be performed locally over BLE with physical access.
+    if (action == "owner_register" && ownerPhones[0].phoneId.isEmpty() && source != CommandSource::BLE) {
+      lastCommandId = id;
+      lastEvent = "owner_first_pairing_requires_ble";
+      publishState();
+      return;
+    }
+    // Keyless settings may only be changed by a registered owner. Do not
+    // implicitly enroll a stranger when receiving keyless_config.
+    if (action == "keyless_config" && ownerIndex(phoneId) < 0) {
+      lastCommandId = id;
+      lastEvent = "rejected_unknown_phone";
+      publishState();
+      return;
+    }
     // Bootstrap is allowed only when there is no administrator.  Later phones
     // must first request access, then wait for an administrator approval.
     if (action == "owner_register" && !ownerPhones[0].phoneId.isEmpty() && ownerIndex(phoneId) < 0) {
