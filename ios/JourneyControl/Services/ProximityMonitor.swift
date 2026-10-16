@@ -303,22 +303,11 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         status = JL("انقطع BLE — إعادة اتصال", "BLE disconnected — reconnecting")
         reconnectFailures = min(reconnectFailures + 1, 6)
         disconnectGeneration += 1
-        let departureGeneration = disconnectGeneration
+        // A transient BLE link loss is not physical departure. Keep the
+        // proximity history intact and let authenticated distance samples
+        // drive departure/lock notifications.
         if let deviceID = deviceIDs[peripheral.identifier] {
-            nearSince[deviceID] = nil
-            farSince[deviceID] = Date()
             loadKeylessConfig(for: deviceID)
-            if let config = keylessConfigs[deviceID], config.enabled {
-                unlockedByKeyless.remove(deviceID)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self, weak peripheral] in
-                    guard let self, self.disconnectGeneration == departureGeneration,
-                          peripheral?.state != .connected, !self.demoSuspended else { return }
-                    VehicleNotificationService.shared.notifyKeylessDeparture(
-                        vehicleName: "JOURNEY",
-                        lockDelaySeconds: config.lockDelaySeconds
-                    )
-                }
-            }
         }
         commandCharacteristic = nil
         reconnectAfterDelay()
