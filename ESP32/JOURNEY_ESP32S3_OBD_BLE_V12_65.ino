@@ -552,7 +552,18 @@ bool updateFromInternet(const String& url) {
   publishState();
   const size_t written = Update.writeStream(*http.getStreamPtr());
   http.end();
-  if (written != static_cast<size_t>(total) || !Update.end() || !Update.isFinished()) return false;
+  if (written != static_cast<size_t>(total)) {
+    Update.abort();
+    lastEvent = "ota_incomplete_download";
+    Serial0.printf("[OTA] incomplete image: %u/%d bytes\n", static_cast<unsigned>(written), total);
+    return false;
+  }
+  if (!Update.end() || !Update.isFinished()) {
+    Update.abort();
+    lastEvent = "ota_flash_validation_failed";
+    Serial0.println("[OTA] image verification/flash finalization failed");
+    return false;
+  }
   lastEvent = "ota_internet_complete";
   publishState();
   otaRestartPending = true;
@@ -1683,28 +1694,10 @@ void processCommandPayload(const uint8_t* bytes, size_t length, CommandSource so
   Serial0.printf("[CMD] src=%s action=%s, bytes=%u\n", source == CommandSource::MQTT ? "NET" : "BLE", action.c_str(), static_cast<unsigned>(length));
   if (id.isEmpty() || phoneId.isEmpty() || (id == lastCommandId && action != "keyless_presence")) return;
 
-  // v12.65: normal commands follow the saved priority. Keyless/proximity
-  // always stays BLE-first so RSSI timing remains responsive.
-  const bool cloudLive = (activeInternetRoute != InternetRoute::NONE) && mqtt.connected();
-  const bool keylessBleAction =
-      action == "keyless_presence" || action == "keyless_unlock" ||
-      action == "keyless_lock" || action == "keyless_config" ||
-      action == "owner_status" || action == "owner_register" ||
-      action == "owner_request";
-  // Manual remote-power is a safety/control command.  Never discard a valid
-  // BLE press merely because an Internet route is currently ranked higher.
-  // The iPhone already sends one route according to priority; accepting BLE
-  // here also keeps the local control usable during stale cloud-route state.
-  const bool directRemotePowerAction =
-      action == "remote_power_on" || action == "remote_power_off";
-  if (source == CommandSource::BLE && cloudLive && !keylessBleAction && !directRemotePowerAction) {
-    const int bleRank = connectionPriorityRank("BLE");
-    const int cloudRank = connectionPriorityRank(internetRouteName(activeInternetRoute));
-    if (cloudRank < bleRank) {
-      Serial0.printf("[CMD] BLE skipped by priority while cloud is live: %s\n", action.c_str());
-      return;
-    }
-  }
+  // Both authenticated transports remain usable: cellular MQTT for remote control,
+  // BLE for local control and proximity. Never discard local commands merely
+  // because MQTT reports connected; that state may be stale or unreachable.
+  // Owner checks below still apply to all control commands.
 
   if (action == "owner_status") {
     lastCommandId = id;
