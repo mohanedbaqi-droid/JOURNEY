@@ -402,11 +402,11 @@ final class MQTTService: ObservableObject {
     }
 
     private var connectionPriorityOrder: [String] {
-        let raw = defaults.string(forKey: "journey.settings.connectionPriority") ?? "CELLULAR,BLE"
+        let raw = defaults.string(forKey: "journey.settings.connectionPriority") ?? "BLE,CELLULAR"
         let parsed = raw.split(separator: ",").map { String($0) }
         let allowed = ["BLE", "CELLULAR"]
         let clean = parsed.filter { allowed.contains($0) }
-        return clean.count == 2 && Set(clean).count == 2 ? clean : ["CELLULAR", "BLE"]
+        return clean.count == 2 && Set(clean).count == 2 ? clean : ["BLE", "CELLULAR"]
     }
 
     private func cloudRouteMatches(_ route: String, deviceID: String) -> Bool {
