@@ -516,7 +516,7 @@ struct ContentView: View {
         Button { showingMQTTSettings = true } label: {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
-                    Image(systemName: state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "cellularbars" : "wifi") : "cellularbars")
+                    Image(systemName: "cellularbars")
                     Text(state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "4G" : "NET") : (state.cellularNetwork == JL("غير متاح", "Unavailable") ? "—" : state.cellularNetwork.uppercased()))
                 }
                 .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -1506,9 +1506,6 @@ private struct OBDStatusView: View {
     @StateObject private var faceID = FaceIDAuthenticator()
     @State private var adapterName = ""
     @State private var transport = "BLE"
-    @State private var wifiPassword = ""
-    @State private var wifiHost = "192.168.0.10"
-    @State private var wifiPort = "35000"
     @State private var clearConfirmation = false
     @State private var statusMessage = ""
 
@@ -1634,13 +1631,11 @@ private struct OBDStatusView: View {
 
     private func searchAdapters() {
         guard let deviceID else { return }
-        let selection = OBDAdapterSelection(name: "", transport: transport)
+        let selection = OBDAdapterSelection(name: "", transport: "BLE")
         let command = VehicleCommand(action: .obdSearch, obdAdapter: selection)
         let sent = mqtt.sendESPCommand(command, to: deviceID)
         if sent {
-            statusMessage = transport == "BLE"
-                ? JL("أُرسل بحث BLE إلى ESP؛ انتظر 20 ثانية، وتظهر حتى الأجهزة بدون اسم.", "BLE search sent to ESP. Wait 20 seconds. Unnamed devices are also shown.")
-                : JL("أُرسل بحث Wi‑Fi إلى ESP؛ البحث يبدأ فوراً وتظهر الشبكات المخفية أيضاً.", "Wi-Fi search sent to ESP. Search starts immediately and includes hidden networks.")
+            statusMessage = JL("أُرسل بحث BLE إلى ESP؛ انتظر 20 ثانية، وتظهر حتى الأجهزة بدون اسم.", "BLE search sent to ESP. Wait 20 seconds. Unnamed devices are also shown.")
         } else {
             statusMessage = JL("تعذر إرسال طلب البحث إلى ESP", "Could not send search request to ESP")
         }
@@ -2201,18 +2196,11 @@ private struct MQTTSettingsView: View {
     @State private var username = ""
     @State private var password = ""
     @State private var errorText: String?
-    @State private var wifiEnabled = false
-    @State private var wifiSSID = ""
-    @State private var wifiPassword = ""
-    @State private var wifiMessage: String?
     @State private var cellularEnabled = false
     @State private var cellularAPN = "internet"
     @State private var cellularUsername = ""
     @State private var cellularPassword = ""
     @State private var cellularSimPin = ""
-    @State private var hotspotEnabled = false
-    @State private var hotspotSSID = "JOURNEY-4G"
-    @State private var hotspotPassword = "Journey2017"
     @State private var cellularMessage: String?
 
     @AppStorage("journey.settings.appearance") private var appearance = "dark"
@@ -2234,13 +2222,6 @@ private struct MQTTSettingsView: View {
         guard let id = selectedDeviceID else { return VehicleState() }
         return mqtt.state(for: id)
     }
-    private var wifiNetworks: [String] {
-        vehicle.wifiDiscoveredNetworks
-            .components(separatedBy: " | ")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
     var body: some View {
         NavigationStack {
             Form {
@@ -2437,68 +2418,9 @@ private struct MQTTSettingsView: View {
                 port = String(saved.port)
                 username = saved.username
                 password = saved.password
-                wifiEnabled = vehicle.wifiEnabled
-                if wifiSSID.isEmpty { wifiSSID = vehicle.wifiSSID }
                 cellularEnabled = vehicle.cellularEnabled
                 if !vehicle.cellularAPN.isEmpty { cellularAPN = vehicle.cellularAPN }
-                hotspotEnabled = vehicle.hotspotEnabled
-                if !vehicle.hotspotSSID.isEmpty { hotspotSSID = vehicle.hotspotSSID }
             }
-        }
-    }
-
-    private func searchWifi() {
-        guard let id = selectedDeviceID else {
-            wifiMessage = JL("ماكو ESP محدد", "No ESP selected")
-            return
-        }
-        wifiMessage = JL("تم إرسال أمر البحث للـESP", "Search command sent to ESP")
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiSearch), to: id)
-    }
-
-    private func setWifiEnabled(_ enabled: Bool) {
-        guard let id = selectedDeviceID else { return }
-        let settings = ESPWiFiSettings(enabled: enabled, ssid: wifiSSID, password: wifiPassword)
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
-        wifiMessage = enabled ? JL("تم إرسال أمر تشغيل Wi-Fi", "Wi-Fi enable command sent") : JL("تم إرسال أمر إطفاء Wi-Fi", "Wi-Fi disable command sent")
-    }
-
-    private func connectWifi() {
-        let ssid = wifiSSID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !ssid.isEmpty else {
-            wifiMessage = JL("اختار الشبكة أولاً", "Select a network first")
-            return
-        }
-        guard let id = selectedDeviceID else {
-            wifiMessage = JL("ماكو ESP محدد", "No ESP selected")
-            return
-        }
-        wifiEnabled = true
-        let settings = ESPWiFiSettings(enabled: true, ssid: ssid, password: wifiPassword)
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiConfig, wifiSettings: settings), to: id)
-        wifiMessage = JL("جاري اتصال ESP بالشبكة", "ESP is connecting to the network")
-    }
-
-    private func forgetWifi() {
-        guard let id = selectedDeviceID else { return }
-        _ = mqtt.sendESPCommand(VehicleCommand(action: .wifiForget), to: id)
-        wifiEnabled = false
-        wifiSSID = ""
-        wifiPassword = ""
-        wifiMessage = JL("تم إرسال أمر نسيان الشبكة", "Forget network command sent")
-    }
-
-    private func wifiStatusText(_ status: String) -> String {
-        switch status {
-        case "connecting": return JL("جاري الاتصال", "Connecting")
-        case "searching": return JL("جاري البحث", "Searching")
-        case "networks_found": return JL("تم العثور على شبكات", "Networks found")
-        case "networks_not_found": return JL("ما لكه شبكات", "No networks found")
-        case "scan_failed": return JL("فشل البحث", "Search failed")
-        case "network_required": return JL("اختار شبكة", "Select a network")
-        case "forgotten": return JL("تم نسيان الشبكة", "Network forgotten")
-        case "disconnected": return JL("غير متصل", "Disconnected")
-        default: return JL("Wi-Fi مطفأ", "Wi-Fi off")
         }
     }
 
@@ -2511,8 +2433,8 @@ private struct MQTTSettingsView: View {
             password: cellularPassword,
             simPin: cellularSimPin,
             hotspotEnabled: false,
-            hotspotSSID: hotspotSSID,
-            hotspotPassword: hotspotPassword
+            hotspotSSID: "",
+            hotspotPassword: ""
         )
         _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
         cellularMessage = enabled ? JL("تم إرسال أمر تشغيل الشريحة", "Cellular enable command sent") : JL("تم إرسال أمر إطفاء بيانات الشريحة", "Cellular data disable command sent")
@@ -2536,8 +2458,8 @@ private struct MQTTSettingsView: View {
             password: cellularPassword,
             simPin: cellularSimPin,
             hotspotEnabled: false,
-            hotspotSSID: hotspotSSID,
-            hotspotPassword: hotspotPassword
+            hotspotSSID: "",
+            hotspotPassword: ""
         )
         _ = mqtt.sendESPCommand(VehicleCommand(action: .cellularConfig, cellularSettings: settings), to: id)
         cellularMessage = JL("تم حفظ إعدادات الشريحة وجاري الفحص", "Cellular settings saved; checking connection")
@@ -2557,9 +2479,6 @@ private struct MQTTSettingsView: View {
         cellularUsername = ""
         cellularPassword = ""
         cellularSimPin = ""
-        hotspotEnabled = false
-        hotspotSSID = "JOURNEY-4G"
-        hotspotPassword = "Journey2017"
         cellularMessage = JL("تم إرسال أمر مسح إعدادات الشريحة", "Clear cellular settings command sent")
     }
 
