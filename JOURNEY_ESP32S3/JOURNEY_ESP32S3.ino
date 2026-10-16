@@ -1253,7 +1253,7 @@ void pollEspHealth() {
 }
 
 void addEspHealth(JsonDocument& doc) {
-  doc["firmwareVersion"] = "12.78";
+  doc["firmwareVersion"] = "13.01";
   bool fresh = espHealthAt != 0 && millis() - espHealthAt <= 10000;
   doc["espTemperatureValid"] = espTemperatureValid && fresh;
   if (espTemperatureValid && fresh) doc["espTemperatureC"] = roundf(espTemperatureC * 10) / 10;
@@ -2328,7 +2328,7 @@ void setup() {
   Serial0.begin(115200);
   delay(2000);
   Network.begin();
-  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v12.78 ESP HEALTH");
+  Serial0.println("\n[JOURNEY] ESP32-S3 starting — firmware v13.01 BLE OBD COEXISTENCE");
   preferences.begin("journey", false);
   loadVehicleEventQueue();
   espTempWarningC = constrain(int(preferences.getUChar("tempWarnC", 50)), 35, 75);
