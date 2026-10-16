@@ -3,7 +3,7 @@
 // General Wi-Fi is controlled at runtime from the iPhone and persisted in NVS.
 // No compile-time ENABLE_WIFI switch is used.
 // Local Wi-Fi used only for firmware updates from the iPhone.
-constexpr bool ENABLE_LOCAL_OTA_AP = true;
+constexpr bool ENABLE_LOCAL_OTA_AP = false;
 constexpr char OTA_AP_PASSWORD[] = "CHANGE_ME";
 constexpr bool ENABLE_CELLULAR = true;
 // APN for downloading a firmware URL through the SIM7670/SIM7600 modem.
