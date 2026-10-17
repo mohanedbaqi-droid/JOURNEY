@@ -13,7 +13,7 @@ final class DeviceStore: ObservableObject {
 
     private let devicesKey = "journey.devices.v1"
     private let selectionKey = "journey.selected-device.v1"
-    private static let productionDeviceID = "journey-esp32s3-01"
+    private static let productionDeviceID = "27A77884"
 
     init() {
         if let data = UserDefaults.standard.data(forKey: devicesKey),
@@ -24,7 +24,7 @@ final class DeviceStore: ObservableObject {
         }
 
         // Migrate only the old placeholder used by earlier build packages.
-        if let index = devices.firstIndex(where: { $0.deviceID == "demo-local" || $0.deviceID == "journey-bench-01" }) {
+        if let index = devices.firstIndex(where: { $0.deviceID == "demo-local" || $0.deviceID == "journey-bench-01" || $0.deviceID == "journey-esp32s3-01" }) {
             devices[index].name = JL("سيارة جورني", "Journey vehicle")
             devices[index].deviceID = Self.productionDeviceID
         }
