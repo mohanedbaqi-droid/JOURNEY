@@ -1,5 +1,4 @@
 import Foundation
-@preconcurrency import CoreBluetooth
 import CoreLocation
 import MapKit
 import SwiftUI
@@ -1505,7 +1504,6 @@ private struct OBDStatusView: View {
     let vehicle: VehicleState
     let deviceID: String?
     @StateObject private var faceID = FaceIDAuthenticator()
-    @State private var adapterName = ""
     @State private var clearConfirmation = false
     @State private var statusMessage = ""
 
@@ -1597,31 +1595,6 @@ private struct OBDStatusView: View {
             }
         }
         .tint(JourneyTheme.accent)
-        .onAppear { adapterName = vehicle.obdAdapterName }
-    }
-
-    private func saveAdapter() {
-        guard let deviceID else { return }
-        let name = adapterName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let command = VehicleCommand(action: .obdSelect, obdAdapter: OBDAdapterSelection(name: name, transport: "BLE", password: "", host: "", port: 0))
-        statusMessage = mqtt.sendESPCommand(command, to: deviceID) ? JL("تم حفظ الاسم؛ ESP يبحث ويتصل به تلقائياً.", "Name saved; ESP will search and connect automatically.") : JL("تعذر إرسال الاختيار إلى ESP", "Could not send selection to ESP")
-    }
-
-    private func searchAdapters() {
-        guard let deviceID else { return }
-        let selection = OBDAdapterSelection(name: "", transport: "BLE")
-        let command = VehicleCommand(action: .obdSearch, obdAdapter: selection)
-        let sent = mqtt.sendESPCommand(command, to: deviceID)
-        if sent {
-            statusMessage = JL("أُرسل بحث BLE إلى ESP؛ انتظر 20 ثانية، وتظهر حتى الأجهزة بدون اسم.", "BLE search sent to ESP. Wait 20 seconds. Unnamed devices are also shown.")
-        } else {
-            statusMessage = JL("تعذر إرسال طلب البحث إلى ESP", "Could not send search request to ESP")
-        }
-    }
-
-    private func forgetAdapter() {
-        guard let deviceID else { return }
-        statusMessage = mqtt.sendESPCommand(VehicleCommand(action: .obdForget), to: deviceID) ? JL("تم الرجوع إلى KONNWEI الأساسية.", "Returned to primary KONNWEI.") : JL("تعذر الرجوع للقطعة الأساسية", "Could not return to primary adapter")
     }
 
     private func scanTroubleCodes() {
@@ -1688,57 +1661,6 @@ private struct OBDStatusView: View {
             Spacer()
             Text(value).font(.system(.subheadline, design: .monospaced)).multilineTextAlignment(.trailing)
         }
-    }
-}
-
-// يبحث الآيفون عن أسماء أجهزة BLE فقط؛ لا يتصل بها ولا يقرأ السيارة. بعد أن
-// يختار المالك الاسم، يرسله إلى ESP ليبقى هو قارئ OBD الدائم. لذلك يعمل البحث
-// حتى مع نسخة ESP السابقة التي تدعم حفظ الاسم فقط.
-private final class OBDAdapterScanner: NSObject, ObservableObject, CBCentralManagerDelegate {
-    @Published private(set) var adapters: [String] = []
-    @Published private(set) var isScanning = false
-    @Published private(set) var status = ""
-    private var central: CBCentralManager!
-    private var pendingStart = false
-
-    override init() {
-        super.init()
-        central = CBCentralManager(delegate: self, queue: .main)
-    }
-
-    func start() {
-        adapters.removeAll()
-
-        guard let central, central.state == .poweredOn else {
-            pendingStart = true
-            status = JL("فعّل Bluetooth ثم أعد البحث", "Enable Bluetooth and search again")
-            return
-        }
-        pendingStart = false
-        status = JL("جاري مسح كل أجهزة BLE القريبة…", "Scanning all nearby BLE devices…")
-        isScanning = true
-        central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in self?.stop() }
-    }
-
-    private func stop() {
-        central?.stopScan()
-        isScanning = false
-        status = adapters.isEmpty ? JL("لم يظهر أي جهاز BLE؛ تأكد من تفعيل Bluetooth ومن أن الجهاز القريب يعلن عن نفسه.", "No BLE devices found. Enable Bluetooth and make sure the nearby device is advertising.") : JL("ظهرت أجهزة BLE القريبة. اختر قطعة OBD ثم اضغط اختيار وحفظ واتصال.", "Nearby BLE devices found. Select an OBD adapter, then tap Select, save and connect.")
-    }
-
-    func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        guard central.state == .poweredOn else { return }
-        if pendingStart { start() }
-    }
-
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String: Any], rssi RSSI: NSNumber) {
-        let name = ((advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        // لا نفلتر بالاسم: المستخدم يحتاج أن يرى كل أجهزة BLE ليتأكد أن
-        // المسح حقيقي، وبعض القطع التجارية لا تضع OBD أو ELM في اسمها.
-        let shown = name.isEmpty ? JL("بدون اسم [\(peripheral.identifier.uuidString)]", "Unnamed [\(peripheral.identifier.uuidString)]") : name
-        if !adapters.contains(shown) { adapters.append(shown) }
     }
 }
 
