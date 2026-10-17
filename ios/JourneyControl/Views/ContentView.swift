@@ -1490,20 +1490,20 @@ private struct ESPStatusView: View {
                 // ESP WebServer::upload() expects multipart/form-data, not raw octet-stream.
                 let boundary = "JourneyFirmwareUpload"
                 var body = Data()
-                body.append(Data(("--\\(boundary)\r\nContent-Disposition: form-data; name=\\"firmware\\"; filename=\\"firmware.bin\\"\r\nContent-Type: application/octet-stream\r\n\r\n").utf8))
+                body.append(Data(("--\(boundary)\r\nContent-Disposition: form-data; name=\"firmware\"; filename=\"firmware.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n").utf8))
                 body.append(firmware)
-                body.append(Data(("\r\n--\\(boundary)--\r\n").utf8))
+                body.append(Data(("\r\n--\(boundary)--\r\n").utf8))
                 var request = URLRequest(url: baseURL.appendingPathComponent("update"))
                 request.httpMethod = "POST"
-                request.setValue("multipart/form-data; boundary=\\(boundary)", forHTTPHeaderField: "Content-Type")
+                request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
                 request.timeoutInterval = 180
                 let (_, response) = try await URLSession.shared.upload(for: request, from: body)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 updateStatus = status == 200
                     ? JL("رفع التحديث نجح؛ انتظر إعادة تشغيل ESP", "Upload accepted; wait for ESP to restart")
-                    : JL("فشل تحديث ESP: HTTP \\(status)", "ESP update failed: HTTP \\(status)")
+                    : JL("فشل تحديث ESP: HTTP \(status)", "ESP update failed: HTTP \(status)")
             } catch {
-                updateStatus = JL("فشل رفع التحديث: \\(error.localizedDescription)", "Upload failed: \\(error.localizedDescription)")
+                updateStatus = JL("فشل رفع التحديث: \(error.localizedDescription)", "Upload failed: \(error.localizedDescription)")
             }
         }
     }
