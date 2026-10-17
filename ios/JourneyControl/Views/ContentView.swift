@@ -217,6 +217,7 @@ struct ContentView: View {
             .onChange(of: devices.selectedID, initial: false) { _, _ in
                 guard !demoEnabled, let device = devices.selectedDevice else { return }
                 mqtt.prepareBluetooth(for: device.deviceID)
+                mqtt.refreshVehicleSubscription()
                 mqtt.syncSelectedWidget(force: true)
             }
             .onChange(of: demoEnabled) { _, active in
