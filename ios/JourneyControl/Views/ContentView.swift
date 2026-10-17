@@ -1548,35 +1548,13 @@ private struct OBDStatusView: View {
                     .background(JourneyTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(JL("اتصال OBD", "OBD connection")).font(.headline)
-                        Text(JL("اتصال KONNWEI عبر Bluetooth BLE فقط.", "KONNWEI connects through Bluetooth BLE only."))
+                        Text(JL("قطعة OBD المعتمدة", "Assigned OBD adapter")).font(.headline)
+                        Text(JL("يتصل ESP مباشرة بقطعة KONNWEI المحفوظة تلقائياً، بدون بحث أو اختيار من التطبيق.",
+                                "ESP automatically connects to its saved KONNWEI adapter. No app-side scanning or selection."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Button(JL("بحث ESP عن قطع BLE", "ESP search for BLE adapters"), systemImage: "magnifyingglass") { searchAdapters() }
-                            .buttonStyle(.bordered)
-                            .disabled(deviceID == nil)
-                        TextField(JL("اسم القطعة بالبلوتوث", "Bluetooth adapter name"), text: $adapterName)
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                            .textFieldStyle(.roundedBorder)
-                        Button(JL("اختيار وحفظ واتصال", "Select, save and connect"), systemImage: "checkmark.circle.fill") { saveAdapter() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(deviceID == nil || adapterName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        let discovered = vehicle.obdDiscoveredAdapters
-                        if !discovered.isEmpty {
-                            Text(JL("قطع ظهرت للـESP: \(discovered)", "Adapters found by ESP: \(discovered)"))
-                                .font(.caption).foregroundStyle(JourneyTheme.accent)
-                            ForEach(discovered.components(separatedBy: " | ").filter { !$0.isEmpty }, id: \.self) { name in
-                                Button { adapterName = name } label: {
-                                    HStack { Image(systemName: adapterName == name ? "checkmark.circle.fill" : "circle"); Text(name); Spacer() }
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(adapterName == name ? .cyan : .primary)
-                            }
-                        }
-                        if !vehicle.obdAdapterName.isEmpty { obdRow(JL("المحفوظة", "Saved"), vehicle.obdAdapterName) }
-                        Button(JL("الرجوع إلى KONNWEI الأساسية", "Return to primary KONNWEI"), role: .destructive) { forgetAdapter() }
-                            .disabled(deviceID == nil)
+                        obdRow(JL("القطعة", "Adapter"), vehicle.obdAdapterName.isEmpty ? "KONNWEI" : vehicle.obdAdapterName)
+                        obdRow(JL("الاتصال", "Connection"), vehicle.obdConnected ? JL("متصل", "Connected") : JL("بانتظار الاتصال التلقائي", "Waiting for automatic connection"))
                     }
                     .padding(14)
                     .background(JourneyTheme.ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
