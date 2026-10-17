@@ -1280,9 +1280,7 @@ private struct ESPStatusView: View {
     @State private var tempWarningDirty = false
     @State private var pendingTempWarning: Int?
     @State private var tempSaveStatus = ""
-    @State private var showingFirmwarePicker = false
     @State private var updateStatus = ""
-    @State private var isUpdating = false
     @State private var firmwareURL = ""
     @State private var maintenanceMode = false
     @State private var powerSaveMode = 0
@@ -1378,10 +1376,7 @@ private struct ESPStatusView: View {
         }
         .onAppear { loadSettings(); syncTempWarning() }
         .onChange(of: vehicle.espTempWarningC) { _ in syncTempWarning() }
-        .fileImporter(isPresented: $showingFirmwarePicker, allowedContentTypes: [.data]) { result in
-            if case .success(let file) = result { uploadFirmware(file) }
-            if case .failure(let error) = result { updateStatus = error.localizedDescription }
-        }
+
     }
 
     private func statusRow(_ title: String, _ value: String) -> some View {
@@ -1442,27 +1437,6 @@ private struct ESPStatusView: View {
         guard let deviceID else { return }
         let settings = ESPRuntimeSettings(remotePulseMs: Int(pulseMs), remoteWakeDelayMs: Int(wakeDelayMs), remotePowerOffDelayMs: Int(powerOffDelayMs), hudBrightness: Int(hudBrightness))
         updateStatus = mqtt.sendESPSettings(settings, to: deviceID) ? JL("تم إرسال الإعدادات إلى ESP", "Settings sent to ESP") : JL("تعذر إرسال الإعدادات", "Could not send settings")
-    }
-
-    private func uploadFirmware(_ file: URL) {
-        isUpdating = true
-        updateStatus = JL("جاري رفع الملف…", "Uploading file…")
-        Task {
-            let allowed = file.startAccessingSecurityScopedResource()
-            defer { if allowed { file.stopAccessingSecurityScopedResource() } }
-            do {
-                var request = URLRequest(url: URL(string: "http://192.168.4.1/update")!)
-                request.httpMethod = "POST"
-                request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-                request.timeoutInterval = 180
-                let (_, response) = try await URLSession.shared.upload(for: request, fromFile: file)
-                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                updateStatus = code == 200 ? JL("تم التحديث؛ ESP يعيد التشغيل الآن", "Update complete; ESP is restarting") : JL("فشل التحديث: HTTP \(code)", "Update failed: HTTP \(code)")
-            } catch {
-                updateStatus = JL("فشل الرفع: \(error.localizedDescription)", "Upload failed: \(error.localizedDescription)")
-            }
-            isUpdating = false
-        }
     }
 
     private func updateThrough4G() {
