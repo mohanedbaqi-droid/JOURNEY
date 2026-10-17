@@ -414,9 +414,13 @@ final class MQTTService: ObservableObject {
     }
 
     private func cloudPathAvailable(for deviceID: String) -> Bool {
+        // A live authenticated broker session can publish commands even when
+        // the ESP telemetry is delayed or temporarily unavailable. Requiring
+        // a state packet in the last 12 seconds incorrectly disabled 4G
+        // control immediately after the iPhone BLE link dropped.
         guard connection == .connected, client != nil,
-              let seenAt = lastCloudStateAt[deviceID],
-              Date().timeIntervalSince(seenAt) <= 12.0
+              !deviceID.isEmpty,
+              !deviceID.contains("/"), !deviceID.contains("+"), !deviceID.contains("#")
         else { return false }
         return true
     }
