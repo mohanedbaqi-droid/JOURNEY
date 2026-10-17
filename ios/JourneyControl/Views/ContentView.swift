@@ -1358,16 +1358,6 @@ private struct ESPStatusView: View {
                     .disabled(deviceID == nil)
             }
             Section(JL("تحديث Firmware", "Firmware update")) {
-                Text(JL("للتحديث المحلي: اتصل من الآيفون بشبكة JOURNEY-ESP الظاهرة في Serial Monitor، ثم اختر ملف firmware.bin.", "For a local update, connect the iPhone to the JOURNEY-ESP network shown in Serial Monitor, then select firmware.bin."))
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Button(isUpdating ? JL("جاري رفع التحديث…", "Uploading update…") : JL("اختيار ملف firmware.bin", "Select firmware.bin"), systemImage: "arrow.up.doc") {
-                    showingFirmwarePicker = true
-                }
-                .disabled(isUpdating)
-                if !updateStatus.isEmpty {
-                    Text(JLStored(updateStatus)).font(.footnote).foregroundStyle(.secondary)
-                }
                 TextField(JL("رابط HTTPS لملف firmware.bin", "HTTPS URL for firmware.bin"), text: $firmwareURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
