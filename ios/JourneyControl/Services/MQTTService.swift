@@ -83,6 +83,7 @@ final class MQTTService: ObservableObject {
     @Published private(set) var buttonFeedback: [String: Set<String>] = [:]
 
     private var client: CocoaMQTT?
+    private var subscribedCloudDeviceID: String?
     private let bluetooth = BluetoothVehicleService()
     private let defaults = UserDefaults.standard
     private let passwordAccount = "mqtt-password"
@@ -306,6 +307,7 @@ final class MQTTService: ObservableObject {
         }
 
         client?.disconnect()
+        subscribedCloudDeviceID = nil
         let mqtt = CocoaMQTT(
             clientID: "journey-ios-\(UUID().uuidString)",
             host: config.host,
@@ -380,6 +382,11 @@ final class MQTTService: ObservableObject {
                            "Select a valid vehicle to subscribe to MQTT telemetry")
             return
         }
+        if let previousID = subscribedCloudDeviceID, previousID != deviceID {
+            mqtt.unsubscribe("journey/\(previousID)/telemetry/state")
+            lastCloudStateAt.removeValue(forKey: previousID)
+        }
+        subscribedCloudDeviceID = deviceID
         mqtt.subscribe("journey/\(deviceID)/telemetry/state", qos: .qos1)
     }
 
@@ -396,6 +403,7 @@ final class MQTTService: ObservableObject {
     func disconnect() {
         client?.disconnect()
         client = nil
+        subscribedCloudDeviceID = nil
         lastCloudStateAt.removeAll()
         connection = isConfigured ? .disconnected : .notConfigured
     }
