@@ -325,7 +325,9 @@ final class MQTTService: ObservableObject {
                 if ack == .accept {
                     self.connection = .connected
                     self.lastError = nil
-                    mqtt.subscribe(AppConfig.allStateTopics, qos: .qos1)
+                    // Subscribe only to the selected vehicle. EMQX restricts journey_app
+                    // to its assigned device topic; a wildcard subscription is denied.
+                    self.subscribeToSelectedVehicle(using: mqtt)
                 } else {
                     self.connection = .disconnected
                     self.lastError = JL("رفض خادم MQTT الاتصال: \(ack)", "MQTT server refused connection: \(ack)")
@@ -360,6 +362,25 @@ final class MQTTService: ObservableObject {
 
         client = mqtt
         _ = mqtt.connect()
+    }
+
+    /// Refresh the cloud telemetry subscription when the selected vehicle changes.
+    /// This is also called after every successful MQTT reconnect.
+    func refreshVehicleSubscription() {
+        guard connection == .connected, let client else { return }
+        subscribeToSelectedVehicle(using: client)
+    }
+
+    private func subscribeToSelectedVehicle(using mqtt: CocoaMQTT) {
+        guard let deviceID = DeviceStore().selectedDevice?.deviceID,
+              !deviceID.isEmpty,
+              !deviceID.contains("/") && !deviceID.contains("+") && !deviceID.contains("#")
+        else {
+            lastError = JL("اختَر سيارة صحيحة حتى يتم الاشتراك ببياناتها عبر MQTT",
+                           "Select a valid vehicle to subscribe to MQTT telemetry")
+            return
+        }
+        mqtt.subscribe("journey/\(deviceID)/telemetry/state", qos: .qos1)
     }
 
     /// Demo must suspend the underlying CoreBluetooth session, not just UI commands.
