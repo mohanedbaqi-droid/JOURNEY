@@ -107,6 +107,17 @@ final class MQTTService: ObservableObject {
         diagnosticTransferStatus = JL("بانتظار ملف التشخيص من ESP…", "Waiting for ESP diagnostics…")
         // KR20 publishes on the diagnostics topic, so request via MQTT, not BLE.
         if publishCloud(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID) {
+            // A lost MQTT chunk must not leave the download spinner running forever.
+            let startedAt = diagnosticStartedAt
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(90))
+                guard let self, self.diagnosticTransferBusy,
+                      self.diagnosticStartedAt == startedAt else { return }
+                self.diagnosticTransferBusy = false
+                self.diagnosticTransferStatus = JL("انتهت مهلة السحب؛ الملف غير مكتمل. اضغط سحب التشخيص لإعادة المحاولة.",
+                                                   "Download timed out; incomplete file discarded. Tap again to retry.")
+                self.diagnosticChunks.removeAll()
+            }
             return true
         }
         diagnosticTransferBusy = false
