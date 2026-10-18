@@ -1775,7 +1775,7 @@ private struct BluetoothSignalIndicator: View {
     }
 }
 
-private struct VehicleMapView: View {
+struct VehicleMapView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var mqtt: MQTTService
     let vehicle: VehicleState
