@@ -43,7 +43,11 @@ jobs:
         run: |
           mkdir -p /tmp/build
           arduino-cli compile --fqbn "esp32:esp32:esp32s3:FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi,FlashMode=qio,FlashFreq=80,CPUFreq=240,CDCOnBoot=cdc0" --build-path /tmp/build "$SKETCH_DIR" --warnings all
-      - name: Verify output\n        run: |\n          test -n "$(find /tmp/build -maxdepth 1 -name '*.ino.bin' -print -quit)"\n          ls -lh /tmp/build/*.bin\n      - name: Upload firmware BIN
+      - name: Verify output
+        run: |
+          test -n "$(find /tmp/build -maxdepth 1 -name '*.ino.bin' -print -quit)"
+          ls -lh /tmp/build/*.bin
+      - name: Upload firmware BIN
         uses: actions/upload-artifact@v4
         with:
           name: JOURNEY-KR17-3-ESP32S3-BIN
