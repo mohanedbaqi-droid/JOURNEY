@@ -80,6 +80,82 @@ final class MQTTService: ObservableObject {
     func cloudTelemetryAge(for deviceID: String) -> TimeInterval? {
         lastCloudStateAt[deviceID].map { Date().timeIntervalSince($0) }
     }
+    // KR20: finite, on-demand MQTT diagnostic transfer. No background logging controls.
+    @Published private(set) var fullDiagnosticReport = ""
+    @Published private(set) var diagnosticTransferStatus = ""
+    @Published private(set) var diagnosticTransferBusy = false
+    private var diagnosticSequence: Int?
+    private var diagnosticExpectedChunks = 0
+    private var diagnosticChunks: [Int: Data] = [:]
+    private var diagnosticDeviceID: String?
+    private var diagnosticStartedAt: Date?
+
+    @discardableResult
+    func requestFullDiagnostics(for deviceID: String) -> Bool {
+        guard !diagnosticTransferBusy else { return false }
+        guard connection == .connected else {
+            diagnosticTransferStatus = JL("يحتاج اتصال MQTT عبر 4G", "An MQTT/4G connection is required")
+            return false
+        }
+        diagnosticDeviceID = deviceID
+        diagnosticSequence = nil
+        diagnosticExpectedChunks = 0
+        diagnosticChunks.removeAll()
+        fullDiagnosticReport = ""
+        diagnosticStartedAt = Date()
+        diagnosticTransferBusy = true
+        diagnosticTransferStatus = JL("بانتظار ملف التشخيص من ESP…", "Waiting for ESP diagnostics…")
+        // KR20 publishes on the diagnostics topic, so request via MQTT, not BLE.
+        if publishCloud(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID) {
+            return true
+        }
+        diagnosticTransferBusy = false
+        diagnosticTransferStatus = JL("تعذر إرسال طلب التشخيص عبر MQTT", "Could not request diagnostics over MQTT")
+        return false
+    }
+
+    private func receiveDiagnosticChunk(_ payload: String, deviceID: String) {
+        guard diagnosticTransferBusy, diagnosticDeviceID == deviceID,
+              let bytes = payload.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+              let sequence = json["ds"] as? Int, let index = json["di"] as? Int,
+              let count = json["dn"] as? Int, let hex = json["dx"] as? String,
+              count > 0, count <= 512, index >= 0, index < count,
+              hex.count <= 96, hex.count.isMultiple(of: 2)
+        else { return }
+        if diagnosticSequence == nil {
+            diagnosticSequence = sequence
+            diagnosticExpectedChunks = count
+        }
+        guard diagnosticSequence == sequence, diagnosticExpectedChunks == count else { return }
+        var chunk = Data()
+        let chars = Array(hex.utf8)
+        for offset in stride(from: 0, to: chars.count, by: 2) {
+            func nibble(_ c: UInt8) -> UInt8? {
+                switch c {
+                case 48...57: return c - 48
+                case 65...70: return c - 55
+                case 97...102: return c - 87
+                default: return nil
+                }
+            }
+            guard let hi = nibble(chars[offset]), let lo = nibble(chars[offset + 1]) else { return }
+            chunk.append((hi << 4) | lo)
+        }
+        diagnosticChunks[index] = chunk
+        diagnosticTransferStatus = JL("استلام التشخيص", "Receiving diagnostics") +
+            " \(diagnosticChunks.count)/\(count)"
+        guard diagnosticChunks.count == count else { return }
+        var result = Data()
+        for i in 0..<count {
+            guard let part = diagnosticChunks[i] else { return }
+            result.append(part)
+        }
+        fullDiagnosticReport = String(decoding: result, as: UTF8.self)
+        diagnosticTransferBusy = false
+        diagnosticTransferStatus = JL("اكتمل استلام التشخيص", "Diagnostics received successfully")
+    }
+
     @Published private(set) var commandHistory: [BenchEvent] = []
     @Published private(set) var bluetoothStatus = JL("غير متصل", "Disconnected")
     // v12.52: independent real ESP button feedback. Do not use lastEvent because
@@ -343,9 +419,15 @@ final class MQTTService: ObservableObject {
 
         mqtt.didReceiveMessage = { [weak self] _, message, _ in
             let parts = message.topic.split(separator: "/")
-            guard !message.retained, parts.count == 4,
-                  parts[0] == "journey",
-                  parts[2] == "telemetry", parts[3] == "state",
+            guard !message.retained, parts.count == 4, parts[0] == "journey" else { return }
+            if parts[2] == "diagnostics", parts[3] == "chunk", let payload = message.string {
+                DispatchQueue.main.async {
+                    guard let self, self.client === mqtt else { return }
+                    self.receiveDiagnosticChunk(payload, deviceID: String(parts[1]))
+                }
+                return
+            }
+            guard parts[2] == "telemetry", parts[3] == "state",
                   let data = message.string?.data(using: .utf8),
                   let state = try? JSONDecoder().decode(VehicleState.self, from: data)
             else { return }
@@ -388,10 +470,12 @@ final class MQTTService: ObservableObject {
         }
         if let previousID = subscribedCloudDeviceID, previousID != deviceID {
             mqtt.unsubscribe("journey/\(previousID)/telemetry/state")
+            mqtt.unsubscribe("journey/\(previousID)/diagnostics/chunk")
             lastCloudStateAt.removeValue(forKey: previousID)
         }
         subscribedCloudDeviceID = deviceID
         mqtt.subscribe("journey/\(deviceID)/telemetry/state", qos: .qos1)
+        mqtt.subscribe("journey/\(deviceID)/diagnostics/chunk", qos: .qos1)
     }
 
     /// Demo must suspend the underlying CoreBluetooth session, not just UI commands.
