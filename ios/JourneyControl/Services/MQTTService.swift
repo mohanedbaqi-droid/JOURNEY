@@ -95,7 +95,7 @@ final class MQTTService: ObservableObject {
         bluetooth.onState = { [weak self] deviceID, state in
             Task { @MainActor in
                 // BLE packets are local only; they must not refresh the MQTT freshness clock.
-                self?.receive(state, from: deviceID)
+                self?.receive(state, from: deviceID, transport: .ble)
             }
         }
         bluetooth.onRSSI = { [weak self] deviceID, rssi in
@@ -349,7 +349,7 @@ final class MQTTService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.client === mqtt else { return }
                 self.lastCloudStateAt[deviceID] = Date()
-                self.receive(state, from: deviceID)
+                self.receive(state, from: deviceID, transport: .cloud)
             }
         }
 
@@ -645,7 +645,19 @@ final class MQTTService: ObservableObject {
         }
     }
 
-    private func receive(_ state: VehicleState, from deviceID: String) {
+    // Vehicle telemetry is cloud-authoritative. BLE stays a small, independent
+    // control plane for owner enrolment, keyless state and local event delivery.
+    // Older ESP firmware may still *transmit* telemetry over BLE until updated;
+    // the iPhone intentionally does not decode/merge that into the dashboard.
+    private enum VehicleTransport { case ble, cloud }
+
+    private func receive(_ state: VehicleState, from deviceID: String, transport: VehicleTransport) {
+        if transport == .ble {
+            let localControlPacket = state.ownerStatePacket || state.coreStatePacket || state.vehicleEventPacket
+            // No dashboard/OBD/body/GPS/health stream from BLE. Preserve the
+            // owner's local events and command feedback, even without Internet.
+            guard localControlPacket else { return }
+        }
         defer { syncSelectedWidget() }
         if !state.partialState { lastFullAt[deviceID] = Date() }
         if state.lastEvent == "rejected_unknown_phone" && (state.coreStatePacket || !state.partialState) {
