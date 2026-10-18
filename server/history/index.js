@@ -44,7 +44,7 @@ async function ingest(payload,topic) {
     const dist=geoDistance(last,point);
     if(dist<1000)await client.query('UPDATE journey_trips SET distance_m=distance_m+$1,max_speed_kph=GREATEST(max_speed_kph,$2) WHERE id=$3',[dist,speed||0,id]);
    }
-   if(!moving&&last&&!last.moving&&(time-last.time)>=120000){
+   if(!moving&&last&&last.idleSince&&(time-last.idleSince)>=120000){
     await client.query('UPDATE journey_trips SET ended_at=$1,end_lat=$2,end_lon=$3 WHERE id=$4 AND ended_at IS NULL',[time,lat,lon,id]);
     await client.query('INSERT INTO journey_stops(device_id,trip_id,arrived_at,lat,lon) VALUES($1,$2,$3,$4,$5)',[key,id,last.time,lat,lon]);
     trip={rows:[]};
@@ -52,7 +52,7 @@ async function ingest(payload,topic) {
   }
   if(moving)await client.query('UPDATE journey_stops SET departed_at=$1 WHERE device_id=$2 AND departed_at IS NULL',[time,key]);
   await client.query('COMMIT');
-  sessions.set(key,{...point,moving,tripId:trip.rows[0]?.id||null});
+  sessions.set(key,{...point,moving,idleSince:moving?null:(last?.idleSince||time),tripId:trip.rows[0]?.id||null});
  }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}
 }
 app.use('/api', (req,res,next)=>{const header=req.get('authorization')||'';if(header!==`Bearer ${API_TOKEN}`)return res.status(401).json({error:'unauthorized'});next();});
