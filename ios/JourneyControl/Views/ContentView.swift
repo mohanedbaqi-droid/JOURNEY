@@ -121,7 +121,7 @@ struct ContentView: View {
                         bluetoothStatus: mqtt.bluetoothStatus,
                         deviceID: devices.selectedDevice?.deviceID
                     )
-                        .navigationTitle(JL("فحص البورد المحلي", "Local board diagnostics"))
+                        .navigationTitle(JL("حالة واتصال ESP", "ESP status and connectivity"))
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
