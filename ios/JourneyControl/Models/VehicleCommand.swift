@@ -294,6 +294,9 @@ struct BenchEvent: Identifiable, Equatable {
         case .obdClearDTC:
             title = JL("مسح أخطاء OBD", "Clear OBD trouble codes")
             icon = "exclamationmark.triangle"
+        case .espDiagnostics:
+            title = JL("سحب التشخيص الكامل من ESP", "Download full ESP diagnostics")
+            icon = "arrow.down.doc.fill"
         case .eventAck:
             title = JL("تأكيد استلام حدث ESP", "Confirm ESP event received")
             icon = "checkmark.circle.fill"
