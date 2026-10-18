@@ -170,11 +170,13 @@ private struct JourneyWidgetView: View {
                     action("lock.open.fill", t("فتح", "Unlock"), .cyan)
                 }
             } else {
-                // Physical commands still require the enrolled host app.
-                Link(destination: URL(string: "journeycontrol://widget/lock")!) {
+                // LiveActivityIntent is implemented by the enrolled app process,
+                // reusing its authenticated BLE/MQTT transport without a deep link.
+                // If iOS cannot launch the app intent, no command is issued.
+                Button(intent: JourneyActivityLockIntent(deviceID: s.deviceID)) {
                     action("lock.fill", t("قفل", "Lock"), .cyan)
                 }
-                Link(destination: URL(string: "journeycontrol://widget/unlock")!) {
+                Button(intent: JourneyActivityUnlockIntent(deviceID: s.deviceID)) {
                     action("lock.open.fill", t("فتح", "Unlock"), .cyan)
                 }
             }
