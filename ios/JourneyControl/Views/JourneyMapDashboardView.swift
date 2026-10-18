@@ -108,7 +108,7 @@ struct JourneyMapDashboardView: View {
 
     private var historyList: some View {
         List {
-            Section("نقاط GPS المسجلة خلال 7 أيام") {
+            Section(header: Text("نقاط GPS المسجلة خلال 7 أيام")) {
                 ForEach(Array(history.points.reversed())) { point in
                     VStack(alignment: .leading) {
                         Text(point.timestamp, format: .dateTime.day().month().hour().minute())
