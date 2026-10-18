@@ -93,8 +93,9 @@ final class MQTTService: ObservableObject {
     @discardableResult
     func requestFullDiagnostics(for deviceID: String) -> Bool {
         guard !diagnosticTransferBusy else { return false }
-        guard connection == .connected else {
-            diagnosticTransferStatus = JL("يحتاج اتصال MQTT عبر 4G", "An MQTT/4G connection is required")
+        let useBLE = bluetooth.isConnected(to: deviceID)
+        guard useBLE || connection == .connected else {
+            diagnosticTransferStatus = JL("اتصل بالـESP عبر BLE أو الإنترنت", "Connect to ESP over BLE or the Internet")
             return false
         }
         diagnosticDeviceID = deviceID
@@ -105,8 +106,10 @@ final class MQTTService: ObservableObject {
         diagnosticStartedAt = Date()
         diagnosticTransferBusy = true
         diagnosticTransferStatus = JL("بانتظار ملف التشخيص من ESP…", "Waiting for ESP diagnostics…")
-        // KR20 publishes on the diagnostics topic, so request via MQTT, not BLE.
-        if publishCloud(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID) {
+        // Prefer authenticated local BLE; cloud is the remote fallback.
+        let request = VehicleCommand(action: .espDiagnostics, diagnosticSince: 0)
+        if (useBLE && bluetooth.send(request, to: deviceID)) ||
+            (!useBLE && publishCloud(request, to: deviceID)) {
             // A lost MQTT chunk must not leave the download spinner running forever.
             let startedAt = diagnosticStartedAt
             Task { @MainActor [weak self] in
@@ -121,7 +124,7 @@ final class MQTTService: ObservableObject {
             return true
         }
         diagnosticTransferBusy = false
-        diagnosticTransferStatus = JL("تعذر إرسال طلب التشخيص عبر MQTT", "Could not request diagnostics over MQTT")
+        diagnosticTransferStatus = JL("تعذر إرسال طلب التشخيص", "Could not request diagnostics")
         return false
     }
 
@@ -183,6 +186,11 @@ final class MQTTService: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
 
     init() {
+        bluetooth.onDiagnosticChunk = { [weak self] deviceID, payload in
+            Task { @MainActor in
+                self?.receiveDiagnosticChunk(payload, deviceID: deviceID)
+            }
+        }
         bluetooth.onState = { [weak self] deviceID, state in
             Task { @MainActor in
                 // BLE packets are local only; they must not refresh the MQTT freshness clock.
