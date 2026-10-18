@@ -29,6 +29,22 @@ jobs:
           arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core install esp32:esp32@3.3.2 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           for lib in 'ArduinoJson' 'PubSubClient' 'TM1637Display' 'Adafruit PN532'; do arduino-cli lib install "$lib"; done
+      - name: Inject MQTT password from GitHub Secret
+        env:
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
+        run: |
+          test -n "$MQTT_PASSWORD" || { echo "Missing MQTT_PASSWORD secret"; exit 1; }
+          python3 - <<'PY'
+          import os, pathlib, re
+          p=pathlib.Path(os.environ["SKETCH_DIR"])/"config.h"
+          src=p.read_text()
+          value=os.environ["MQTT_PASSWORD"]
+          escaped=value.replace('\\','\\\\').replace('"','\\"')
+          pattern=r'(constexpr\s+char\s+MQTT_PASSWORD\[\]\s*=\s*)"(?:[^"\\]|\\.)*"'
+          src,n=re.subn(pattern,lambda m:m.group(1)+'"'+escaped+'"',src)
+          assert n==1, "MQTT_PASSWORD declaration not found"
+          p.write_text(src)
+          PY
       - name: Compile ESP32-S3
         run: |
           mkdir -p /tmp/build
