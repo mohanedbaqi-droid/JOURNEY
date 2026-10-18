@@ -84,35 +84,15 @@ final class VehicleNotificationService {
         guard let old else { return }
 
         var changes: [String] = []
-        // v12.51: notify on the actual proximity transition even when lock state
-        // does not change (for example manual-lock latch or remote already on).
-        if keylessNotificationsEnabled && old.lastEvent != new.lastEvent {
-            if new.lastEvent == "keyless_presence_near" {
-                changes.append(JL("اقتربت من السيارة — تم اكتشاف الهاتف", "Approaching vehicle — phone detected"))
-            } else if new.lastEvent == "keyless_presence_far" {
-                changes.append(JL("ابتعدت عن السيارة — خرج الهاتف من نطاق القرب", "Leaving vehicle — phone outside proximity range"))
-            }
-        }
-        if lockNotificationsEnabled && old.simulatedLocked != new.simulatedLocked {
-            if new.lastEvent == "keyless_unlock" {
-                changes.append(JL("اقتربت من السيارة — تم فتح السيارة", "Approaching vehicle — vehicle unlocked"))
-            } else if new.lastEvent == "keyless_lock_departure" || new.lastEvent == "keyless_lock" {
-                changes.append(JL("ابتعدت عن السيارة — تم قفل السيارة", "Leaving vehicle — vehicle locked"))
-            } else {
-                changes.append(new.simulatedLocked ? JL("تم قفل السيارة", "Vehicle locked") : JL("تم فتح السيارة", "Vehicle unlocked"))
-            }
-        }
-        if lockNotificationsEnabled && old.lastEvent != new.lastEvent, new.lastEvent == "keyless_lock_disconnect_confirm" {
-            changes.append(JL("انقطع BLE — تم تأكيد قفل السيارة مرة ثانية", "BLE disconnected — vehicle lock confirmed again"))
-        }
+        // KR20: keyless notifications come ONLY from ESP events with stable IDs.
+        // Never derive lock/unlock from simulatedLocked, BLE reconnects, or
+        // repeated lastEvent telemetry. CAN lock state is displayed separately.
         if old.simulatedDoorsOpen != new.simulatedDoorsOpen {
             changes.append(new.simulatedDoorsOpen ? JL("الباب مفتوح", "Door open") : JL("الأبواب مغلقة", "Doors closed"))
         }
         // Engine start/stop notifications come only from explicit OBD events.
         // Transient OBD timeouts must not generate false shutdown/start alerts.
-        if old.remotePowered != new.remotePowered {
-            changes.append(new.remotePowered ? JL("الريموت اشتغل", "Remote power on") : JL("الريموت انطفأ بعد تنفيذ المهمة", "Remote power off after the action"))
-        }
+        // Remote power pulses are diagnostic data, not push notifications.
         if old.headlightsOn != new.headlightsOn {
             changes.append(new.headlightsOn ? JL("اللايت اشتغل", "Lights on") : JL("اللايت انطفأ", "Lights off"))
         }
