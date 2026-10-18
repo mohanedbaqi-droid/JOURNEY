@@ -98,6 +98,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     @Published private(set) var status = JL("غير متصل", "Disconnected")
 
     var onState: ((String, VehicleState) -> Void)?
+    var onDiagnosticChunk: ((String, String) -> Void)?
     var onRSSI: ((String, Int) -> Void)?
 
     private var central: CBCentralManager!
@@ -382,10 +383,17 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard error == nil, characteristic.uuid == stateUUID,
               let data = characteristic.value,
-              let state = try? JSONDecoder().decode(VehicleState.self, from: data),
-              let deviceID = deviceIDs[peripheral.identifier]
-        else { return }
-        onState?(deviceID, state)
+              let deviceID = deviceIDs[peripheral.identifier] else { return }
+        // Diagnostic chunks are not VehicleState messages.
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           object["ds"] != nil, object["di"] != nil,
+           object["dn"] != nil, object["dx"] != nil {
+            onDiagnosticChunk?(deviceID, String(decoding: data, as: UTF8.self))
+            return
+        }
+        if let state = try? JSONDecoder().decode(VehicleState.self, from: data) {
+            onState?(deviceID, state)
+        }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
