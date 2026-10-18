@@ -76,6 +76,10 @@ final class MQTTService: ObservableObject {
     @Published private(set) var lastStateAt: [String: Date] = [:]
     // Only broker-delivered telemetry proves the cloud route; BLE packets do not.
     private var lastCloudStateAt: [String: Date] = [:]
+    // Distinguish fresh Internet data from local BLE presence during field tests.
+    func cloudTelemetryAge(for deviceID: String) -> TimeInterval? {
+        lastCloudStateAt[deviceID].map { Date().timeIntervalSince($0) }
+    }
     @Published private(set) var commandHistory: [BenchEvent] = []
     @Published private(set) var bluetoothStatus = JL("غير متصل", "Disconnected")
     // v12.52: independent real ESP button feedback. Do not use lastEvent because
