@@ -33,7 +33,9 @@ final class VehicleNotificationService {
 
     @discardableResult
     func notifyVehicleEvent(id: String, type: String, text: String, vehicleName: String) -> Bool {
-        guard !id.isEmpty, eventAllowed(type) else { return false }
+        guard !id.isEmpty else { return false }
+        // Disabled notification categories still ACK their event to stop ESP replay.
+        guard eventAllowed(type) else { return true }
         let key = "journey.vehicle.event.delivered.\(id)"
         if defaults.bool(forKey: key) { return true }
 
