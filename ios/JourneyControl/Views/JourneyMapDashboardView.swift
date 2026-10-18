@@ -9,6 +9,7 @@ struct JourneyMapDashboardView: View {
     let vehicleName: String
     let deviceID: String?
     @State private var selection: Section = .live
+    @StateObject private var history = JourneyLocalHistory.shared
     @State private var mapStyle: MapKind = .standard
 
     private enum Section: String, CaseIterable, Identifiable {
@@ -61,9 +62,9 @@ struct JourneyMapDashboardView: View {
                     VehicleMapView(vehicle: vehicle, vehicleName: vehicleName, deviceID: deviceID)
                         .environmentObject(mqtt)
                 case .trips:
-                    placeholder("سجل الرحلات", "راح تظهر الرحلات هنا بعد ربط تخزين الرحلات بالسيرفر.", "point.topleft.down.curvedto.point.bottomright.up")
+                    historyList
                 case .stops:
-                    placeholder("سجل التوقفات", "راح تظهر مواقع التوقف ومددها هنا بعد ربط السجل بالسيرفر.", "parkingsign.circle")
+                    stopsList
                 case .statistics:
                     VStack(alignment: .leading, spacing: 18) {
                         Label("معلومات السيارة المباشرة", systemImage: "chart.bar")
@@ -84,7 +85,7 @@ struct JourneyMapDashboardView: View {
                             Text(stateText)
                         }
                         Divider()
-                        Text("إحصائيات المسافة والرحلات تحتاج سجل السيرفر؛ ما راح نعرض أرقام تخمينية.")
+                        Text("المسافة المسجلة محلياً خلال أسبوع: \(history.distanceKm, specifier: "%.1f") كم. التسجيل قد يتوقف عند إغلاق التطبيق.")
                             .foregroundStyle(.secondary).font(.footnote)
                         Spacer()
                     }.padding()
@@ -93,7 +94,42 @@ struct JourneyMapDashboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.black)
+        .onAppear { capturePoint(); history.prune() }
+        .onChange(of: vehicle.latitude) { _ in capturePoint() }
+        .onChange(of: vehicle.longitude) { _ in capturePoint() }
     }
+
+    private func capturePoint() {
+        guard vehicle.gpsValid, vehicle.online else { return }
+        history.record(latitude: vehicle.latitude, longitude: vehicle.longitude,
+                       speedKph: vehicle.speedValid ? Double(vehicle.speedKph) : nil,
+                       engineRunning: vehicle.rpmValid ? vehicle.simulatedEngineRunning : nil)
+    }
+
+    private var historyList: some View {
+        List {
+            Section("نقاط GPS المسجلة خلال 7 أيام") {
+                ForEach(Array(history.points.reversed())) { point in
+                    VStack(alignment: .leading) {
+                        Text(point.timestamp, format: .dateTime.day().month().hour().minute())
+                        Text(String(format: "%.5f, %.5f", point.latitude, point.longitude))
+                            .font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var stopsList: some View {
+        VStack(spacing: 12) {
+            Text("التوقفات").font(.headline)
+            Text("النقاط محفوظة محلياً لمدة أسبوع؛ تحليل التوقفات التفصيلي قيد التطوير.")
+                .foregroundStyle(.secondary)
+            Text("عدد النقاط: \(history.points.count)")
+            Spacer()
+        }.padding()
+    }
+
 
     private func placeholder(_ title: String, _ detail: String, _ symbol: String) -> some View {
         ContentUnavailableView(title, systemImage: symbol, description: Text(detail))
