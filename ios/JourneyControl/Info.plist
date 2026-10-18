@@ -24,13 +24,6 @@
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>يتصل التطبيق مباشرةً ببورد ESP32 للتحكم المحلي بالسيارة وقراءة حالتها عند عدم توفر الإنترنت أو الشريحة.</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>يتصل التطبيق بشبكة ESP32 المحلية لرفع تحديث firmware من الآيفون.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
