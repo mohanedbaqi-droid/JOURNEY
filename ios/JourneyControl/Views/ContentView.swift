@@ -1334,7 +1334,7 @@ private struct ESPStatusView: View {
                 if !diagnosticMessage.isEmpty {
                     Text(diagnosticMessage).font(.footnote).foregroundStyle(.secondary)
                 }
-                Text(JL("هذا تقرير مفصل من آخر بيانات ESP المستلمة عبر BLE أو 4G، وليس سجل Serial Monitor الخام. سحب سجل السيريال يتطلب دعماً إضافياً في فيرموير ESP.", "This report captures the latest ESP telemetry received over BLE or 4G; it is not the raw Serial Monitor log. Raw serial retrieval requires firmware support."))
+                Text(JL("بيانات السيارة وGPS من 4G/MQTT؛ البلوتوث للكيليس والأوامر المحلية. هذا تقرير آخر قراءة وليس سجل Serial Monitor الخام.", "Vehicle and GPS telemetry comes from 4G/MQTT; BLE is for keyless and local commands. This is a latest-state report, not raw serial output."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section(JL("OBD عبر BLE", "OBD over BLE")) {
@@ -1414,6 +1414,8 @@ private struct ESPStatusView: View {
             "[CONNECTIVITY]",
             "BLE: \(mqtt.bluetoothStatus)",
             "MQTT: \(mqtt.connection.title)",
+            "Telemetry source: MQTT ONLY (BLE local controls/events)",
+            "Last cloud telemetry age: \(mqtt.cloudTelemetryAge(for: deviceID).map { String(format: "%.1f seconds", $0) } ?? "NEVER RECEIVED")",
             "ESP online: \(value(v.online))",
             "Cloud connected: \(value(v.cloudConnected))",
             "Internet route: \(v.internetRoute)",
