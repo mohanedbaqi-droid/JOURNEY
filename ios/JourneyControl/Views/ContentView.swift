@@ -1806,87 +1806,68 @@ struct VehicleMapView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
                 HStack(spacing: 10) {
-                    mapCommandButton(JL("قفل", "Lock"), icon: "lock.fill", tint: .blue) { send(.lock) }
                     mapCommandButton(JL("فتح", "Unlock"), icon: "lock.open.fill", tint: .green) { send(.unlock) }
+                    mapCommandButton(JL("قفل", "Lock"), icon: "lock.fill", tint: .blue) { send(.lock) }
                 }
-                ZStack(alignment: .topTrailing) {
-            Map(coordinateRegion: $region, annotationItems: points) { point in
-                MapAnnotation(coordinate: point.coordinate) {
-                    VStack(spacing: 4) {
-                        Image(systemName: "car.fill")
-                            .font(.title2)
-                            .foregroundStyle(.white)
-                            .padding(10)
-                            .background(.cyan, in: Circle())
-                            .shadow(color: .cyan.opacity(0.45), radius: 10)
-                        Text(vehicleName)
-                            .font(.caption.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.black.opacity(0.75), in: Capsule())
-                    }
-                }
-            }
-                    .frame(height: 335)
-                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
 
-                    Label(vehicle.gpsValid ? JL("الموقع الحي", "Live location") : JL("بانتظار GPS", "Waiting for GPS"), systemImage: vehicle.gpsValid ? "location.fill" : "location.slash.fill")
-                        .font(.caption.bold())
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 8)
-                        .background(.black.opacity(0.72), in: Capsule())
-                        .padding(13)
-                }
-
-                HStack(spacing: 8) {
-                    mapStatus(vehicle.canLockValid ? (vehicle.canLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked")) : JL("حالة القفل غير معروفة", "Lock state unknown"), icon: vehicle.canLockValid ? (vehicle.canLocked ? "lock.fill" : "lock.open.fill") : "questionmark.circle", active: vehicle.canLockValid && !vehicle.canLocked)
-                    mapStatus(vehicle.engineStateText, icon: "engine.combustion.fill", active: vehicle.simulatedEngineRunning)
-                    mapStatus(vehicle.gpsValid ? JL("GPS متصل", "GPS connected") : JL("GPS بانتظار", "Waiting for GPS"), icon: "location.fill", active: vehicle.gpsValid)
-                }
-
-                VStack(alignment: .leading, spacing: 9) {
-                    HStack {
-                        Text(JL("حالة السيارة", "Vehicle status")).font(.headline)
-                        Spacer()
-                        Circle().fill(vehicle.online ? .green : .orange).frame(width: 9, height: 9)
-                    }
-                    if vehicle.gpsValid {
-                        Label(locationName, systemImage: "mappin.and.ellipse")
-                            .font(.subheadline.weight(.semibold))
-                        Text(String(format: "%.6f, %.6f", vehicle.latitude, vehicle.longitude))
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        Button {
-                            let url = URL(string: "http://maps.apple.com/?ll=\(vehicle.latitude),\(vehicle.longitude)&q=JOURNEY")!
-                            UIApplication.shared.open(url)
-                        } label: {
-                            Label(JL("فتح في خرائط Apple", "Open in Apple Maps"), systemImage: "arrow.up.right.square")
-                                .frame(maxWidth: .infinity)
+                ZStack(alignment: .topLeading) {
+                    Map(coordinateRegion: $region, annotationItems: points) { point in
+                        MapAnnotation(coordinate: point.coordinate) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "car.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.white)
+                                    .padding(10)
+                                    .background(
+                                        vehicle.online && vehicle.rpmValid
+                                            ? (vehicle.simulatedEngineRunning ? Color.green : Color.yellow)
+                                            : Color.gray,
+                                        in: Circle()
+                                    )
+                                Text(vehicleName)
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(.black.opacity(0.75), in: Capsule())
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                    } else {
-                        Text(JL("تظهر السيارة هنا تلقائياً عندما ينشر ESP إحداثيات GPS.", "The vehicle appears here automatically when ESP publishes GPS coordinates."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(
+                            vehicle.gpsValid ? JL("الموقع الحي", "Live location") : JL("بانتظار GPS", "Waiting for GPS"),
+                            systemImage: vehicle.gpsValid ? "location.fill" : "location.slash.fill"
+                        )
+                        .font(.caption.bold())
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(.black.opacity(0.78), in: Capsule())
+
+                        if vehicle.speedValid {
+                            Text("\(vehicle.speedKph) كم/س")
+                                .font(.caption.bold().monospacedDigit())
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(.black.opacity(0.78), in: Capsule())
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .padding(12)
                 }
-                .padding(15)
-                .background(JourneyTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
+                .frame(height: max(geometry.size.height - 76, 250))
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .padding(.horizontal, 8)
+                .padding(.bottom, 4)
             }
-            .padding()
-            .padding(.top, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .background { JourneyWallpaperView() }
-        .navigationTitle(JL("الخريطة والتعقّب", "Map and tracking"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button(JL("تم", "Done")) { dismiss() }
-            }
-        }
+        .background(Color.black)
         .task(id: "\(vehicle.latitude),\(vehicle.longitude),\(vehicle.gpsValid)") {
             await resolveLocationName()
         }
