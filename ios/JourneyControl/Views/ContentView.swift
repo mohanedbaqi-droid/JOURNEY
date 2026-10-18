@@ -1783,6 +1783,7 @@ struct VehicleMapView: View {
     let deviceID: String?
     @State private var region: MKCoordinateRegion
     @State private var locationName = JL("بانتظار GPS", "Waiting for GPS")
+    @State private var expandedMap = false
 
     init(vehicle: VehicleState, vehicleName: String, deviceID: String?) {
         self.vehicle = vehicle
@@ -1838,6 +1839,7 @@ struct VehicleMapView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .simultaneousGesture(TapGesture().onEnded { expandedMap = true })
 
                     VStack(alignment: .leading, spacing: 8) {
                         Label(
@@ -1864,10 +1866,44 @@ struct VehicleMapView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 18))
                 .padding(.horizontal, 8)
                 .padding(.bottom, 4)
+                .overlay(alignment: .bottomTrailing) {
+                    Button { expandedMap = true } label: {
+                        Label(JL("تكبير الخريطة", "Expand map"), systemImage: "arrow.up.left.and.arrow.down.right")
+                            .font(.caption.bold())
+                            .padding(11)
+                            .background(.black.opacity(0.78), in: Capsule())
+                    }
+                    .foregroundStyle(.white)
+                    .padding(18)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Color.black)
+        .fullScreenCover(isPresented: $expandedMap) {
+            NavigationStack {
+                Map(coordinateRegion: $region, annotationItems: points) { point in
+                    MapAnnotation(coordinate: point.coordinate) {
+                        Image(systemName: "car.fill")
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .padding(12)
+                            .background(
+                                vehicle.online && vehicle.rpmValid
+                                    ? (vehicle.simulatedEngineRunning ? Color.green : Color.yellow)
+                                    : Color.gray,
+                                in: Circle()
+                            )
+                    }
+                }
+                .ignoresSafeArea(edges: .bottom)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(JL("إغلاق", "Close")) { expandedMap = false }
+                    }
+                }
+            }
+        }
         .task(id: "\(vehicle.latitude),\(vehicle.longitude),\(vehicle.gpsValid)") {
             await resolveLocationName()
         }
