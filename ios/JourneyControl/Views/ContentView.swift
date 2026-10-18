@@ -76,7 +76,7 @@ struct ContentView: View {
                         case 1:
                             controlsPage(device: device, vehicle: vehicle)
                         case 2:
-                            VehicleMapView(vehicle: vehicle, vehicleName: device.name, deviceID: device.deviceID)
+                            JourneyMapDashboardView(vehicle: vehicle, vehicleName: device.name, deviceID: device.deviceID)
                                 .environmentObject(mqtt)
                         default:
                             overviewPage(device: device, vehicle: vehicle)
@@ -172,7 +172,7 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingMap) {
                 NavigationStack {
-                    VehicleMapView(
+                    JourneyMapDashboardView(
                         vehicle: devices.selectedDevice.map { mqtt.state(for: $0.deviceID) } ?? VehicleState(),
                         vehicleName: devices.selectedDevice?.name ?? "JOURNEY",
                         deviceID: devices.selectedDevice?.deviceID
