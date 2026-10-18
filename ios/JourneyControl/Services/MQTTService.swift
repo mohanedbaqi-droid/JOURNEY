@@ -224,6 +224,7 @@ final class MQTTService: ObservableObject {
                     guard var state = self.vehicles[deviceID] else { continue }
                     state.doorsValid = false; state.lightsValid = false; state.turnsValid = false
                     state.leftSignalOn = false; state.rightSignalOn = false; state.headlightsOn = false
+                    state.canLockValid = false
                     self.vehicles[deviceID] = state
                 }
                 for (deviceID, feedbackAt) in self.lastFeedbackAt where now.timeIntervalSince(feedbackAt) > 1.5 {
@@ -871,6 +872,8 @@ final class MQTTService: ObservableObject {
                 merged.doorsValid = state.doorsValid; merged.lightsValid = state.lightsValid; merged.turnsValid = state.turnsValid
                 merged.simulatedDoorsOpen = state.doorsValid && state.simulatedDoorsOpen
                 if state.doorsValid { merged.simulatedLocked = state.simulatedLocked }
+                merged.canLockValid = state.canLockValid
+                merged.canLocked = state.canLockValid && state.canLocked
                 merged.headlightsOn = state.lightsValid && state.headlightsOn
                 merged.leftSignalOn = state.turnsValid && state.leftSignalOn
                 merged.rightSignalOn = state.turnsValid && state.rightSignalOn
