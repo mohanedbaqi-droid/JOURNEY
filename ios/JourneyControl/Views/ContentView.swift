@@ -1807,7 +1807,7 @@ struct VehicleMapView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 14) {
+            VStack(spacing: 14) {\n                HStack(spacing: 10) {\n                    mapCommandButton(JL("قفل", "Lock"), icon: "lock.fill", tint: .blue) { send(.lock) }\n                    mapCommandButton(JL("فتح", "Unlock"), icon: "lock.open.fill", tint: .green) { send(.unlock) }\n                }
                 ZStack(alignment: .topTrailing) {
             Map(coordinateRegion: $region, annotationItems: points) { point in
                 MapAnnotation(coordinate: point.coordinate) {
@@ -1835,11 +1835,6 @@ struct VehicleMapView: View {
                         .padding(.vertical, 8)
                         .background(.black.opacity(0.72), in: Capsule())
                         .padding(13)
-                }
-
-                HStack(spacing: 10) {
-                    mapCommandButton(JL("قفل", "Lock"), icon: "lock.fill", tint: .blue) { send(.lock) }
-                    mapCommandButton(JL("فتح", "Unlock"), icon: "lock.open.fill", tint: .green) { send(.unlock) }
                 }
 
                 HStack(spacing: 8) {
@@ -1878,7 +1873,7 @@ struct VehicleMapView: View {
                 .background(JourneyTheme.ink.opacity(0.07), in: RoundedRectangle(cornerRadius: 20))
             }
             .padding()
-            .padding(.top, 88)
+            .padding(.top, 4)
         }
         .background { JourneyWallpaperView() }
         .navigationTitle(JL("الخريطة والتعقّب", "Map and tracking"))
