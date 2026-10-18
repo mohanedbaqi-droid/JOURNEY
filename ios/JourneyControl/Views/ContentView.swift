@@ -1807,7 +1807,11 @@ struct VehicleMapView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 14) {\n                HStack(spacing: 10) {\n                    mapCommandButton(JL("قفل", "Lock"), icon: "lock.fill", tint: .blue) { send(.lock) }\n                    mapCommandButton(JL("فتح", "Unlock"), icon: "lock.open.fill", tint: .green) { send(.unlock) }\n                }
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    mapCommandButton(JL("قفل", "Lock"), icon: "lock.fill", tint: .blue) { send(.lock) }
+                    mapCommandButton(JL("فتح", "Unlock"), icon: "lock.open.fill", tint: .green) { send(.unlock) }
+                }
                 ZStack(alignment: .topTrailing) {
             Map(coordinateRegion: $region, annotationItems: points) { point in
                 MapAnnotation(coordinate: point.coordinate) {
