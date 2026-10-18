@@ -1281,8 +1281,6 @@ private struct ESPStatusView: View {
     @State private var pendingTempWarning: Int?
     @State private var tempSaveStatus = ""
     @State private var updateStatus = ""
-    @State private var showingFirmwarePicker = false
-    @State private var isUpdating = false
     @State private var firmwareURL = ""
     @State private var maintenanceMode = false
     @State private var powerSaveMode = 0
@@ -1358,23 +1356,6 @@ private struct ESPStatusView: View {
                     .disabled(deviceID == nil)
             }
             Section(JL("تحديث Firmware", "Firmware update")) {
-                if vehicle.wifiConnected && !vehicle.otaAddress.isEmpty {
-                    statusRow(JL("عنوان OTA المحلي", "Local OTA address"), vehicle.otaAddress)
-                    Button(JL("اختيار firmware.bin ورفعه عبر Wi-Fi", "Select firmware.bin and upload via Wi-Fi"), systemImage: "square.and.arrow.up") {
-                        showingFirmwarePicker = true
-                    }
-                    .disabled(isUpdating)
-                    Text(JL("لازم الآيفون والـESP يكونون على نفس شبكة Wi-Fi. هذا تحديث محلي مستقل عن OBD.", "iPhone and ESP must be on the same Wi-Fi network. This is local firmware update, independent of OBD."))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(JL("للتحديث المحلي، فعّل Wi-Fi للـESP واربط الآيفون بنفس الشبكة؛ راح يظهر عنوان OTA تلقائياً.", "For local OTA, enable ESP Wi-Fi and join the same network on iPhone; the OTA address will appear automatically."))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                if !updateStatus.isEmpty {
-                    Text(updateStatus).font(.footnote)
-                }
                 TextField(JL("رابط HTTPS لملف firmware.bin", "HTTPS URL for firmware.bin"), text: $firmwareURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -1395,12 +1376,6 @@ private struct ESPStatusView: View {
         }
         .onAppear { loadSettings(); syncTempWarning() }
         .onChange(of: vehicle.espTempWarningC) { _ in syncTempWarning() }
-        .fileImporter(isPresented: $showingFirmwarePicker, allowedContentTypes: [.data]) { result in
-            switch result {
-            case .success(let file): uploadFirmware(file)
-            case .failure(let error): updateStatus = error.localizedDescription
-            }
-        }
     }
 
     private func statusRow(_ title: String, _ value: String) -> some View {
@@ -1461,51 +1436,6 @@ private struct ESPStatusView: View {
         guard let deviceID else { return }
         let settings = ESPRuntimeSettings(remotePulseMs: Int(pulseMs), remoteWakeDelayMs: Int(wakeDelayMs), remotePowerOffDelayMs: Int(powerOffDelayMs), hudBrightness: Int(hudBrightness))
         updateStatus = mqtt.sendESPSettings(settings, to: deviceID) ? JL("تم إرسال الإعدادات إلى ESP", "Settings sent to ESP") : JL("تعذر إرسال الإعدادات", "Could not send settings")
-    }
-
-    private func uploadFirmware(_ file: URL) {
-        guard vehicle.wifiConnected,
-              let baseURL = URL(string: vehicle.otaAddress),
-              baseURL.scheme?.lowercased() == "http",
-              let host = baseURL.host, !host.isEmpty,
-              file.pathExtension.lowercased() == "bin" else {
-            updateStatus = JL("تأكد من اتصال Wi-Fi المحلي واختيار ملف firmware.bin", "Check local Wi-Fi and select a firmware.bin file")
-            return
-        }
-        guard !isUpdating else { return }
-        isUpdating = true
-        updateStatus = JL("جاري رفع التحديث المحلي…", "Uploading local firmware…")
-        Task { @MainActor in
-            let scoped = file.startAccessingSecurityScopedResource()
-            defer {
-                if scoped { file.stopAccessingSecurityScopedResource() }
-                isUpdating = false
-            }
-            do {
-                let firmware = try Data(contentsOf: file)
-                guard firmware.count > 0 && firmware.count <= 8_000_000 else {
-                    updateStatus = JL("حجم ملف التحديث غير صالح", "Invalid firmware file size")
-                    return
-                }
-                // ESP WebServer::upload() expects multipart/form-data, not raw octet-stream.
-                let boundary = "JourneyFirmwareUpload"
-                var body = Data()
-                body.append(Data(("--\(boundary)\r\nContent-Disposition: form-data; name=\"firmware\"; filename=\"firmware.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n").utf8))
-                body.append(firmware)
-                body.append(Data(("\r\n--\(boundary)--\r\n").utf8))
-                var request = URLRequest(url: baseURL.appendingPathComponent("update"))
-                request.httpMethod = "POST"
-                request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-                request.timeoutInterval = 180
-                let (_, response) = try await URLSession.shared.upload(for: request, from: body)
-                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                updateStatus = status == 200
-                    ? JL("رفع التحديث نجح؛ انتظر إعادة تشغيل ESP", "Upload accepted; wait for ESP to restart")
-                    : JL("فشل تحديث ESP: HTTP \(status)", "ESP update failed: HTTP \(status)")
-            } catch {
-                updateStatus = JL("فشل رفع التحديث: \(error.localizedDescription)", "Upload failed: \(error.localizedDescription)")
-            }
-        }
     }
 
     private func updateThrough4G() {
