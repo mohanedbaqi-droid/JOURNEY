@@ -62,6 +62,11 @@ struct JourneyWidgetSnapshot: Codable, Equatable {
     var importantKey: String {
         "\(demoMode)|\(deviceID)|\(online)|\(key(locked))|\(doorKnownMask)|\(doorOpenMask)|\(key(lowBeam))|\(key(parking))|\(key(leftTurn))|\(key(rightTurn))|\((rpm ?? -1) > 0)"
     }
+    // Telemetry changes should request a timeline refresh too; importantKey only
+    // covers body and connection events. WidgetKit still controls display timing.
+    var telemetryKey: String {
+        "\(rpm ?? -1)|\(speed ?? -1)|\(coolant ?? -1)|\(fuel ?? -1)|\(battery ?? -1)|\(espTemperature.map { Int($0.rounded()) } ?? -1)|\(espBattery.map { Int($0.rounded()) } ?? -1)|\(obdConnected)"
+    }
 }
 
 struct JourneyWidgetCommandStatus: Codable {
@@ -223,8 +228,12 @@ enum JourneyWidgetStore {
             last = UserDefaults.standard.double(forKey: "journey.widget.lastReload")
         }
 
-        if force || previous?.importantKey != snapshot.importantKey ||
-            Date().timeIntervalSince1970 - last > 60 {
+        let elapsed = Date().timeIntervalSince1970 - last
+        let importantChanged = previous?.importantKey != snapshot.importantKey
+        let telemetryChanged = previous?.telemetryKey != snapshot.telemetryKey
+        // Immediate body/lock/connection refresh; coalesce fast sensor changes
+        // to avoid exhausting the WidgetKit reload budget.
+        if force || importantChanged || (telemetryChanged && elapsed >= 15) || elapsed > 60 {
             let now = Date().timeIntervalSince1970
             if let reloadURL = groupURL?.appendingPathComponent("reload-date") {
                 try? String(now).write(to: reloadURL, atomically: true, encoding: .utf8)
