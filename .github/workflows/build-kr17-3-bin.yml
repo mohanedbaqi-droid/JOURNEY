@@ -1,0 +1,42 @@
+name: Build KR17.3 ESP32-S3 BIN
+on:
+  workflow_dispatch:
+    inputs:
+      source_zip_url:
+        description: 'HTTPS URL to KR17.3 source ZIP (use a short-lived private link; never publish credentials)'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download source
+        env:
+          SOURCE_URL: ${{ inputs.source_zip_url }}
+        run: |
+          curl --fail --location --silent --show-error "$SOURCE_URL" -o /tmp/firmware.zip
+          mkdir -p /tmp/firmware
+          unzip -q /tmp/firmware.zip -d /tmp/firmware
+          test "$(find /tmp/firmware -name '*.ino' | wc -l)" -eq 1
+          SKETCH_DIR="$(dirname "$(find /tmp/firmware -name '*.ino' | head -1)")"
+          echo "SKETCH_DIR=$SKETCH_DIR" >> "$GITHUB_ENV"
+          grep -q '#define JOURNEY_BENCH_NO_OBD 0' "$SKETCH_DIR"/*.ino
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.2 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          for lib in 'ArduinoJson' 'PubSubClient' 'TM1637Display' 'Adafruit PN532'; do arduino-cli lib install "$lib"; done
+      - name: Compile ESP32-S3
+        run: |
+          mkdir -p /tmp/build
+          arduino-cli compile --fqbn esp32:esp32:esp32s3 --build-path /tmp/build "$SKETCH_DIR" --warnings all
+      - name: Upload firmware BIN
+        uses: actions/upload-artifact@v4
+        with:
+          name: JOURNEY-KR17-3-ESP32S3-BIN
+          path: |
+            /tmp/build/*.bin
+          retention-days: 7
