@@ -108,8 +108,10 @@ final class MQTTService: ObservableObject {
         diagnosticTransferStatus = JL("بانتظار ملف التشخيص من ESP…", "Waiting for ESP diagnostics…")
         // Prefer authenticated local BLE; cloud is the remote fallback.
         let request = VehicleCommand(action: .espDiagnostics, diagnosticSince: 0)
-        if (useBLE && bluetooth.send(request, to: deviceID)) ||
-            (!useBLE && publishCloud(request, to: deviceID)) {
+        let sentViaBLE = useBLE && bluetooth.send(request, to: deviceID)
+        let sentViaCloud = !sentViaBLE && connection == .connected &&
+            publishCloud(request, to: deviceID)
+        if sentViaBLE || sentViaCloud {
             // A lost MQTT chunk must not leave the download spinner running forever.
             let startedAt = diagnosticStartedAt
             Task { @MainActor [weak self] in
