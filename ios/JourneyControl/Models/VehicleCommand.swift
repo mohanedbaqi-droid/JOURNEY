@@ -37,6 +37,7 @@ enum BenchAction: String, Codable, Hashable {
     case obdForget = "obd_forget"
     case obdScanDTC = "obd_scan_dtc"
     case obdClearDTC = "obd_clear_dtc"
+    case espDiagnostics = "esp_diagnostics"
     case eventAck = "event_ack"
     case wifiConfig = "wifi_config"
     case wifiSearch = "wifi_search"
@@ -75,6 +76,7 @@ struct VehicleCommand: Codable {
     let obdAdapter: OBDAdapterSelection?
     let obdClearConfirmed: Bool?
     let ownerTarget: String?
+    let diagnosticSince: UInt32?
     let wifiSettings: ESPWiFiSettings?
     let cellularSettings: ESPCellularSettings?
     let connectionPriority: ESPConnectionPriority?
@@ -86,10 +88,10 @@ struct VehicleCommand: Codable {
     private enum CodingKeys: String, CodingKey {
         case id, phoneID, action, schema, timestamp
         case keyless, presence, espSettings, firmwareURL, maintenanceMode
-        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, wifiSettings, cellularSettings, connectionPriority
+        case powerSave, obdAdapter, obdClearConfirmed, ownerTarget, diagnosticSince, wifiSettings, cellularSettings, connectionPriority
     }
 
-    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil, connectionPriority: ESPConnectionPriority? = nil) {
+    init(action: BenchAction, keyless: KeylessEntryConfig? = nil, presence: KeylessPresence? = nil, espSettings: ESPRuntimeSettings? = nil, firmwareURL: String? = nil, maintenanceMode: Bool? = nil, powerSave: PowerSaveSettings? = nil, obdAdapter: OBDAdapterSelection? = nil, obdClearConfirmed: Bool? = nil, ownerTarget: String? = nil, diagnosticSince: UInt32? = nil, wifiSettings: ESPWiFiSettings? = nil, cellularSettings: ESPCellularSettings? = nil, connectionPriority: ESPConnectionPriority? = nil) {
         self.id = UUID().uuidString
         self.phoneID = AppConfig.phoneID
         self.action = action
@@ -104,6 +106,7 @@ struct VehicleCommand: Codable {
         self.obdAdapter = obdAdapter
         self.obdClearConfirmed = obdClearConfirmed
         self.ownerTarget = ownerTarget
+        self.diagnosticSince = diagnosticSince
         self.wifiSettings = wifiSettings
         self.cellularSettings = cellularSettings
         self.connectionPriority = connectionPriority
@@ -125,6 +128,7 @@ struct VehicleCommand: Codable {
         try container.encodeIfPresent(obdAdapter, forKey: .obdAdapter)
         try container.encodeIfPresent(obdClearConfirmed, forKey: .obdClearConfirmed)
         try container.encodeIfPresent(ownerTarget, forKey: .ownerTarget)
+        try container.encodeIfPresent(diagnosticSince, forKey: .diagnosticSince)
         try container.encodeIfPresent(wifiSettings, forKey: .wifiSettings)
         try container.encodeIfPresent(cellularSettings, forKey: .cellularSettings)
         try container.encodeIfPresent(connectionPriority, forKey: .connectionPriority)
