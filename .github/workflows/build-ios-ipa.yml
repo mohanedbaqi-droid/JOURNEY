@@ -84,7 +84,11 @@ jobs:
 
           # These are now compiled from the source plist, not patched afterwards.
           /usr/libexec/PlistBuddy -c "Print :NSBluetoothAlwaysUsageDescription" "$APP_INFO"
-          /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO"
+          # Local Wi-Fi OTA was removed; no local-network permission should be present.
+          if /usr/libexec/PlistBuddy -c "Print :NSLocalNetworkUsageDescription" "$APP_INFO" >/dev/null 2>&1; then
+            echo "Unexpected local-network permission in iOS build" >&2
+            exit 1
+          fi
           /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$WIDGET_INFO" | grep "^com.apple.widgetkit-extension$"
 
           # Preserve desired App Group entitlements for the installation signing tool.
