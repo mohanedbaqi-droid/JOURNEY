@@ -108,6 +108,9 @@ final class MQTTService: ObservableObject {
         diagnosticTransferStatus = JL("بانتظار ملف التشخيص من ESP…", "Waiting for ESP diagnostics…")
         // Full diagnostics use MQTT first; BLE is the offline fallback.
         let request = VehicleCommand(action: .espDiagnostics, diagnosticSince: 0)
+        if connection == .connected, let client {
+            subscribeToSelectedVehicle(using: client)
+        }
         let sentViaCloud = connection == .connected &&
             publishCloud(request, to: deviceID)
         let sentViaBLE = !sentViaCloud && useBLE &&
@@ -123,6 +126,7 @@ final class MQTTService: ObservableObject {
                 self.diagnosticTransferStatus = JL("انتهت مهلة السحب؛ الملف غير مكتمل. اضغط سحب التشخيص لإعادة المحاولة.",
                                                    "Download timed out; incomplete file discarded. Tap again to retry.")
                 self.diagnosticChunks.removeAll()
+                self.diagnosticExpectedChunks = 0
             }
             return true
         }
@@ -159,7 +163,7 @@ final class MQTTService: ObservableObject {
             guard let hi = nibble(chars[offset]), let lo = nibble(chars[offset + 1]) else { return }
             chunk.append((hi << 4) | lo)
         }
-        diagnosticChunks[index] = chunk
+        if diagnosticChunks[index] == nil { diagnosticChunks[index] = chunk }
         diagnosticTransferStatus = JL("استلام التشخيص", "Receiving diagnostics") +
             " \(diagnosticChunks.count)/\(count)"
         guard diagnosticChunks.count == count else { return }
