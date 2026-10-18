@@ -1285,6 +1285,8 @@ private struct ESPStatusView: View {
     @State private var maintenanceMode = false
     @State private var powerSaveMode = 0
     @State private var powerSaveIdleMinutes = 30.0
+    @State private var diagnosticReport = ""
+    @State private var diagnosticMessage = ""
 
     var body: some View {
         List {
@@ -1314,6 +1316,26 @@ private struct ESPStatusView: View {
                     Text(JL("آخر إعادة تشغيل: هبوط تغذية (Brownout)، وليس إثباتاً لعطل حراري.", "Last reset: brownout; this does not prove a thermal fault.")).foregroundStyle(.orange)
                 }
                 statusRow(JL("فيرموير ESP", "ESP firmware"), vehicle.online ? (vehicle.firmwareVersion.isEmpty ? "—" : vehicle.firmwareVersion) : "—")
+            }
+            Section(JL("تشخيص ESP التفصيلي", "Detailed ESP diagnostics")) {
+                Button(JL("سحب التشخيص الحالي", "Capture current diagnostics"), systemImage: "waveform.path.ecg.rectangle") {
+                    captureDiagnostics()
+                }
+                .disabled(deviceID == nil)
+                if !diagnosticReport.isEmpty {
+                    Button(JL("نسخ التشخيص الكامل", "Copy diagnostic report"), systemImage: "doc.on.doc") {
+                        UIPasteboard.general.string = diagnosticReport
+                        diagnosticMessage = JL("تم نسخ التقرير", "Report copied")
+                    }
+                    Text(diagnosticReport)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+                if !diagnosticMessage.isEmpty {
+                    Text(diagnosticMessage).font(.footnote).foregroundStyle(.secondary)
+                }
+                Text(JL("هذا تقرير مفصل من آخر بيانات ESP المستلمة عبر BLE أو 4G، وليس سجل Serial Monitor الخام. سحب سجل السيريال يتطلب دعماً إضافياً في فيرموير ESP.", "This report captures the latest ESP telemetry received over BLE or 4G; it is not the raw Serial Monitor log. Raw serial retrieval requires firmware support."))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section(JL("OBD عبر BLE", "OBD over BLE")) {
                 statusRow(JL("قطعة OBD", "OBD adapter"), vehicle.obdConnected ? JL("متصلة", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
@@ -1376,6 +1398,79 @@ private struct ESPStatusView: View {
         }
         .onAppear { loadSettings(); syncTempWarning() }
         .onChange(of: vehicle.espTempWarningC) { _ in syncTempWarning() }
+    }
+
+    private func captureDiagnostics() {
+        guard let deviceID else { return }
+        let v = mqtt.state(for: deviceID)
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        let value: (Bool) -> String = { $0 ? "YES" : "NO" }
+        let report: [String] = [
+            "JOURNEY ESP TELEMETRY DIAGNOSTICS",
+            "Captured: \\(stamp)",
+            "Device: \\(deviceID)",
+            "NOTE: Latest received telemetry, NOT raw ESP serial output.",
+            "",
+            "[CONNECTIVITY]",
+            "BLE: \\(mqtt.bluetoothStatus)",
+            "MQTT: \\(mqtt.connection.title)",
+            "ESP online: \\(value(v.online))",
+            "Cloud connected: \\(value(v.cloudConnected))",
+            "Internet route: \\(v.internetRoute)",
+            "Cellular enabled: \\(value(v.cellularEnabled))",
+            "Cellular registered: \\(value(v.cellularRegistered))",
+            "Cellular attached: \\(value(v.cellularDataAttached))",
+            "Cellular status: \\(v.cellularStatus)",
+            "Cellular network: \\(v.cellularNetwork)",
+            "Cellular signal: \\(v.cellularSignalDBm) dBm",
+            "BLE RSSI: \\(v.bluetoothRSSI) dBm",
+            "",
+            "[ESP]",
+            "Firmware: \\(v.firmwareVersion)",
+            "Uptime: \\(v.uptimeSeconds) s",
+            "Reset reason: \\(v.espResetReason)",
+            "Temperature: \\(v.espTemperatureC.map { String(format: "%.2f C", $0) } ?? "N/A")",
+            "Battery voltage: \\(v.espBatteryVoltage.map { String(format: "%.2f V", $0) } ?? "N/A")",
+            "Battery percent: \\(v.espBatteryPercent.map { String(format: "%.1f%%", $0) } ?? "N/A")",
+            "Thermal level: \\(v.espThermalLevel)",
+            "Sleeping: \\(value(v.espSleeping))",
+            "Remote powered: \\(value(v.remotePowered))",
+            "Owner state known: \\(value(v.ownerStateKnown))",
+            "Registered owner phones: \\(v.authorizedPhoneCount)",
+            "",
+            "[OBD / CAN]",
+            "Adapter: \\(v.obdAdapterName)",
+            "Connected: \\(value(v.obdConnected))",
+            "Status: \\(v.obdStatus)",
+            "CAN awake: \\(value(v.canAwake))",
+            "Ignition: \\(v.ignitionState)",
+            "Responses/s: \\(v.obdResponseRate)",
+            "Total responses: \\(v.obdTotalResponses)",
+            "Last reply: \\(v.obdLastReply)",
+            "Read diagnostics: \\(v.readDiagnostics)",
+            "RPM: \\(v.rpm) (valid=\\(value(v.rpmValid)))",
+            "Speed: \\(v.speedKph) km/h (valid=\\(value(v.speedValid)))",
+            "Coolant: \\(v.coolantC) C (valid=\\(value(v.coolantValid)))",
+            "Vehicle battery: \\(v.batteryVoltage) V",
+            "Fuel: \\(v.fuelLevelPercent)% (valid=\\(value(v.fuelLevelValid)))",
+            "DTC: \\(v.diagnosticCodes.joined(separator: ", "))",
+            "",
+            "[BODY / EVENTS]",
+            "Doors valid: \\(value(v.doorsValid))",
+            "Door known mask: \\(v.doorKnownMask)",
+            "Door open mask: \\(v.doorOpenMask)",
+            "Lights valid: \\(value(v.lightsValid))",
+            "Turns valid: \\(value(v.turnsValid))",
+            "Last event: \\(v.lastEvent)",
+            "Event type: \\(v.vehicleEventType)",
+            "Event text: \\(v.vehicleEventText)",
+            "",
+            "[GPS]",
+            "Valid: \\(value(v.gpsValid))",
+            "Coordinates: \\(v.gpsValid ? "\\(v.latitude), \\(v.longitude)" : "N/A")"
+        ]
+        diagnosticReport = report.joined(separator: "\\n")
+        diagnosticMessage = JL("تم التقاط أحدث بيانات متوفرة. انسخ التقرير وأرسله للفحص.", "Latest available telemetry captured. Copy the report to share.")
     }
 
     private func statusRow(_ title: String, _ value: String) -> some View {
