@@ -36,6 +36,9 @@ struct VehicleState: Codable {
     var vehicleEventUptime: UInt64 = 0
     var online = false
     var benchMode = false
+    // Only a fresh, decoded CAN lock frame may drive the real lock badge.
+    var canLockValid = false
+    var canLocked = false
     var simulatedLocked = true
     var simulatedEngineRunning = false
     var simulatedDoorsOpen = false
