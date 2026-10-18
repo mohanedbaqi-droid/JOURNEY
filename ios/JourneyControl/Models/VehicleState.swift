@@ -188,7 +188,7 @@ struct VehicleState: Codable {
         case espHealthPacket, firmwareVersion, espTemperatureC, espTemperatureValid, espBatteryVoltage, espBatteryPercent, espBatteryValid, espThermalLevel, espResetReason, espTempWarningC
         case doorOpenMask, doorKnownMask, parkingLightsOn, parkingLightsValid
         case bodyStatePacket, rpmValid, coolantValid, speedValid, doorsValid, lightsValid, turnsValid, readDiagnostics
-        case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, simulatedLocked, simulatedEngineRunning
+        case partialState, ownerStatePacket, ownerStateKnown, coreStatePacket, obdTelemetryPacket, wifiStatePacket, cellularStatePacket, vehicleEventPacket, vehicleEventId, vehicleEventType, vehicleEventText, vehicleEventUptime, online, benchMode, canLockValid, canLocked, simulatedLocked, simulatedEngineRunning
         case simulatedDoorsOpen, remotePowered, feedbackLock, feedbackUnlock, feedbackStart, feedbackAlarm, trustedPhoneConfigured, authorizedPhoneCount, ownerAdminPhone, pendingOwnerPhone, hornActive, headlightsOn, leftSignalOn, rightSignalOn, bcmStateValid
         case cellularNetwork, cellularSignalDBm, cellularEnabled, cellularRegistered, cellularDataAttached, cellularAPN, cellularStatus, hotspotEnabled, hotspotRunning, hotspotSSID, internetRoute, bluetoothRSSI, espSleeping
         case gpsValid, latitude, longitude, obdConnected, obdStatus, obdResponseRate, obdTotalResponses, obdScanProgress, obdScannedPids, obdSupportedPids, obdStandardScanComplete, obdCurrentPid, obdLastReply, obdAdapterName, obdDiscoveredAdapters, obdDiscoveredWifiNetworks, obdDiscoveryKind, obdDiscoveryReset, obdDiscoveryDone, obdClearInProgress
@@ -235,6 +235,8 @@ struct VehicleState: Codable {
         vehicleEventUptime = try box.decodeIfPresent(UInt64.self, forKey: .vehicleEventUptime) ?? 0
         online = try box.decodeIfPresent(Bool.self, forKey: .online) ?? ((try compact.decodeIfPresent(Int.self, forKey: .online) ?? 0) == 1)
         benchMode = try box.decodeIfPresent(Bool.self, forKey: .benchMode) ?? false
+        canLockValid = try box.decodeIfPresent(Bool.self, forKey: .canLockValid) ?? false
+        canLocked = try box.decodeIfPresent(Bool.self, forKey: .canLocked) ?? false
         simulatedLocked = try box.decodeIfPresent(Bool.self, forKey: .simulatedLocked) ?? ((try compact.decodeIfPresent(Int.self, forKey: .locked) ?? 1) == 1)
         simulatedEngineRunning = try box.decodeIfPresent(Bool.self, forKey: .simulatedEngineRunning) ?? ((try compact.decodeIfPresent(Int.self, forKey: .engineRunning) ?? 0) == 1)
         simulatedDoorsOpen = try box.decodeIfPresent(Bool.self, forKey: .simulatedDoorsOpen) ?? ((try compact.decodeIfPresent(Int.self, forKey: .doorsOpen) ?? 0) == 1)
