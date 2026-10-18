@@ -795,11 +795,13 @@ final class MQTTService: ObservableObject {
                 if !merged.doorsValid { merged.simulatedLocked = state.simulatedLocked }
                 // Live body/engine fields are owned by their dedicated packets.
                 // v12.66 body state is decoded by ESP from confirmed Journey CAN IDs.
-                merged.bcmStateValid = state.bcmStateValid
-                if state.bcmStateValid && !merged.turnsValid && !merged.lightsValid {
-                    merged.headlightsOn = state.headlightsOn
-                    merged.leftSignalOn = state.leftSignalOn
-                    merged.rightSignalOn = state.rightSignalOn
+                if transport == .cloud {
+                    merged.bcmStateValid = state.bcmStateValid
+                    if state.bcmStateValid && !merged.turnsValid && !merged.lightsValid {
+                        merged.headlightsOn = state.headlightsOn
+                        merged.leftSignalOn = state.leftSignalOn
+                        merged.rightSignalOn = state.rightSignalOn
+                    }
                 }
                 merged.feedbackLock = state.feedbackLock
                 merged.feedbackUnlock = state.feedbackUnlock
