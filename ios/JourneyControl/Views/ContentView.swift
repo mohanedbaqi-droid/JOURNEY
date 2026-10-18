@@ -575,7 +575,7 @@ struct ContentView: View {
 
     private func statusStrip(_ state: VehicleState) -> some View {
         HStack(spacing: 8) {
-            statusPill(state.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"), icon: state.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !state.simulatedLocked)
+            statusPill(state.canLockValid ? (state.canLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked")) : JL("حالة القفل غير معروفة", "Lock state unknown"), icon: state.canLockValid ? (state.canLocked ? "lock.fill" : "lock.open.fill") : "questionmark.circle", active: state.canLockValid && !state.canLocked)
             statusPill(state.engineStateText, icon: "engine.combustion.fill", active: state.simulatedEngineRunning)
             statusPill(state.gpsValid ? JL("GPS متصل", "GPS connected") : JL("GPS غير متاح", "GPS unavailable"), icon: "location.fill", active: state.gpsValid)
         }
@@ -1831,7 +1831,7 @@ private struct VehicleMapView: View {
                 }
 
                 HStack(spacing: 8) {
-                    mapStatus(vehicle.simulatedLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked"), icon: vehicle.simulatedLocked ? "lock.fill" : "lock.open.fill", active: !vehicle.simulatedLocked)
+                    mapStatus(vehicle.canLockValid ? (vehicle.canLocked ? JL("مقفلة", "Locked") : JL("مفتوحة", "Unlocked")) : JL("حالة القفل غير معروفة", "Lock state unknown"), icon: vehicle.canLockValid ? (vehicle.canLocked ? "lock.fill" : "lock.open.fill") : "questionmark.circle", active: vehicle.canLockValid && !vehicle.canLocked)
                     mapStatus(vehicle.engineStateText, icon: "engine.combustion.fill", active: vehicle.simulatedEngineRunning)
                     mapStatus(vehicle.gpsValid ? JL("GPS متصل", "GPS connected") : JL("GPS بانتظار", "Waiting for GPS"), icon: "location.fill", active: vehicle.gpsValid)
                 }
