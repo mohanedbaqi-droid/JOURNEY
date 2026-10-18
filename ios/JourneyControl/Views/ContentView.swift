@@ -1318,7 +1318,7 @@ private struct ESPStatusView: View {
                 statusRow(JL("فيرموير ESP", "ESP firmware"), vehicle.online ? (vehicle.firmwareVersion.isEmpty ? "—" : vehicle.firmwareVersion) : "—")
             }
             Section(JL("تشخيص ESP التفصيلي", "Detailed ESP diagnostics")) {
-                Button(JL("سحب التشخيص الحالي", "Capture current diagnostics"), systemImage: "waveform.path.ecg.rectangle") {
+                Button(JL("سحب التشخيص المتاح", "Capture available diagnostics"), systemImage: "waveform.path.ecg.rectangle") {
                     captureDiagnostics()
                 }
                 .disabled(deviceID == nil)
