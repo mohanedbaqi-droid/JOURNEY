@@ -1317,24 +1317,36 @@ private struct ESPStatusView: View {
                 }
                 statusRow(JL("فيرموير ESP", "ESP firmware"), vehicle.online ? (vehicle.firmwareVersion.isEmpty ? "—" : vehicle.firmwareVersion) : "—")
             }
-            Section(JL("تشخيص ESP التفصيلي", "Detailed ESP diagnostics")) {
-                Button(JL("سحب التشخيص المتاح", "Capture available diagnostics"), systemImage: "waveform.path.ecg.rectangle") {
-                    captureDiagnostics()
+            Section(JL("تشخيص ESP الكامل", "Full ESP diagnostics")) {
+                Button {
+                    guard let deviceID else { return }
+                    _ = mqtt.requestFullDiagnostics(for: deviceID)
+                } label: {
+                    Label(JL("سحب التشخيص الكامل", "Download full diagnostics"),
+                          systemImage: "arrow.down.doc.fill")
                 }
-                .disabled(deviceID == nil)
-                if !diagnosticReport.isEmpty {
-                    Button(JL("نسخ التشخيص الكامل", "Copy diagnostic report"), systemImage: "doc.on.doc") {
-                        UIPasteboard.general.string = diagnosticReport
-                        diagnosticMessage = JL("تم نسخ التقرير", "Report copied")
+                .disabled(deviceID == nil || mqtt.diagnosticTransferBusy)
+                if mqtt.diagnosticTransferBusy {
+                    ProgressView(JL("جاري سحب الملف من ESP عبر 4G", "Downloading from ESP over 4G"))
+                }
+                if !mqtt.diagnosticTransferStatus.isEmpty {
+                    Text(mqtt.diagnosticTransferStatus)
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                if !mqtt.fullDiagnosticReport.isEmpty {
+                    Button(JL("نسخ ملف التشخيص", "Copy diagnostics"), systemImage: "doc.on.doc") {
+                        UIPasteboard.general.string = mqtt.fullDiagnosticReport
                     }
-                    Text(diagnosticReport)
+                    ShareLink(item: mqtt.fullDiagnosticReport) {
+                        Label(JL("مشاركة ملف التشخيص", "Share diagnostics"),
+                              systemImage: "square.and.arrow.up")
+                    }
+                    Text(mqtt.fullDiagnosticReport)
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                 }
-                if !diagnosticMessage.isEmpty {
-                    Text(diagnosticMessage).font(.footnote).foregroundStyle(.secondary)
-                }
-                Text(JL("بيانات السيارة وGPS من 4G/MQTT؛ البلوتوث للكيليس والأوامر المحلية. هذا تقرير آخر قراءة وليس سجل Serial Monitor الخام.", "Vehicle and GPS telemetry comes from 4G/MQTT; BLE is for keyless and local commands. This is a latest-state report, not raw serial output."))
+                Text(JL("ضغطة واحدة تطلب سجل ESP المحفوظ. إذا نقصت دفعة يبقى التقرير غير مكتمل ولا يُعرض كملف كامل. يتطلب KR20 واتصال MQTT وصلاحية موضوع diagnostics/chunk.",
+                        "One tap requests the retained ESP log. Missing chunks never produce a falsely complete report. Requires KR20, MQTT and diagnostics/chunk topic permission."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section(JL("OBD عبر BLE", "OBD over BLE")) {
