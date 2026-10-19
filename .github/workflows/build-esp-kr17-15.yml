@@ -92,6 +92,19 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@3.3.0
           arduino-cli lib install ArduinoJson PubSubClient TM1637 "Adafruit PN532"
+      - name: Compile OTA receiver API smoke test
+        run: |
+          mkdir -p /tmp/JourneyOTAReceiverTest
+          cp firmware-source/JourneyStreamOTA.h /tmp/JourneyOTAReceiverTest/
+          cat > /tmp/JourneyOTAReceiverTest/JourneyOTAReceiverTest.ino <<'EOF'
+          #include "JourneyStreamOTA.h"
+          bool publishOTA(const String &topic, const String &payload) { return true; }
+          bool authorizeOTA(const String &phoneID) { return false; }
+          JourneyStreamOTA ota("smoke-test", publishOTA, authorizeOTA);
+          void setup() {}
+          void loop() { ota.tick(); }
+          EOF
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=default,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi,FlashMode=qio,CPUFreq=240 /tmp/JourneyOTAReceiverTest
       - name: Inject private credentials without printing
         env:
           JOURNEY_MQTT_PASSWORD: ${{ secrets.JOURNEY_MQTT_PASSWORD }}
