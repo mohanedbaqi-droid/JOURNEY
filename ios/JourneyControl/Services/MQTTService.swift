@@ -239,13 +239,13 @@ final class MQTTService: ObservableObject {
                     state.espThermalLevel = -1
                     self.vehicles[deviceID] = state
                 }
-                for (deviceID, seenAt) in self.lastObdAt where now.timeIntervalSince(seenAt) > 4 {
+                for (deviceID, seenAt) in self.lastObdAt where now.timeIntervalSince(seenAt) > 12 {
                     guard var state = self.vehicles[deviceID] else { continue }
                     state.rpmValid = false; state.speedValid = false; state.coolantValid = false
                     state.simulatedEngineRunning = false
                     self.vehicles[deviceID] = state
                 }
-                for (deviceID, seenAt) in self.lastBodyAt where now.timeIntervalSince(seenAt) > 4 {
+                for (deviceID, seenAt) in self.lastBodyAt where now.timeIntervalSince(seenAt) > 12 {
                     guard var state = self.vehicles[deviceID] else { continue }
                     state.doorsValid = false; state.lightsValid = false; state.turnsValid = false
                     state.leftSignalOn = false; state.rightSignalOn = false; state.headlightsOn = false
