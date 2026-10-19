@@ -1,5 +1,6 @@
 import CocoaMQTT
 import Combine
+import CryptoKit
 import Foundation
 import Security
 
@@ -32,6 +33,114 @@ final class MQTTService: ObservableObject {
         var ownerAdminPhone: String
         var pendingOwnerPhone: String
         var uptimeSeconds: UInt64?
+    }
+
+    // MQTT OTA v1: stop-and-wait transfer. The ESP must acknowledge the
+    // session before any firmware bytes can be sent. Never stream to legacy firmware.
+    @Published private(set) var firmwareTransferStatus = ""
+    @Published private(set) var firmwareTransferProgress = 0.0
+    @Published private(set) var firmwareTransferBusy = false
+    private var firmwareTransferID: String?
+    private var firmwareTransferDevice: String?
+    private var firmwareTransferData: Data?
+    private var firmwareTransferOffset = 0
+    private var firmwareTransferLastAck = -1
+    private let firmwareChunkSize = 384
+
+    func beginFirmwareTransfer(_ data: Data, to deviceID: String) -> Bool {
+        guard !firmwareTransferBusy, cloudPathAvailable(for: deviceID),
+              !defaults.bool(forKey: "journey.demo.enabled"),
+              (262_144...3_145_728).contains(data.count) else {
+            firmwareTransferStatus = JL("لا يمكن بدء نقل التحديث عبر الإنترنت", "Cannot start Internet firmware transfer")
+            return false
+        }
+        let transferID = UUID().uuidString
+        firmwareTransferID = transferID
+        firmwareTransferDevice = deviceID
+        firmwareTransferData = data
+        firmwareTransferOffset = 0
+        firmwareTransferLastAck = -1
+        firmwareTransferProgress = 0
+        firmwareTransferBusy = true
+        firmwareTransferStatus = JL("بانتظار موافقة ESP على استقبال التحديث", "Waiting for ESP OTA receiver")
+        subscribeToSelectedVehicle(using: client!)
+        let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let packet: [String: Any] = [
+            "action": "ota_stream_begin", "id": transferID,
+            "phoneID": AppConfig.phoneID, "schema": 1,
+            "size": data.count, "sha256": sha, "chunkSize": firmwareChunkSize
+        ]
+        guard publishFirmwarePacket(packet, to: deviceID) else {
+            cancelFirmwareTransfer()
+            return false
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(15))
+            guard let self, self.firmwareTransferID == transferID,
+                  self.firmwareTransferBusy, self.firmwareTransferLastAck < 0 else { return }
+            self.firmwareTransferStatus = JL("ESP لم يؤكد دعم استقبال OTA. لم تُرسل بيانات الفيرموير.", "ESP did not confirm OTA streaming support. No firmware bytes were sent.")
+            self.cancelFirmwareTransfer()
+        }
+        return true
+    }
+
+    func cancelFirmwareTransfer() {
+        firmwareTransferBusy = false
+        firmwareTransferID = nil
+        firmwareTransferDevice = nil
+        firmwareTransferData = nil
+        firmwareTransferOffset = 0
+        firmwareTransferLastAck = -1
+    }
+
+    private func publishFirmwarePacket(_ packet: [String: Any], to deviceID: String) -> Bool {
+        guard cloudPathAvailable(for: deviceID), let client,
+              let data = try? JSONSerialization.data(withJSONObject: packet),
+              let json = String(data: data, encoding: .utf8) else { return false }
+        client.publish(AppConfig.commandTopic(for: deviceID), withString: json, qos: .qos1, retained: false)
+        return true
+    }
+
+    private func receiveFirmwareAck(_ payload: String, deviceID: String) {
+        guard firmwareTransferBusy, firmwareTransferDevice == deviceID,
+              let data = payload.data(using: .utf8),
+              let packet = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let id = packet["id"] as? String, id == firmwareTransferID,
+              let state = packet["state"] as? String else { return }
+        if state == "error" {
+            firmwareTransferStatus = JL("ESP رفض التحديث: ", "ESP rejected OTA: ") + (packet["reason"] as? String ?? "unknown")
+            cancelFirmwareTransfer()
+            return
+        }
+        if state == "complete" {
+            firmwareTransferProgress = 1
+            firmwareTransferStatus = JL("ESP أكد استلام الملف؛ بانتظار التثبيت وإعادة التشغيل", "ESP confirmed transfer; awaiting installation and reboot")
+            cancelFirmwareTransfer()
+            return
+        }
+        guard let source = firmwareTransferData,
+              let offset = packet["nextOffset"] as? Int,
+              offset >= 0, offset <= source.count,
+              offset == 0 || offset > firmwareTransferLastAck else { return }
+        firmwareTransferLastAck = offset
+        firmwareTransferProgress = Double(offset) / Double(source.count)
+        if offset == source.count {
+            firmwareTransferStatus = JL("بانتظار تحقق ESP من الملف", "Waiting for ESP integrity verification")
+            return
+        }
+        let end = min(offset + firmwareChunkSize, source.count)
+        let bytes = source.subdata(in: offset..<end)
+        let next: [String: Any] = [
+            "action": "ota_stream_chunk", "id": id,
+            "phoneID": AppConfig.phoneID, "offset": offset,
+            "data": bytes.base64EncodedString()
+        ]
+        guard publishFirmwarePacket(next, to: deviceID) else {
+            firmwareTransferStatus = JL("انقطع إرسال التحديث", "Firmware transfer interrupted")
+            cancelFirmwareTransfer()
+            return
+        }
+        firmwareTransferStatus = JL("إرسال التحديث", "Sending firmware") + " \\(Int(firmwareTransferProgress * 100))%"
     }
 
     @Published private(set) var connection: Connection = .notConfigured
@@ -457,6 +566,13 @@ final class MQTTService: ObservableObject {
         mqtt.didReceiveMessage = { [weak self] _, message, _ in
             let parts = message.topic.split(separator: "/")
             guard !message.retained, parts.count == 4, parts[0] == "journey" else { return }
+            if parts[2] == "ota", parts[3] == "ack", let payload = message.string {
+                DispatchQueue.main.async {
+                    guard let self, self.client === mqtt else { return }
+                    self.receiveFirmwareAck(payload, deviceID: String(parts[1]))
+                }
+                return
+            }
             if parts[2] == "diagnostics", parts[3] == "chunk", let payload = message.string {
                 DispatchQueue.main.async {
                     guard let self, self.client === mqtt else { return }
@@ -508,11 +624,13 @@ final class MQTTService: ObservableObject {
         if let previousID = subscribedCloudDeviceID, previousID != deviceID {
             mqtt.unsubscribe("journey/\(previousID)/telemetry/state")
             mqtt.unsubscribe("journey/\(previousID)/diagnostics/chunk")
+            mqtt.unsubscribe("journey/\(previousID)/ota/ack")
             lastCloudStateAt.removeValue(forKey: previousID)
         }
         subscribedCloudDeviceID = deviceID
         mqtt.subscribe("journey/\(deviceID)/telemetry/state", qos: .qos1)
         mqtt.subscribe("journey/\(deviceID)/diagnostics/chunk", qos: .qos1)
+        mqtt.subscribe("journey/\(deviceID)/ota/ack", qos: .qos1)
     }
 
     /// Demo must suspend the underlying CoreBluetooth session, not just UI commands.
