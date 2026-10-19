@@ -693,6 +693,46 @@ final class MQTTService: ObservableObject {
         sendESPCommand(VehicleCommand(action: .espSettings, espSettings: settings), to: deviceID)
     }
 
+    // MQTT OTA transport groundwork. Never transmit until the ESP explicitly
+    // advertises support for this protocol; older KR17 builds cannot consume it.
+    // A QoS1 broker receipt is not an ESP flash-write acknowledgement.
+    struct FirmwareChunk: Encodable {
+        let protocolVersion: Int
+        let transferID: String
+        let index: Int
+        let total: Int
+        let sha256: String
+        let payloadHex: String
+    }
+
+    private func makeFirmwareChunks(_ firmware: Data, sha256: String) -> [FirmwareChunk]? {
+        guard (262_144...3_145_728).contains(firmware.count),
+              sha256.count == 64,
+              sha256.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else { return nil }
+        let transferID = UUID().uuidString
+        let chunkSize = 128 // fits constrained modem MQTT packet buffers with envelope
+        let count = (firmware.count + chunkSize - 1) / chunkSize
+        return stride(from: 0, to: firmware.count, by: chunkSize).enumerated().map { index, offset in
+            let end = min(offset + chunkSize, firmware.count)
+            let hex = firmware[offset..<end].map { String(format: "%02x", $0) }.joined()
+            return FirmwareChunk(protocolVersion: 1, transferID: transferID,
+                                 index: index, total: count, sha256: sha256, payloadHex: hex)
+        }
+    }
+
+    /// Preflight only. Transport remains disabled until the ESP has a matching
+    /// receiver, per-chunk acknowledgements, rollback and hash verification.
+    func preflightFirmwareTransfer(_ firmware: Data, sha256: String, to deviceID: String) -> String {
+        guard connection == .connected, cloudPathAvailable(for: deviceID) else {
+            return JL("مسار الإنترنت غير جاهز", "Cloud connection unavailable")
+        }
+        guard let chunks = makeFirmwareChunks(firmware, sha256: sha256) else {
+            return JL("ملف التحديث أو SHA-256 غير صالح", "Invalid firmware or SHA-256")
+        }
+        return JL("الملف جاهز (\\(chunks.count) دفعة)، لكن مستقبل OTA على ESP غير مفعّل بعد",
+                  "File ready (\\(chunks.count) chunks); ESP OTA receiver not yet enabled")
+    }
+
     @discardableResult
     func sendFirmwareURL(_ url: String, to deviceID: String) -> Bool {
         sendESPCommand(VehicleCommand(action: .otaURL, firmwareURL: url), to: deviceID)
