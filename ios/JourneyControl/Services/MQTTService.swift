@@ -125,7 +125,7 @@ final class MQTTService: ObservableObject {
               let state = packet["state"] as? String else { return }
         if state == "error" {
             firmwareTransferStatus = JL("ESP رفض التحديث: ", "ESP rejected OTA: ") + (packet["reason"] as? String ?? "unknown")
-            cancelFirmwareTransfer()
+            finishFirmwareTransfer()
             return
         }
         if state == "complete" {
