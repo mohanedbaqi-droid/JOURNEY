@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import CoreLocation
 import MapKit
 import SwiftUI
@@ -1285,6 +1286,7 @@ private struct ESPStatusView: View {
     @State private var showingFirmwareImporter = false
     @State private var selectedFirmwareName = ""
     @State private var selectedFirmwareBytes = 0
+    @State private var selectedFirmwareSHA256 = ""
     @State private var maintenanceMode = false
     @State private var powerSaveMode = 0
     @State private var powerSaveIdleMinutes = 30.0
@@ -1406,6 +1408,9 @@ private struct ESPStatusView: View {
                 }
                 if !selectedFirmwareName.isEmpty {
                     Text("\(selectedFirmwareName) · \(selectedFirmwareBytes) bytes")
+                    Text("SHA-256: \(selectedFirmwareSHA256)")
+                        .font(.caption2)
+                        .textSelection(.enabled)
                         .font(.footnote)
                     Text(JL("تم اختيار الملف فقط. النقل المباشر عبر MQTT يحتاج دعم استقبال OTA بالفيرموير قبل تفعيل الإرسال.", "File selected only. MQTT OTA streaming requires ESP firmware receiver support before transmission can be enabled."))
                         .font(.footnote)
@@ -1447,6 +1452,12 @@ private struct ESPStatusView: View {
                         updateStatus = JL("حجم الفيرموير خارج الحدود المتوقعة", "Firmware size outside expected range")
                         return
                     }
+                    let firmwareData = try Data(contentsOf: url)
+                    guard firmwareData.count == count else {
+                        updateStatus = JL("حجم الملف غير متطابق", "Firmware size mismatch")
+                        return
+                    }
+                    selectedFirmwareSHA256 = SHA256.hash(data: firmwareData).map { String(format: "%02x", $0) }.joined()
                     selectedFirmwareName = url.lastPathComponent
                     selectedFirmwareBytes = count
                     updateStatus = JL("تم اختيار الملف؛ إرسال OTA المباشر غير مفعّل بعد", "File selected; direct OTA transport is not enabled yet")
