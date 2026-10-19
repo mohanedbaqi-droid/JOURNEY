@@ -148,6 +148,7 @@ final class MQTTService: ObservableObject {
               offset >= 0, offset <= source.count,
               offset > firmwareTransferLastAck else { return }
         firmwareTransferLastAck = offset
+        firmwareTransferOffset = offset
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(120))
