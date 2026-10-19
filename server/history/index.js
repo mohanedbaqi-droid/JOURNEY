@@ -72,9 +72,9 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const OTA_FILE = process.env.JOURNEY_OTA_FILE || '';
 const OTA_SIGNING_KEY = process.env.JOURNEY_OTA_SIGNING_KEY || '';
-const OTA_PUBLIC_BASE_URL = (process.env.JOURNEY_OTA_PUBLIC_BASE_URL || '').replace(/\\/$/, '');
+const OTA_PUBLIC_BASE_URL = (process.env.JOURNEY_OTA_PUBLIC_BASE_URL || '').replace(/\/$/, '');
 function otaReady() {
-  return Boolean(OTA_FILE && OTA_SIGNING_KEY.length >= 32 && /^https:\\/\\/[^/?#]+$/.test(OTA_PUBLIC_BASE_URL));
+  return Boolean(OTA_FILE && OTA_SIGNING_KEY.length >= 32 && /^https:\/\/[^/?#]+$/.test(OTA_PUBLIC_BASE_URL));
 }
 function otaSignature(exp, hash) {
   return crypto.createHmac('sha256', OTA_SIGNING_KEY).update(`${DEVICE}:\\n${exp}:\\n${hash}`).digest('hex');
