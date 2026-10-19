@@ -18,21 +18,25 @@ async function ingest(payload,topic) {
  const o=JSON.parse(payload.toString('utf8'));if(!o||typeof o!=='object'||Array.isArray(o))return;
  const lat=num(pick(o,'lat','latitude','gps_lat'),-90,90),lon=num(pick(o,'lon','lng','longitude','gps_lon'),-180,180);
  if(lat===null||lon===null||lat===0&&lon===0)return;
- const gpsValid=pick(o,'gps_valid','gpsValid');if(gpsValid===false||gpsValid===0)return;
+ const gpsValid=pick(o,'gps_valid','gpsValid');if(gpsValid===false||gpsValid===0||gpsValid==='false'||gpsValid==='0')return;
+ const eligible=pick(o,'gpsHistoryEligible');if(eligible===false||eligible===0)return;
+ const age=num(pick(o,'gpsFixAgeMs'),0,86400000);if(age!==null&&age>30000)return;
  const accuracy=num(pick(o,'accuracy','gps_accuracy','hdop_m'),0,10000);
  if(accuracy!==null&&accuracy>100)return;
  const speed=num(pick(o,'speed_kph','speedKph','gps_speed_kph'),0,350);
  const heading=num(pick(o,'heading','course'),0,360);
  const rpm=num(pick(o,'rpm','engine_rpm'),0,10000);
- const engine=typeof o.engine_running==='boolean'?o.engine_running:(rpm!==null?rpm>350:null);
+ const engine=typeof o.engine_running==='boolean'?o.engine_running:(typeof o.simulatedEngineRunning==='boolean'?o.simulatedEngineRunning:(rpm!==null?rpm>350:null));
+ const canSpeedValid=pick(o,'speedValid');
+ const trustedSpeed=canSpeedValid===false?null:speed;
  const time=now(); const key=DEVICE;const last=sessions.get(key);
- const point={lat,lon,time,speed,heading,rpm,engine};
+ const point={lat,lon,time,speed:trustedSpeed,heading,rpm,engine};
  if(last){const elapsed=(time-last.time)/1000;if(elapsed<2)return;const dist=geoDistance(last,point);if(elapsed>0&&dist/elapsed>85)return;}
- const moving=(speed!==null&&speed>=5)||(last&&geoDistance(last,point)>=30&&(time-last.time)<120000);
+ const moving=(trustedSpeed!==null&&trustedSpeed>=5)||(last&&geoDistance(last,point)>=30&&(time-last.time)<120000);
  const client=await pool.connect();
  try {
   await client.query('BEGIN');
-  const inserted=await client.query('INSERT INTO journey_points(device_id,recorded_at,lat,lon,speed_kph,heading,engine_running,accuracy_m) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',[key,time,lat,lon,speed,heading,engine,accuracy]);
+  const inserted=await client.query('INSERT INTO journey_points(device_id,recorded_at,lat,lon,speed_kph,heading,engine_running,accuracy_m) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',[key,time,lat,lon,trustedSpeed,heading,engine,accuracy]);
   let trip=await client.query('SELECT id FROM journey_trips WHERE device_id=$1 AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1 FOR UPDATE',[key]);
   if(moving&&trip.rowCount===0){
    trip=await client.query('INSERT INTO journey_trips(device_id,started_at,start_lat,start_lon) VALUES($1,$2,$3,$4) RETURNING id',[key,time,lat,lon]);
@@ -42,7 +46,7 @@ async function ingest(payload,topic) {
    await client.query('UPDATE journey_points SET trip_id=$1 WHERE id=$2',[id,inserted.rows[0].id]);
    if(last&&last.tripId===id&&moving){
     const dist=geoDistance(last,point);
-    if(dist<1000)await client.query('UPDATE journey_trips SET distance_m=distance_m+$1,max_speed_kph=GREATEST(max_speed_kph,$2) WHERE id=$3',[dist,speed||0,id]);
+    if(dist<1000)await client.query('UPDATE journey_trips SET distance_m=distance_m+$1,max_speed_kph=GREATEST(max_speed_kph,$2) WHERE id=$3',[dist,trustedSpeed||0,id]);
    }
    if(!moving&&last&&last.idleSince&&(time-last.idleSince)>=120000){
     await client.query('UPDATE journey_trips SET ended_at=$1,end_lat=$2,end_lon=$3 WHERE id=$4 AND ended_at IS NULL',[time,lat,lon,id]);
