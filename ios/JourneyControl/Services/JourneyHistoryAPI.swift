@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import Security
 
 /// Opt-in history API. Never embeds a server token in the app binary.
@@ -80,7 +81,16 @@ import Security
             throw URLError(.badServerResponse)
         }
         let decoder=JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: value) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: value) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid timestamp")
+        }
         return try decoder.decode(T.self,from:data)
     }
     func refresh() async {
