@@ -87,6 +87,14 @@ final class MQTTService: ObservableObject {
     }
 
     func cancelFirmwareTransfer() {
+        if firmwareTransferBusy, let id = firmwareTransferID,
+           let deviceID = firmwareTransferDevice {
+            // Best effort: release the ESP Update session, including on user cancellation.
+            _ = publishFirmwarePacket([
+                "action": "ota_stream_abort", "id": id,
+                "phoneID": AppConfig.phoneID
+            ], to: deviceID)
+        }
         firmwareTransferBusy = false
         firmwareTransferID = nil
         firmwareTransferDevice = nil
