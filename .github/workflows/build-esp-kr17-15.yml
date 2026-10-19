@@ -4,14 +4,18 @@ on:
   push:
     paths:
       - "JOURNEY_KR17_15/**"
+      - "firmware-source/KR17.15.zip"
       - ".github/workflows/build-esp-kr17-15.yml"
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check KR17.15 source
+      - name: Extract KR17.15 source archive if present
         run: |
+          if [ -f firmware-source/KR17.15.zip ]; then
+            unzip -oq firmware-source/KR17.15.zip -d .
+          fi
           test -f JOURNEY_KR17_15/JOURNEY_KR17_15.ino
           test -f JOURNEY_KR17_15/config.h
       - uses: arduino/setup-arduino-cli@v2
