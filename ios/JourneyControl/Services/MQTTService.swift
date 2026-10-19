@@ -140,7 +140,7 @@ final class MQTTService: ObservableObject {
             cancelFirmwareTransfer()
             return
         }
-        firmwareTransferStatus = JL("إرسال التحديث", "Sending firmware") + " \\(Int(firmwareTransferProgress * 100))%"
+        firmwareTransferStatus = JL("إرسال التحديث", "Sending firmware") + " \(Int(firmwareTransferProgress * 100))%"
     }
 
     @Published private(set) var connection: Connection = .notConfigured
