@@ -88,7 +88,7 @@ struct JourneyMapDashboardView: View {
                         }
                         Divider()
                         if let stats = serverHistory.stats {
-                            Text("رحلات السيرفر: \\(stats.trip_count)")
+                            Text("رحلات السيرفر: \(stats.trip_count)")
                             Text(String(format:"مسافة السيرفر: %.1f كم",stats.distance_m / 1000))
                             Text(String(format:"أعلى سرعة مسجلة: %.0f كم/س",stats.max_speed_kph))
                         }
