@@ -10,6 +10,8 @@ struct JourneyMapDashboardView: View {
     let deviceID: String?
     @State private var selection: Section = .live
     @StateObject private var history = JourneyLocalHistory.shared
+    @StateObject private var serverHistory = JourneyHistoryAPI()
+    @State private var showServerSettings = false
     @State private var mapStyle: MapKind = .standard
 
     private enum Section: String, CaseIterable, Identifiable {
@@ -62,9 +64,9 @@ struct JourneyMapDashboardView: View {
                     VehicleMapView(vehicle: vehicle, vehicleName: vehicleName, deviceID: deviceID)
                         .environmentObject(mqtt)
                 case .trips:
-                    historyList
+                    serverHistory.baseURL.isEmpty ? historyList : serverTrips
                 case .stops:
-                    stopsList
+                    serverHistory.baseURL.isEmpty ? stopsList : serverStops
                 case .statistics:
                     VStack(alignment: .leading, spacing: 18) {
                         Label("معلومات السيارة المباشرة", systemImage: "chart.bar")
@@ -85,6 +87,11 @@ struct JourneyMapDashboardView: View {
                             Text(stateText)
                         }
                         Divider()
+                        if let stats = serverHistory.stats {
+                            Text("رحلات السيرفر: \\(stats.trip_count)")
+                            Text(String(format:"مسافة السيرفر: %.1f كم",stats.distance_m / 1000))
+                            Text(String(format:"أعلى سرعة مسجلة: %.0f كم/س",stats.max_speed_kph))
+                        }
                         Text("المسافة المسجلة محلياً خلال أسبوع: \(history.distanceKm, specifier: "%.1f") كم. التسجيل قد يتوقف عند إغلاق التطبيق.")
                             .foregroundStyle(.secondary).font(.footnote)
                         Spacer()
@@ -94,7 +101,28 @@ struct JourneyMapDashboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color.black)
-        .onAppear { capturePoint(); history.prune() }
+        .onAppear { capturePoint(); history.prune(); Task { await serverHistory.refresh() } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showServerSettings = true } label: { Image(systemName: "server.rack") }
+            }
+        }
+        .sheet(isPresented: $showServerSettings) {
+            NavigationStack {
+                Form {
+                    TextField("https://history.example.com", text: $serverHistory.baseURL)
+                        .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    SecureField("History API token", text: $serverHistory.token)
+                    Button("حفظ وربط السيرفر") {
+                        serverHistory.saveConfiguration()
+                        showServerSettings = false
+                        Task { await serverHistory.refresh() }
+                    }
+                    Text("HTTPS مطلوب. لا تستخدم باسورد MQTT هنا؛ هذا رمز API مستقل.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }.navigationTitle("سيرفر الرحلات")
+            }
+        }
         .onChange(of: vehicle.latitude) { _ in capturePoint() }
         .onChange(of: vehicle.longitude) { _ in capturePoint() }
     }
@@ -104,6 +132,51 @@ struct JourneyMapDashboardView: View {
         history.record(latitude: vehicle.latitude, longitude: vehicle.longitude,
                        speedKph: vehicle.speedValid ? Double(vehicle.speedKph) : nil,
                        engineRunning: vehicle.rpmValid ? vehicle.simulatedEngineRunning : nil)
+    }
+
+    private var serverTrips: some View {
+        List {
+            if let error = serverHistory.error { Text(error).foregroundStyle(.orange) }
+            Button("تحديث سجل الرحلات") { Task { await serverHistory.refresh() } }
+            ForEach(serverHistory.trips) { trip in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(trip.started_at, format: .dateTime.day().month().year().hour().minute())
+                        .font(.headline)
+                    Text(String(format: "المسافة %.2f كم • أعلى سرعة %.0f كم/س",
+                                trip.distance_m / 1000, trip.max_speed_kph))
+                    Text(trip.ended_at == nil ? "الرحلة جارية" : "الرحلة مكتملة")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("عرض نقاط المسار") {
+                        Task { await serverHistory.loadPoints(tripID: trip.id) }
+                    }
+                }
+            }
+            if !serverHistory.selectedTripPoints.isEmpty {
+                SwiftUI.Section("نقاط المسار") {
+                    ForEach(Array(serverHistory.selectedTripPoints.enumerated()), id: \.offset) { _, point in
+                        Text(String(format:"%.5f, %.5f",point.lat,point.lon))
+                            .font(.caption.monospaced())
+                    }
+                }
+            }
+        }
+    }
+
+    private var serverStops: some View {
+        List {
+            if let error = serverHistory.error { Text(error).foregroundStyle(.orange) }
+            Button("تحديث التوقفات") { Task { await serverHistory.refresh() } }
+            ForEach(serverHistory.stops) { stop in
+                VStack(alignment: .leading) {
+                    Text(stop.arrived_at,format:.dateTime.day().month().hour().minute())
+                    if let departure = stop.departed_at {
+                        Text(String(format:"مدة التوقف %.0f دقيقة", departure.timeIntervalSince(stop.arrived_at)/60))
+                    } else { Text("التوقف مستمر") }
+                    Text(String(format:"%.5f, %.5f",stop.lat,stop.lon))
+                        .font(.caption.monospaced()).foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 
     private var historyList: some View {
