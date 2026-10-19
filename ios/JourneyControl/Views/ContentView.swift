@@ -1456,6 +1456,10 @@ private struct ESPStatusView: View {
             switch result {
             case .success(let urls):
                 guard let url = urls.first else { return }
+                selectedFirmwareData = nil
+                selectedFirmwareName = ""
+                selectedFirmwareBytes = 0
+                selectedFirmwareSHA256 = ""
                 let granted = url.startAccessingSecurityScopedResource()
                 defer { if granted { url.stopAccessingSecurityScopedResource() } }
                 guard url.lastPathComponent.lowercased() == "firmware.bin" else {
@@ -1478,7 +1482,7 @@ private struct ESPStatusView: View {
                     selectedFirmwareData = firmwareData
                     selectedFirmwareName = url.lastPathComponent
                     selectedFirmwareBytes = count
-                    updateStatus = JL("تم اختيار الملف؛ إرسال OTA المباشر غير مفعّل بعد", "File selected; direct OTA transport is not enabled yet")
+                    updateStatus = JL("تم اختيار الملف؛ جاهز لطلب النقل عبر MQTT عند اتصال ESP", "Firmware selected; ready to negotiate MQTT transfer when ESP is online")
                 } catch {
                     updateStatus = JL("تعذر قراءة الملف", "Could not read selected file")
                 }
