@@ -1,1 +1,37 @@
 
+name: JOURNEY OTA Link
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-link:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate R2 download URL
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          set -euo pipefail
+
+          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          FILE="s3://${R2_BUCKET_NAME}/releases/KR17.15/firmware.bin"
+
+          aws --endpoint-url "$ENDPOINT" s3api head-object \
+            --bucket "$R2_BUCKET_NAME" \
+            --key "releases/KR17.15/firmware.bin"
+
+          URL=$(aws --endpoint-url "$ENDPOINT" s3 presign "$FILE" \
+            --expires-in 604800)
+
+          {
+            echo "## JOURNEY KR17.15 OTA"
+            echo ""
+            echo "انسخ الرابط التالي إلى تطبيق JOURNEY:"
+            echo ""
+            echo "$URL"
+          } >> "$GITHUB_STEP_SUMMARY"
