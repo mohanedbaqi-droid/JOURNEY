@@ -145,7 +145,7 @@ final class MQTTService: ObservableObject {
         guard let source = firmwareTransferData,
               let offset = packet["nextOffset"] as? Int,
               offset >= 0, offset <= source.count,
-              offset == 0 || offset > firmwareTransferLastAck else { return }
+              offset > firmwareTransferLastAck else { return }
         firmwareTransferLastAck = offset
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = Task { @MainActor [weak self] in
