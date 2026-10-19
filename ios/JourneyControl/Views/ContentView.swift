@@ -1282,6 +1282,9 @@ private struct ESPStatusView: View {
     @State private var tempSaveStatus = ""
     @State private var updateStatus = ""
     @State private var firmwareURL = ""
+    @State private var showingFirmwareImporter = false
+    @State private var selectedFirmwareName = ""
+    @State private var selectedFirmwareBytes = 0
     @State private var maintenanceMode = false
     @State private var powerSaveMode = 0
     @State private var powerSaveIdleMinutes = 30.0
@@ -1398,6 +1401,17 @@ private struct ESPStatusView: View {
                     .disabled(deviceID == nil)
             }
             Section(JL("تحديث Firmware", "Firmware update")) {
+                Button(JL("اختيار ملف firmware.bin من الآيفون", "Choose firmware.bin from iPhone"), systemImage: "doc.badge.plus") {
+                    showingFirmwareImporter = true
+                }
+                if !selectedFirmwareName.isEmpty {
+                    Text("\(selectedFirmwareName) · \(selectedFirmwareBytes) bytes")
+                        .font(.footnote)
+                    Text(JL("تم اختيار الملف فقط. النقل المباشر عبر MQTT يحتاج دعم استقبال OTA بالفيرموير قبل تفعيل الإرسال.", "File selected only. MQTT OTA streaming requires ESP firmware receiver support before transmission can be enabled."))
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
+
                 TextField(JL("رابط HTTPS لملف firmware.bin", "HTTPS URL for firmware.bin"), text: $firmwareURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -1414,6 +1428,33 @@ private struct ESPStatusView: View {
                 Text(JL("الإعدادات تحفظ داخل ESP، لذلك تبقى بعد فصل الكهرباء ولا تحتاج كمبيوتر.", "Settings are stored on ESP and remain after power loss. No computer is required."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+        }
+        .fileImporter(isPresented: $showingFirmwareImporter, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                let granted = url.startAccessingSecurityScopedResource()
+                defer { if granted { url.stopAccessingSecurityScopedResource() } }
+                guard url.lastPathComponent.lowercased() == "firmware.bin" else {
+                    updateStatus = JL("اختار firmware.bin فقط", "Select firmware.bin only")
+                    return
+                }
+                do {
+                    let values = try url.resourceValues(forKeys: [.fileSizeKey])
+                    let count = values.fileSize ?? 0
+                    guard (262_144...3_145_728).contains(count) else {
+                        updateStatus = JL("حجم الفيرموير خارج الحدود المتوقعة", "Firmware size outside expected range")
+                        return
+                    }
+                    selectedFirmwareName = url.lastPathComponent
+                    selectedFirmwareBytes = count
+                    updateStatus = JL("تم اختيار الملف؛ إرسال OTA المباشر غير مفعّل بعد", "File selected; direct OTA transport is not enabled yet")
+                } catch {
+                    updateStatus = JL("تعذر قراءة الملف", "Could not read selected file")
+                }
+            case .failure:
+                updateStatus = JL("تعذر اختيار الملف", "Could not select file")
             }
         }
         .onAppear { loadSettings(); syncTempWarning() }
