@@ -41,6 +41,23 @@ jobs:
       - name: Inspect OTA integration points
         run: |
           grep -nE 'mqttCallback|mqtt\.setCallback|setCallback|mqtt\.publish|mqtt\.setBufferSize|void loop\(|void setup\(|MQTT|owner|phoneID|authorized' JOURNEY_KR17_15/JOURNEY_KR17_15.ino | head -120 || true
+      - name: Integrate guarded MQTT OTA receiver
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path("JOURNEY_KR17_15/JOURNEY_KR17_15.ino")
+          src=p.read_text()
+          for pattern in [r'mqtt\\.setCallback\\s*\\(', r'void\\s+loop\\s*\\(', r'void\\s+setup\\s*\\(']:
+              matches=list(re.finditer(pattern,src))
+              print(pattern, len(matches))
+          # Do not modify the firmware automatically unless the command
+          # dispatcher and owner-authorization hooks are unambiguous.
+          # Failing closed prevents an unauthenticated OTA endpoint.
+          if not Path("firmware-source/JourneyStreamOTA.h").exists():
+              raise SystemExit("OTA receiver header missing")
+          print("OTA header present; integration awaits verified callback and owner hooks")
+          PY
       - name: Normalize and verify firmware version KR17.15
         run: |
           python3 - <<'PY'
