@@ -57,6 +57,8 @@ jobs:
           if not Path("firmware-source/JourneyStreamOTA.h").exists():
               raise SystemExit("OTA receiver header missing")
           print("OTA header present; integration awaits verified callback and owner hooks")
+          # Explicitly mark this build as legacy OTA; do not advertise MQTT streaming.
+          print("NOTICE: KR17.15 is not yet wired to JourneyStreamOTA.")
           PY
       - name: Normalize and verify firmware version KR17.15
         run: |
