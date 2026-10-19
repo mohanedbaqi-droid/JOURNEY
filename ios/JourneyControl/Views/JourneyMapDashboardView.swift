@@ -102,10 +102,19 @@ struct JourneyMapDashboardView: View {
         }
         .background(Color.black)
         .onAppear { capturePoint(); history.prune(); Task { await serverHistory.refresh() } }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showServerSettings = true } label: { Image(systemName: "server.rack") }
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Spacer()
+                Button {
+                    showServerSettings = true
+                } label: {
+                    Label("سيرفر الرحلات", systemImage: "server.rack")
+                        .font(.footnote)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
             }
+            .background(.ultraThinMaterial)
         }
         .sheet(isPresented: $showServerSettings) {
             NavigationStack {
