@@ -77,7 +77,7 @@ final class MQTTService: ObservableObject {
             return false
         }
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(15))
+            try? await Task.sleep(for: .seconds(90))
             guard let self, self.firmwareTransferID == transferID,
                   self.firmwareTransferBusy, self.firmwareTransferLastAck < 0 else { return }
             self.firmwareTransferStatus = JL("ESP لم يؤكد دعم استقبال OTA. لم تُرسل بيانات الفيرموير.", "ESP did not confirm OTA streaming support. No firmware bytes were sent.")
@@ -142,10 +142,10 @@ final class MQTTService: ObservableObject {
         firmwareTransferLastAck = offset
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(20))
+            try? await Task.sleep(for: .seconds(120))
             guard !Task.isCancelled, let self, self.firmwareTransferBusy,
                   self.firmwareTransferID == id, self.firmwareTransferLastAck == offset else { return }
-            self.firmwareTransferStatus = JL("انتهت مهلة تأكيد الدفعة؛ أُوقف النقل لحماية التحديث", "Chunk acknowledgment timed out; transfer stopped safely")
+            self.firmwareTransferStatus = JL("انتهت مهلة تأكيد الدفعة؛ أُوقف النقل لحماية التحديث", "No chunk acknowledgment for 120 seconds; transfer stopped safely")
             self.cancelFirmwareTransfer()
         }
         firmwareTransferProgress = Double(offset) / Double(source.count)
