@@ -77,3 +77,22 @@ jobs:
           path: |
             build-kr17-15/firmware.bin
             build-kr17-15/firmware.sha256
+
+      - name: Upload private OTA binary to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          set -euo pipefail
+          for key in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY R2_ACCOUNT_ID R2_BUCKET_NAME; do
+            if [ -z "${!key:-}" ]; then echo "::error::Missing secret $key"; exit 1; fi
+          done
+          case "$R2_ACCOUNT_ID" in *[!a-fA-F0-9]*|'') echo "::error::Invalid R2 account ID"; exit 1;; esac
+          case "$R2_BUCKET_NAME" in *[!a-z0-9.-]*|'') echo "::error::Invalid R2 bucket name"; exit 1;; esac
+          export AWS_DEFAULT_REGION=auto AWS_EC2_METADATA_DISABLED=true
+          ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          aws --endpoint-url "$ENDPOINT" s3 cp build-kr17-15/firmware.bin "s3://${R2_BUCKET_NAME}/releases/KR17.15/firmware.bin" --content-type application/octet-stream --no-progress
+          aws --endpoint-url "$ENDPOINT" s3 cp build-kr17-15/firmware.sha256 "s3://${R2_BUCKET_NAME}/releases/KR17.15/firmware.sha256" --content-type text/plain --no-progress
+          echo "Private OTA firmware uploaded to R2 (bucket public access remains disabled)."
