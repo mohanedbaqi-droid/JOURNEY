@@ -1320,14 +1320,22 @@ private struct ESPStatusView: View {
             Section(JL("تشخيص ESP الكامل", "Full ESP diagnostics")) {
                 Button {
                     guard let deviceID else { return }
-                    _ = mqtt.requestFullDiagnostics(for: deviceID)
+                    _ = mqtt.requestFullDiagnostics(for: deviceID, via: .bluetooth)
                 } label: {
-                    Label(JL("سحب التشخيص الكامل", "Download full diagnostics"),
-                          systemImage: "arrow.down.doc.fill")
+                    Label(JL("سحب التشخيص عبر البلوتوث", "Download diagnostics via Bluetooth"),
+                          systemImage: "antenna.radiowaves.left.and.right")
+                }
+                .disabled(deviceID == nil || mqtt.diagnosticTransferBusy)
+                Button {
+                    guard let deviceID else { return }
+                    _ = mqtt.requestFullDiagnostics(for: deviceID, via: .cloud)
+                } label: {
+                    Label(JL("سحب التشخيص عبر الإنترنت", "Download diagnostics via Internet"),
+                          systemImage: "icloud.and.arrow.down")
                 }
                 .disabled(deviceID == nil || mqtt.diagnosticTransferBusy)
                 if mqtt.diagnosticTransferBusy {
-                    ProgressView(JL("جاري سحب الملف من ESP عبر 4G", "Downloading from ESP over 4G"))
+                    ProgressView(mqtt.diagnosticTransferStatus)
                 }
                 if !mqtt.diagnosticTransferStatus.isEmpty {
                     Text(mqtt.diagnosticTransferStatus)
@@ -1345,8 +1353,8 @@ private struct ESPStatusView: View {
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                 }
-                Text(JL("ضغطة واحدة تطلب سجل ESP المحفوظ. إذا نقصت دفعة يبقى التقرير غير مكتمل ولا يُعرض كملف كامل. يتطلب KR20 واتصال MQTT وصلاحية موضوع diagnostics/chunk.",
-                        "One tap requests the retained ESP log. Missing chunks never produce a falsely complete report. Requires KR20, MQTT and diagnostics/chunk topic permission."))
+                Text(JL("اختَر البلوتوث للفحص المحلي أو الإنترنت للفحص عن بُعد. كل مسار مستقل ولا يتحول تلقائياً إلى الثاني.",
+                        "Choose Bluetooth for local diagnostics or Internet for remote diagnostics. Each route is independent and never silently switches."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section(JL("OBD عبر BLE", "OBD over BLE")) {
