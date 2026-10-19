@@ -17,3 +17,18 @@ API endpoints (Authorization: Bearer YOUR_SERVER_API_TOKEN): `/api/trips`, `/api
 - Server-side GPS history is not yet wired into the iOS app. Do not embed the API token in a public app; add per-owner authentication or a scoped server proxy before enabling remote access.
 - No offline buffering in ESP yet; gaps remain if cellular/Wi-Fi fails.
 - Device isolation is enforced by a configured device ID, and the broker's device-scoped MQTT ACL is essential.
+
+## Private 4G OTA distribution (not deployed yet)
+
+The history API now includes a private OTA staging mechanism. It does **not** automatically deploy to the Internet and it does **not** automatically flash a vehicle.
+
+Set server environment variables:
+- `JOURNEY_OTA_FILE`: absolute persistent private path, e.g. `/var/lib/journey/firmware.bin` (not inside the public web directory)
+- `JOURNEY_OTA_SIGNING_KEY`: random secret of at least 32 characters; separate from MQTT and API tokens
+- `JOURNEY_OTA_PUBLIC_BASE_URL`: the public HTTPS origin only, e.g. `https://updates.example.com` (requires a real domain, TLS certificate and hosting)
+
+Existing `JOURNEY_API_TOKEN` authenticates both staging and URL issuance. Upload the **validated** ESP32 application binary via `PUT /api/ota/firmware`, with headers `Authorization: Bearer <API_TOKEN>` and `Content-Type: application/octet-stream`. The body is the raw `firmware.bin` bytes, not the ZIP. The server enforces 100KB–3MB and ESP image magic 0xE9; this is only basic format checking, **not cryptographic firmware signing**.
+
+Get a 15-minute signed direct-download URL from `GET /api/ota/link` with the same bearer header. The response has `url`, `sha256`, `bytes`, and `expires_at`. Only the URL is given to the ESP; never send the bearer token or signing key to it. `GET /ota/firmware.bin?exp=...&sha256=...&sig=...` validates HMAC, expiry and hash, then responds with the raw binary and a Content-Length.
+
+**Before attempting vehicle OTA:** confirm the firmware's cellular HTTPS client trusts the deployed certificate via `OTA_ROOT_CA`; test the URL on the ESP and verify the downloaded SHA-256; confirm the running partition table and OTA slot are compatible; verify the 4G link can download the full image reliably. The current server is a distribution layer, not a complete OTA safety system: signed images, device-specific authorization, rollout controls, and rollback checks are future work. The app's existing update field still requires manual URL entry until the app is connected to `/api/ota/link`.
