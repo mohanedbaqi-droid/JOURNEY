@@ -1287,6 +1287,7 @@ private struct ESPStatusView: View {
     @State private var selectedFirmwareName = ""
     @State private var selectedFirmwareBytes = 0
     @State private var selectedFirmwareSHA256 = ""
+    @State private var selectedFirmwareData: Data?
     @State private var maintenanceMode = false
     @State private var powerSaveMode = 0
     @State private var powerSaveIdleMinutes = 30.0
@@ -1417,6 +1418,22 @@ private struct ESPStatusView: View {
                         .foregroundStyle(.orange)
                 }
 
+                Button(JL("إرسال الملف عبر الإنترنت MQTT", "Send file over Internet MQTT"), systemImage: "arrow.up.doc") {
+                    guard let data = selectedFirmwareData, let deviceID else { return }
+                    updateStatus = mqtt.beginFirmwareTransfer(data, to: deviceID)
+                        ? JL("تم إرسال طلب بدء OTA؛ بانتظار موافقة ESP", "OTA negotiation sent; waiting for ESP approval")
+                        : mqtt.firmwareTransferStatus
+                }
+                .disabled(deviceID == nil || selectedFirmwareData == nil || mqtt.firmwareTransferBusy || mqtt.connection != .connected)
+                if mqtt.firmwareTransferBusy {
+                    ProgressView(value: mqtt.firmwareTransferProgress)
+                    Button(JL("إلغاء النقل", "Cancel transfer"), role: .cancel) {
+                        mqtt.cancelFirmwareTransfer()
+                    }
+                }
+                if !mqtt.firmwareTransferStatus.isEmpty {
+                    Text(mqtt.firmwareTransferStatus).font(.footnote)
+                }
                 TextField(JL("رابط HTTPS لملف firmware.bin", "HTTPS URL for firmware.bin"), text: $firmwareURL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -1458,6 +1475,7 @@ private struct ESPStatusView: View {
                         return
                     }
                     selectedFirmwareSHA256 = SHA256.hash(data: firmwareData).map { String(format: "%02x", $0) }.joined()
+                    selectedFirmwareData = firmwareData
                     selectedFirmwareName = url.lastPathComponent
                     selectedFirmwareBytes = count
                     updateStatus = JL("تم اختيار الملف؛ إرسال OTA المباشر غير مفعّل بعد", "File selected; direct OTA transport is not enabled yet")
