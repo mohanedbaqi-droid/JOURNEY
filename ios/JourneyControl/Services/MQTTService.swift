@@ -138,7 +138,7 @@ final class MQTTService: ObservableObject {
                 return
             }
             firmwareTransferProgress = 1
-            firmwareTransferStatus = JL("ESP أكد استلام الملف والتحقق منه؛ بانتظار إعادة التشغيل", "ESP verified firmware transfer; awaiting reboot")
+            firmwareTransferStatus = JL("ESP تحقق من الملف وأرسل تأكيد الاكتمال؛ نجاح الإقلاع بالإصدار الجديد غير مؤكد بعد", "ESP verified the image and acknowledged completion; booting the new version has not yet been confirmed")
             finishFirmwareTransfer()
             return
         }
