@@ -41,7 +41,7 @@ public:
       ack(id_, "ready", nullptr); return true;
     }
     if (!active_ || id != id_) { ack(id, "error", "unknown_session"); return true; }
-    if (millis() - lastChunkAt_ > 30000UL) { fail("timeout"); return true; }
+    if (millis() - lastChunkAt_ > 180000UL) { fail("timeout"); return true; }
     const size_t at = doc["offset"] | SIZE_MAX;
     if (at != offset_) { ack(id_, "ready", nullptr); return true; }
     const char *encoded = doc["data"] | "";
@@ -76,7 +76,7 @@ public:
     return true;
   }
   void tick() {
-    if (active_ && millis() - lastChunkAt_ > 30000UL) fail("timeout");
+    if (active_ && millis() - lastChunkAt_ > 180000UL) fail("timeout");
     if (rebootPendingAt_ && millis() - rebootPendingAt_ > 1500UL) ESP.restart();
   }
 private:
