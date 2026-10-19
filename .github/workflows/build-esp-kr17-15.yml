@@ -11,13 +11,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract KR17.15 source archive if present
+      - name: Extract and normalize KR17.15 source archive
         run: |
-          if [ -f firmware-source/KR17.15.zip ]; then
-            unzip -oq firmware-source/KR17.15.zip -d .
-          fi
-          test -f JOURNEY_KR17_15/JOURNEY_KR17_15.ino
-          test -f JOURNEY_KR17_15/config.h
+          python3 - <<'PY'
+          import pathlib,zipfile,shutil,sys
+          archive=pathlib.Path("firmware-source/KR17.15.zip")
+          if not archive.is_file(): sys.exit("KR17.15.zip missing")
+          staging=pathlib.Path("/tmp/kr17source")
+          staging.mkdir(exist_ok=True)
+          with zipfile.ZipFile(archive) as z:
+              bad=z.testzip()
+              if bad: sys.exit("Damaged ZIP member: "+bad)
+              for member in z.infolist():
+                  p=pathlib.PurePosixPath(member.filename)
+                  if p.is_absolute() or ".." in p.parts: sys.exit("Unsafe ZIP path")
+              z.extractall(staging)
+          sketches=list(staging.rglob("*.ino"))
+          if not sketches: sys.exit("No .ino sketch in uploaded ZIP; check ZIP contents")
+          preferred=[p for p in sketches if "JOURNEY" in p.name.upper()]
+          sketch=preferred[0] if preferred else sketches[0]
+          target=pathlib.Path("JOURNEY_KR17_15")
+          if target.exists(): shutil.rmtree(target)
+          shutil.copytree(sketch.parent,target)
+          if sketch.name != "JOURNEY_KR17_15.ino":
+              (target/sketch.name).rename(target/"JOURNEY_KR17_15.ino")
+          if not (target/"config.h").is_file(): sys.exit("config.h missing next to sketch")
+          print("Using source sketch:",sketch)
+          PY
       - uses: arduino/setup-arduino-cli@v2
       - name: Install ESP32 platform and libraries
         run: |
