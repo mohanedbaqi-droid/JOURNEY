@@ -23,15 +23,16 @@ jobs:
 
           aws --endpoint-url "$ENDPOINT" s3api head-object \
             --bucket "$R2_BUCKET_NAME" \
-            --key "releases/KR17.15/firmware.bin"
+            --key "releases/KR17.15/firmware.bin" > /dev/null
 
-          URL=$(aws --endpoint-url "$ENDPOINT" s3 presign "$FILE" \
-            --expires-in 604800)
+          aws --endpoint-url "$ENDPOINT" s3 presign "$FILE" \
+            --expires-in 604800 > ota-link.txt
 
-          {
-            echo "## JOURNEY KR17.15 OTA"
-            echo ""
-            echo "انسخ الرابط التالي إلى تطبيق JOURNEY:"
-            echo ""
-            echo "$URL"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "OTA link generated successfully." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save OTA link as downloadable file
+        uses: actions/upload-artifact@v4
+        with:
+          name: JOURNEY-OTA-LINK
+          path: ota-link.txt
+          retention-days: 1
