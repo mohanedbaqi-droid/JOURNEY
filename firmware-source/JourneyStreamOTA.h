@@ -24,7 +24,7 @@ public:
     const String id = doc["id"] | "";
     const String phoneID = doc["phoneID"] | "";
     if (!authorized_ || !authorized_(phoneID) || id.length() != 36) { ack(id, "error", "unauthorized"); return true; }
-    if (action == "ota_stream_abort") { if (active_ && id == id_) stop(); return true; }
+    if (action == "ota_stream_abort") { if (active_ && id == id_) { stop(); ack(id, "error", "cancelled"); } return true; }
     if (action == "ota_stream_begin") {
       const size_t size = doc["size"] | 0;
       const String digest = doc["sha256"] | "";
@@ -41,6 +41,7 @@ public:
       ack(id_, "ready", nullptr); return true;
     }
     if (!active_ || id != id_) { ack(id, "error", "unknown_session"); return true; }
+    if (millis() - lastChunkAt_ > 30000UL) { fail("timeout"); return true; }
     const size_t at = doc["offset"] | SIZE_MAX;
     if (at != offset_) { ack(id_, "ready", nullptr); return true; }
     const char *encoded = doc["data"] | "";
@@ -49,7 +50,8 @@ public:
     uint8_t decoded[384]; size_t decodedLen = 0;
     if (mbedtls_base64_decode(decoded, sizeof(decoded), &decodedLen,
          reinterpret_cast<const unsigned char *>(encoded), encodedLen) != 0 ||
-         decodedLen == 0 || offset_ + decodedLen > expectedSize_) {
+         decodedLen == 0 || decodedLen > 384 || offset_ + decodedLen > expectedSize_ ||
+         (offset_ + decodedLen < expectedSize_ && decodedLen != 384)) {
       fail("decode_failed"); return true;
     }
     if (Update.write(decoded, decodedLen) != decodedLen) { fail("flash_write_failed"); return true; }
@@ -63,7 +65,7 @@ public:
       char hex[65]; for (int i=0;i<32;i++) sprintf(hex + 2*i, "%02x", digest[i]);
       hex[64] = 0;
       if (!expectedHash_.equalsIgnoreCase(hex)) { fail("sha256_mismatch"); return true; }
-      if (!Update.end(true)) { fail("update_end_failed"); return true; }
+      if (!Update.end(false)) { fail("update_end_failed"); return true; }
       ack(id_, "complete", nullptr);
       active_ = false;
       // Reboot from the main loop after MQTT has had time to flush the ACK.
