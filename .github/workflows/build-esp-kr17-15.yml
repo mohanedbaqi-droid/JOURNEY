@@ -38,6 +38,9 @@ jobs:
           if not (target/"config.h").is_file(): sys.exit("config.h missing next to sketch")
           print("Using source sketch:",sketch)
           PY
+      - name: Inspect OTA integration points
+        run: |
+          grep -nE 'mqttCallback|mqtt\.setCallback|setCallback|mqtt\.publish|mqtt\.setBufferSize|void loop\(|void setup\(|MQTT|owner|phoneID|authorized' JOURNEY_KR17_15/JOURNEY_KR17_15.ino | head -120 || true
       - name: Normalize and verify firmware version KR17.15
         run: |
           python3 - <<'PY'
