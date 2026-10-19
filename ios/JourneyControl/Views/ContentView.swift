@@ -1405,8 +1405,8 @@ private struct ESPStatusView: View {
                 Button(JL("تحديث عبر 4G من الرابط", "Update via 4G from URL"), systemImage: "antenna.radiowaves.left.and.right") {
                     updateThrough4G()
                 }
-                .disabled(deviceID == nil || !firmwareURL.lowercased().hasPrefix("https://"))
-                Text(JL("رابط التحديث يجب أن ينتهي بملف firmware.bin متاح للتحميل المباشر. ESP ينزله عبر شريحته ثم يعيد التشغيل.", "The update URL must provide a directly downloadable firmware.bin. ESP downloads it through its cellular connection, then restarts."))
+                .disabled(deviceID == nil || !isValidFirmwareURL)
+                Text(JL("يقبل رابط HTTPS مباشر أو رابط Cloudflare R2 موقّع بعد firmware.bin. إرسال الرابط لا يعني نجاح التنزيل أو التثبيت.", "The update URL must provide a directly downloadable firmware.bin. ESP downloads it through its cellular connection, then restarts."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -1555,10 +1555,25 @@ private struct ESPStatusView: View {
         updateStatus = mqtt.sendESPSettings(settings, to: deviceID) ? JL("تم إرسال الإعدادات إلى ESP", "Settings sent to ESP") : JL("تعذر إرسال الإعدادات", "Could not send settings")
     }
 
+    private var isValidFirmwareURL: Bool {
+        let trimmed = firmwareURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let parts = URLComponents(string: trimmed),
+              parts.scheme?.lowercased() == "https",
+              let host = parts.host, !host.isEmpty,
+              parts.user == nil, parts.password == nil,
+              parts.path.lowercased().hasSuffix("/firmware.bin") else { return false }
+        // Signed R2 links use query parameters after the .bin path.
+        return true
+    }
+
     private func updateThrough4G() {
         guard let deviceID else { return }
+        guard isValidFirmwareURL else {
+            updateStatus = JL("الرابط غير صالح: يجب أن يكون HTTPS ومساره firmware.bin", "Invalid URL: HTTPS and firmware.bin path required")
+            return
+        }
         updateStatus = mqtt.sendFirmwareURL(firmwareURL.trimmingCharacters(in: .whitespacesAndNewlines), to: deviceID)
-            ? JL("تم إرسال رابط التحديث؛ ESP يبدأ التنزيل عبر 4G", "Update URL sent; ESP is downloading over 4G")
+            ? JL("تم إرسال أمر التحديث؛ انتظر تأكيد ESP قبل اعتبار التحديث ناجحاً", "OTA command sent; wait for ESP confirmation before treating update as successful")
             : JL("تعذر إرسال رابط التحديث", "Could not send update URL")
     }
 
