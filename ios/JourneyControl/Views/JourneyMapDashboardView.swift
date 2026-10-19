@@ -64,9 +64,17 @@ struct JourneyMapDashboardView: View {
                     VehicleMapView(vehicle: vehicle, vehicleName: vehicleName, deviceID: deviceID)
                         .environmentObject(mqtt)
                 case .trips:
-                    serverHistory.baseURL.isEmpty ? historyList : serverTrips
+                    if serverHistory.baseURL.isEmpty {
+                        historyList
+                    } else {
+                        serverTrips
+                    }
                 case .stops:
-                    serverHistory.baseURL.isEmpty ? stopsList : serverStops
+                    if serverHistory.baseURL.isEmpty {
+                        stopsList
+                    } else {
+                        serverStops
+                    }
                 case .statistics:
                     VStack(alignment: .leading, spacing: 18) {
                         Label("معلومات السيارة المباشرة", systemImage: "chart.bar")
