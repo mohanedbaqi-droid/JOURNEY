@@ -29,6 +29,7 @@ public:
       const size_t size = doc["size"] | 0;
       const String digest = doc["sha256"] | "";
       const int chunk = doc["chunkSize"] | 0;
+      if (active_ && id == id_ && size == expectedSize_ && digest.equalsIgnoreCase(expectedHash_) && chunk == 384) { ack(id_, "ready", nullptr); return true; }
       if (active_ || size < 262144 || size > 3145728 || digest.length() != 64 || chunk != 384) {
         ack(id, "error", "invalid_begin"); return true;
       }
