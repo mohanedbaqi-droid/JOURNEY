@@ -1,0 +1,56 @@
+name: Build JOURNEY ESP KR17.15
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "JOURNEY_KR17_15/**"
+      - ".github/workflows/build-esp-kr17-15.yml"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check KR17.15 source
+        run: |
+          test -f JOURNEY_KR17_15/JOURNEY_KR17_15.ino
+          test -f JOURNEY_KR17_15/config.h
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 platform and libraries
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.3.0
+          arduino-cli lib install ArduinoJson PubSubClient TM1637 "Adafruit PN532"
+      - name: Inject private credentials without printing
+        env:
+          JOURNEY_MQTT_PASSWORD: ${{ secrets.JOURNEY_MQTT_PASSWORD }}
+          JOURNEY_WIFI_PASSWORD: ${{ secrets.JOURNEY_WIFI_PASSWORD }}
+          JOURNEY_OTA_AP_PASSWORD: ${{ secrets.JOURNEY_OTA_AP_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,re
+          p=pathlib.Path("JOURNEY_KR17_15/config.h")
+          s=p.read_text()
+          for symbol,secret in [("MQTT_PASSWORD","JOURNEY_MQTT_PASSWORD"),("WIFI_PASSWORD","JOURNEY_WIFI_PASSWORD"),("OTA_AP_PASSWORD","JOURNEY_OTA_AP_PASSWORD")]:
+              value=os.environ.get(secret,"")
+              if not value: raise SystemExit("Missing GitHub Actions secret: "+secret)
+              value=value.replace("\\","\\\\").replace('"','\\"')
+              pat=r'(constexpr char '+symbol+r'\[\]\s*=\s*)"[^"]*"'
+              s,n=re.subn(pat,lambda m:m.group(1)+'"'+value+'"',s)
+              if n!=1: raise SystemExit("Missing config symbol: "+symbol)
+          p.write_text(s)
+          PY
+      - name: Compile KR17.15 for ESP32-S3 16MB
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB --output-dir build-kr17-15 JOURNEY_KR17_15
+      - name: Prepare firmware.bin
+        run: |
+          cp build-kr17-15/JOURNEY_KR17_15.ino.bin build-kr17-15/firmware.bin
+          sha256sum build-kr17-15/firmware.bin > build-kr17-15/firmware.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JOURNEY-KR17.15-OTA-BIN
+          path: |
+            build-kr17-15/firmware.bin
+            build-kr17-15/firmware.sha256
