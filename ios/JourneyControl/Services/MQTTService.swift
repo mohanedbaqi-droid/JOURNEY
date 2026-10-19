@@ -45,6 +45,7 @@ final class MQTTService: ObservableObject {
     private var firmwareTransferData: Data?
     private var firmwareTransferOffset = 0
     private var firmwareTransferLastAck = -1
+    private var firmwareTransferWatchdog: Task<Void, Never>?
     private let firmwareChunkSize = 384
 
     func beginFirmwareTransfer(_ data: Data, to deviceID: String) -> Bool {
@@ -60,6 +61,7 @@ final class MQTTService: ObservableObject {
         firmwareTransferData = data
         firmwareTransferOffset = 0
         firmwareTransferLastAck = -1
+        firmwareTransferWatchdog?.cancel()
         firmwareTransferProgress = 0
         firmwareTransferBusy = true
         firmwareTransferStatus = JL("بانتظار موافقة ESP على استقبال التحديث", "Waiting for ESP OTA receiver")
@@ -91,6 +93,8 @@ final class MQTTService: ObservableObject {
         firmwareTransferData = nil
         firmwareTransferOffset = 0
         firmwareTransferLastAck = -1
+        firmwareTransferWatchdog?.cancel()
+        firmwareTransferWatchdog = nil
     }
 
     private func publishFirmwarePacket(_ packet: [String: Any], to deviceID: String) -> Bool {
@@ -113,6 +117,11 @@ final class MQTTService: ObservableObject {
             return
         }
         if state == "complete" {
+            guard firmwareTransferLastAck == firmwareTransferData?.count else {
+                firmwareTransferStatus = JL("تأكيد اكتمال غير متوقع من ESP", "Unexpected ESP completion acknowledgment")
+                cancelFirmwareTransfer()
+                return
+            }
             firmwareTransferProgress = 1
             firmwareTransferStatus = JL("ESP أكد استلام الملف؛ بانتظار التثبيت وإعادة التشغيل", "ESP confirmed transfer; awaiting installation and reboot")
             cancelFirmwareTransfer()
@@ -123,6 +132,14 @@ final class MQTTService: ObservableObject {
               offset >= 0, offset <= source.count,
               offset == 0 || offset > firmwareTransferLastAck else { return }
         firmwareTransferLastAck = offset
+        firmwareTransferWatchdog?.cancel()
+        firmwareTransferWatchdog = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard !Task.isCancelled, let self, self.firmwareTransferBusy,
+                  self.firmwareTransferID == id, self.firmwareTransferLastAck == offset else { return }
+            self.firmwareTransferStatus = JL("انتهت مهلة تأكيد الدفعة؛ أُوقف النقل لحماية التحديث", "Chunk acknowledgment timed out; transfer stopped safely")
+            self.cancelFirmwareTransfer()
+        }
         firmwareTransferProgress = Double(offset) / Double(source.count)
         if offset == source.count {
             firmwareTransferStatus = JL("بانتظار تحقق ESP من الملف", "Waiting for ESP integrity verification")
