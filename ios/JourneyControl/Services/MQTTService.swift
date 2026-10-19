@@ -142,6 +142,7 @@ final class MQTTService: ObservableObject {
             finishFirmwareTransfer()
             return
         }
+        guard state == "ready" else { return }
         guard let source = firmwareTransferData,
               let offset = packet["nextOffset"] as? Int,
               offset >= 0, offset <= source.count,
