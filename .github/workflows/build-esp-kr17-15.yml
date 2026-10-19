@@ -38,6 +38,32 @@ jobs:
           if not (target/"config.h").is_file(): sys.exit("config.h missing next to sketch")
           print("Using source sketch:",sketch)
           PY
+      - name: Normalize and verify firmware version KR17.15
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          sketch = Path("JOURNEY_KR17_15/JOURNEY_KR17_15.ino")
+          source = sketch.read_text()
+          expected = {
+              'doc["firmwareVersion"] = "12.86-KR13-RECONNECT-SAFETY";':
+                  'doc["firmwareVersion"] = "12.86-KR17.15-DUAL-DIAG-GPS";',
+              'firmware v12.86-KR17.12-BLE-CELL-CLOUD':
+                  'firmware v12.86-KR17.15-DUAL-DIAG-GPS',
+          }
+          for old, new in expected.items():
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"Version normalization failed: expected one occurrence, found {count}: {old}")
+              source = source.replace(old, new)
+          if source.count('JOURNEY ESP diagnostics v12.86-KR17.15-DUAL-DIAG-GPS') != 2:
+              raise SystemExit("Diagnostic version strings do not match KR17.15")
+          if re.search(r'doc\\["firmwareVersion"\\]\\s*=\\s*"(?!12\\.86-KR17\\.15-DUAL-DIAG-GPS)', source):
+              raise SystemExit("Inconsistent telemetry firmware version")
+          sketch.write_text(source)
+          print("Firmware version verified in telemetry, boot banner, and both diagnostic headers: 12.86-KR17.15-DUAL-DIAG-GPS")
+          PY
+
       - uses: arduino/setup-arduino-cli@v2
       - name: Install ESP32 platform and libraries
         run: |
