@@ -92,10 +92,18 @@ final class MQTTService: ObservableObject {
 
     @discardableResult
     func requestFullDiagnostics(for deviceID: String) -> Bool {
+        requestFullDiagnostics(for: deviceID, via: .cloud)
+    }
+
+    enum DiagnosticRoute { case cloud, bluetooth }
+
+    func requestFullDiagnostics(for deviceID: String, via route: DiagnosticRoute) -> Bool {
         guard !diagnosticTransferBusy else { return false }
         let useBLE = bluetooth.isConnected(to: deviceID)
-        guard useBLE || connection == .connected else {
-            diagnosticTransferStatus = JL("اتصل بالـESP عبر BLE أو الإنترنت", "Connect to ESP over BLE or the Internet")
+        guard (route == .bluetooth && useBLE) || (route == .cloud && connection == .connected) else {
+            diagnosticTransferStatus = route == .bluetooth
+                ? JL("اتصل بالـ ESP عبر البلوتوث أولاً", "Connect to ESP over Bluetooth first")
+                : JL("اتصل بالسيرفر عبر الإنترنت أولاً", "Connect to the MQTT server first")
             return false
         }
         diagnosticDeviceID = deviceID
@@ -105,15 +113,17 @@ final class MQTTService: ObservableObject {
         fullDiagnosticReport = ""
         diagnosticStartedAt = Date()
         diagnosticTransferBusy = true
-        diagnosticTransferStatus = JL("بانتظار ملف التشخيص من ESP…", "Waiting for ESP diagnostics…")
+        diagnosticTransferStatus = route == .cloud
+            ? JL("بانتظار التشخيص عبر الإنترنت…", "Waiting for Internet diagnostics…")
+            : JL("بانتظار التشخيص عبر البلوتوث…", "Waiting for Bluetooth diagnostics…")
         // Full diagnostics use MQTT first; BLE is the offline fallback.
         let request = VehicleCommand(action: .espDiagnostics, diagnosticSince: 0)
         if connection == .connected, let client {
             subscribeToSelectedVehicle(using: client)
         }
-        let sentViaCloud = connection == .connected &&
+        let sentViaCloud = route == .cloud && connection == .connected &&
             publishCloud(request, to: deviceID)
-        let sentViaBLE = !sentViaCloud && useBLE &&
+        let sentViaBLE = route == .bluetooth && useBLE &&
             bluetooth.send(request, to: deviceID)
         if sentViaBLE || sentViaCloud {
             // A lost MQTT chunk must not leave the download spinner running forever.
