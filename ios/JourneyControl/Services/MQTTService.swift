@@ -65,7 +65,7 @@ final class MQTTService: ObservableObject {
         firmwareTransferProgress = 0
         firmwareTransferBusy = true
         firmwareTransferStatus = JL("بانتظار موافقة ESP على استقبال التحديث", "Waiting for ESP OTA receiver")
-        subscribeToSelectedVehicle(using: client!)
+        if let client { subscribeToSelectedVehicle(using: client) }
         let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         let packet: [String: Any] = [
             "action": "ota_stream_begin", "id": transferID,
@@ -95,6 +95,10 @@ final class MQTTService: ObservableObject {
                 "phoneID": AppConfig.phoneID
             ], to: deviceID)
         }
+        finishFirmwareTransfer()
+    }
+
+    private func finishFirmwareTransfer() {
         firmwareTransferBusy = false
         firmwareTransferID = nil
         firmwareTransferDevice = nil
@@ -125,14 +129,17 @@ final class MQTTService: ObservableObject {
             return
         }
         if state == "complete" {
-            guard firmwareTransferLastAck == firmwareTransferData?.count else {
+            guard let source = firmwareTransferData,
+                  let nextOffset = packet["nextOffset"] as? Int,
+                  nextOffset == source.count,
+                  firmwareTransferLastAck >= 0 else {
                 firmwareTransferStatus = JL("تأكيد اكتمال غير متوقع من ESP", "Unexpected ESP completion acknowledgment")
                 cancelFirmwareTransfer()
                 return
             }
             firmwareTransferProgress = 1
-            firmwareTransferStatus = JL("ESP أكد استلام الملف؛ بانتظار التثبيت وإعادة التشغيل", "ESP confirmed transfer; awaiting installation and reboot")
-            cancelFirmwareTransfer()
+            firmwareTransferStatus = JL("ESP أكد استلام الملف والتحقق منه؛ بانتظار إعادة التشغيل", "ESP verified firmware transfer; awaiting reboot")
+            finishFirmwareTransfer()
             return
         }
         guard let source = firmwareTransferData,
