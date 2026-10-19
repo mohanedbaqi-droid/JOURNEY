@@ -10,7 +10,7 @@ const API_TOKEN = process.env.JOURNEY_API_TOKEN;
 if (!DEVICE || !API_TOKEN || !process.env.MQTT_URL || !process.env.DATABASE_URL) throw Error('Missing required environment configuration');
 app.use(express.json({limit:'16kb'}));
 const now = () => new Date();
-function num(v,min,max) { const n=Number(v); return Number.isFinite(n)&&n>=min&&n<=max?n:null; }
+function num(v,min,max) { if(v===null||v===undefined||v==='')return null;const n=Number(v); return Number.isFinite(n)&&n>=min&&n<=max?n:null; }
 function pick(o,...names){ for(const k of names)if(o[k]!==undefined&&o[k]!==null)return o[k];return null; }
 function geoDistance(a,b) { const r=Math.PI/180, dlat=(b.lat-a.lat)*r, dlon=(b.lon-a.lon)*r; const h=Math.sin(dlat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dlon/2)**2; return 12742000*Math.asin(Math.min(1,Math.sqrt(h))); }
 const sessions=new Map();
