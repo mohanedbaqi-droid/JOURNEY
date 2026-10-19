@@ -65,6 +65,59 @@ app.get('/api/trips',async(req,res,next)=>{try{const limit=Math.min(100,Math.max
 app.get('/api/stops',async(req,res,next)=>{try{const q=await pool.query('SELECT * FROM journey_stops WHERE device_id=$1 ORDER BY arrived_at DESC LIMIT 100',[DEVICE]);res.json(q.rows);}catch(e){next(e);}});
 app.get('/api/trips/:id/points',async(req,res,next)=>{try{if(!/^[0-9]+$/.test(req.params.id))return res.sendStatus(400);const q=await pool.query('SELECT recorded_at,lat,lon,speed_kph,heading FROM journey_points WHERE device_id=$1 AND trip_id=$2 ORDER BY recorded_at LIMIT 10000',[DEVICE,req.params.id]);res.json(q.rows);}catch(e){next(e);}});
 app.get('/api/stats',async(req,res,next)=>{try{const q=await pool.query('SELECT COUNT(*)::int AS trip_count,COALESCE(SUM(distance_m),0)::float8 AS distance_m,COALESCE(MAX(max_speed_kph),0)::float8 AS max_speed_kph FROM journey_trips WHERE device_id=$1',[DEVICE]);res.json(q.rows[0]);}catch(e){next(e);}});
+// Private OTA storage: upload requires the existing API bearer token.
+// The device receives a short-lived signed HTTPS download URL (no bearer header needed).
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const OTA_FILE = process.env.JOURNEY_OTA_FILE || '';
+const OTA_SIGNING_KEY = process.env.JOURNEY_OTA_SIGNING_KEY || '';
+const OTA_PUBLIC_BASE_URL = (process.env.JOURNEY_OTA_PUBLIC_BASE_URL || '').replace(/\\/$/, '');
+function otaReady() {
+  return Boolean(OTA_FILE && OTA_SIGNING_KEY.length >= 32 && /^https:\\/\\/[^/?#]+$/.test(OTA_PUBLIC_BASE_URL));
+}
+function otaSignature(exp, hash) {
+  return crypto.createHmac('sha256', OTA_SIGNING_KEY).update(`${DEVICE}:\\n${exp}:\\n${hash}`).digest('hex');
+}
+app.put('/api/ota/firmware', express.raw({type:'application/octet-stream', limit:'3mb'}), async(req,res,next)=>{
+  if (!otaReady()) return res.status(503).json({error:'ota_not_configured'});
+  if (!Buffer.isBuffer(req.body) || req.body.length < 100000 || req.body.length > 3145728)
+    return res.status(400).json({error:'invalid_firmware_size'});
+  // ESP32 application images start with the ESP image magic byte 0xE9.
+  if (req.body[0] !== 0xe9) return res.status(400).json({error:'invalid_esp_image'});
+  const dir=path.dirname(OTA_FILE), temp=`${OTA_FILE}.${process.pid}.tmp`;
+  try {
+    await fs.promises.mkdir(dir,{recursive:true,mode:0o700});
+    await fs.promises.writeFile(temp,req.body,{mode:0o600});
+    await fs.promises.rename(temp,OTA_FILE);
+    const sha256=crypto.createHash('sha256').update(req.body).digest('hex');
+    res.json({ok:true,bytes:req.body.length,sha256});
+  } catch(e) {await fs.promises.rm(temp,{force:true}).catch(()=>{});next(e);}
+});
+app.get('/api/ota/link',async(req,res,next)=>{
+  if (!otaReady()) return res.status(503).json({error:'ota_not_configured'});
+  try {
+    const data=await fs.promises.readFile(OTA_FILE);
+    const hash=crypto.createHash('sha256').update(data).digest('hex');
+    const exp=Math.floor(Date.now()/1000)+900;
+    const sig=otaSignature(exp,hash);
+    res.json({url:`${OTA_PUBLIC_BASE_URL}/ota/firmware.bin?exp=${exp}&sha256=${hash}&sig=${sig}`,sha256:hash,bytes:data.length,expires_at:new Date(exp*1000).toISOString()});
+  }catch(e){if(e.code==='ENOENT')return res.status(404).json({error:'firmware_not_uploaded'});next(e);}
+});
+app.get('/ota/firmware.bin',async(req,res,next)=>{
+  if (!otaReady()) return res.sendStatus(503);
+  const exp=Number(req.query.exp),hash=String(req.query.sha256||''),sig=String(req.query.sig||'');
+  if (!Number.isSafeInteger(exp)||exp<Math.floor(Date.now()/1000)||exp>Math.floor(Date.now()/1000)+900||
+      !/^[a-f0-9]{64}$/.test(hash)||!/^[a-f0-9]{64}$/.test(sig)) return res.sendStatus(403);
+  const expected=otaSignature(exp,hash);
+  if(!crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(sig,'hex')))return res.sendStatus(403);
+  try{
+    const data=await fs.promises.readFile(OTA_FILE);
+    if(crypto.createHash('sha256').update(data).digest('hex')!==hash)return res.sendStatus(410);
+    res.set({'Content-Type':'application/octet-stream','Cache-Control':'no-store','Content-Disposition':'attachment; filename="firmware.bin"'});
+    res.send(data);
+  }catch(e){if(e.code==='ENOENT')return res.sendStatus(404);next(e);}
+});
 app.use((err,req,res,next)=>{console.error('API error',err.message);res.status(500).json({error:'server_error'});});
 const client=mqtt.connect(process.env.MQTT_URL,{username:process.env.MQTT_USERNAME,password:process.env.MQTT_PASSWORD,protocolVersion:4,reconnectPeriod:5000,clientId:'journey-history-'+require('crypto').randomBytes(6).toString('hex')});
 client.on('connect',()=>client.subscribe(`journey/${DEVICE}/telemetry/state`,{qos:1},e=>e&&console.error('subscribe',e.message)));
