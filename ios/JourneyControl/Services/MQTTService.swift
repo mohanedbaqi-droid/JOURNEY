@@ -47,6 +47,10 @@ final class MQTTService: ObservableObject {
     private var firmwareTransferLastAck = -1
     private var firmwareLastChunkSentAt = Date.distantPast
     private var firmwareTransferWatchdog: Task<Void, Never>?
+    // Pending packet may be retransmitted when the broker or cellular route
+    // loses an acknowledgment; ESP de-duplicates by transfer ID + byte offset.
+    private var firmwarePendingPacket: [String: Any]?
+    private var firmwareRetryGeneration = UUID()
     private let firmwareChunkSize = 384
 
     func beginFirmwareTransfer(_ data: Data, to deviceID: String) -> Bool {
@@ -81,6 +85,8 @@ final class MQTTService: ObservableObject {
         firmwareLastChunkSentAt = .distantPast
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = nil
+        firmwarePendingPacket = nil
+        firmwareRetryGeneration = UUID()
         firmwareTransferProgress = 0
         firmwareTransferBusy = true
         firmwareTransferStatus = JL("بانتظار موافقة ESP على استقبال التحديث", "Waiting for ESP OTA receiver")
@@ -95,6 +101,8 @@ final class MQTTService: ObservableObject {
             cancelFirmwareTransfer()
             return false
         }
+        firmwarePendingPacket = packet
+        scheduleFirmwareRetry(id: transferID, expectedOffset: -1)
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(90))
             guard let self, self.firmwareTransferID == transferID,
@@ -127,6 +135,30 @@ final class MQTTService: ObservableObject {
         firmwareLastChunkSentAt = .distantPast
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = nil
+        firmwarePendingPacket = nil
+        firmwareRetryGeneration = UUID()
+    }
+
+    private func scheduleFirmwareRetry(id: String, expectedOffset: Int) {
+        let generation = UUID()
+        firmwareRetryGeneration = generation
+        Task { @MainActor [weak self] in
+            for _ in 0..<7 {
+                try? await Task.sleep(for: .seconds(12))
+                guard let self, self.firmwareTransferBusy,
+                      self.firmwareTransferID == id,
+                      self.firmwareRetryGeneration == generation,
+                      self.firmwareTransferLastAck == expectedOffset,
+                      let packet = self.firmwarePendingPacket,
+                      let deviceID = self.firmwareTransferDevice else { return }
+                // Do not advance the byte offset without an acknowledgment.
+                // QoS1 means broker delivery, not confirmed flash-write.
+                if self.publishFirmwarePacket(packet, to: deviceID) {
+                    self.firmwareLastChunkSentAt = Date()
+                    self.firmwareTransferStatus = JL("إعادة إرسال دفعة OTA غير المؤكدة", "Retrying unacknowledged OTA packet")
+                }
+            }
+        }
     }
 
     private func publishFirmwarePacket(_ packet: [String: Any], to deviceID: String) -> Bool {
@@ -199,6 +231,8 @@ final class MQTTService: ObservableObject {
             return
         }
         firmwareLastChunkSentAt = Date()
+        firmwarePendingPacket = next
+        scheduleFirmwareRetry(id: id, expectedOffset: offset)
         firmwareTransferStatus = JL("إرسال التحديث", "Sending firmware") + " \(Int(firmwareTransferProgress * 100))%"
     }
 
