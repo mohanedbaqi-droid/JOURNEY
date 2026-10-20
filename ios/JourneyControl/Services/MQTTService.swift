@@ -45,6 +45,7 @@ final class MQTTService: ObservableObject {
     private var firmwareTransferData: Data?
     private var firmwareTransferOffset = 0
     private var firmwareTransferLastAck = -1
+    private var firmwareLastChunkSentAt = Date.distantPast
     private var firmwareTransferWatchdog: Task<Void, Never>?
     private let firmwareChunkSize = 384
 
@@ -61,6 +62,7 @@ final class MQTTService: ObservableObject {
         firmwareTransferData = data
         firmwareTransferOffset = 0
         firmwareTransferLastAck = -1
+        firmwareLastChunkSentAt = .distantPast
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = nil
         firmwareTransferProgress = 0
@@ -106,6 +108,7 @@ final class MQTTService: ObservableObject {
         firmwareTransferData = nil
         firmwareTransferOffset = 0
         firmwareTransferLastAck = -1
+        firmwareLastChunkSentAt = .distantPast
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = nil
     }
@@ -147,9 +150,13 @@ final class MQTTService: ObservableObject {
         guard let source = firmwareTransferData,
               let offset = packet["nextOffset"] as? Int,
               offset >= 0, offset <= source.count,
-              offset > firmwareTransferLastAck else { return }
-        firmwareTransferLastAck = offset
-        firmwareTransferOffset = offset
+              offset >= firmwareTransferLastAck else { return }
+        let isRetry = offset == firmwareTransferLastAck
+        if isRetry && Date().timeIntervalSince(firmwareLastChunkSentAt) < 5 { return }
+        if !isRetry {
+            firmwareTransferLastAck = offset
+            firmwareTransferOffset = offset
+        }
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(120))
@@ -175,6 +182,7 @@ final class MQTTService: ObservableObject {
             cancelFirmwareTransfer()
             return
         }
+        firmwareLastChunkSentAt = Date()
         firmwareTransferStatus = JL("إرسال التحديث", "Sending firmware") + " \(Int(firmwareTransferProgress * 100))%"
     }
 
