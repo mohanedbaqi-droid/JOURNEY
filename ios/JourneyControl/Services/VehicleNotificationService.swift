@@ -107,9 +107,10 @@ final class VehicleNotificationService {
         if obdNotificationsEnabled && old.obdConnected != new.obdConnected {
             changes.append(new.obdConnected ? JL("OBD متصل", "OBD connected") : JL("OBD انقطع", "OBD disconnected"))
         }
-        if old.online != new.online {
-            changes.append(new.online ? JL("السيارة متاحة", "Vehicle online") : JL("اتصال السيارة انقطع", "Vehicle disconnected"))
-        }
+        // Online is derived from BLE/MQTT heartbeat and may flap on reconnects.
+        // Never issue local push notifications for online/offline transitions:
+        // keep connectivity visible in the UI, but avoid repetitive "Vehicle online".
+        // Important vehicle events still use notifyVehicleEvent with stable IDs.
         if old.diagnosticCodes != new.diagnosticCodes, !new.diagnosticCodes.isEmpty {
             changes.append(JL("ظهر كود فحص جديد", "New diagnostic code detected"))
         }
