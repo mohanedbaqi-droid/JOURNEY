@@ -315,7 +315,7 @@ final class MQTTService: ObservableObject {
                                 ]
                                 _ = self.publishFirmwarePacket(request, to: deviceID)
                                 self.diagnosticTransferStatus = JL("إعادة طلب أجزاء التشخيص الناقصة", "Retrying missing diagnostic chunks") +
-                                    " \\(self.diagnosticChunks.count)/\\(self.diagnosticExpectedChunks)"
+                                    " \(self.diagnosticChunks.count)/\(self.diagnosticExpectedChunks)"
                             }
                         } else {
                             _ = self.publishCloud(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID)
