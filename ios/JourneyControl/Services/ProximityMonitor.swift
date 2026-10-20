@@ -37,7 +37,11 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        if central.state == .poweredOn { start() }
+        if central.state == .poweredOn {
+            // ManageDevicesView starts discovery on demand. A second central
+            // scanning continuously can contend with the live BLE connection.
+            isScanning = false
+        }
         else {
             isScanning = false
             zone = .unavailable
@@ -96,6 +100,10 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
 final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published private(set) var isReady = false
     @Published private(set) var status = JL("غير متصل", "Disconnected")
+    @Published private(set) var isSessionReady = false
+    @Published private(set) var commandStatus = ""
+    @Published private(set) var linkDropCount = 0
+    @Published private(set) var lastLinkError = ""
 
     var onState: ((String, VehicleState) -> Void)?
     var onDiagnosticChunk: ((String, String) -> Void)?
@@ -149,6 +157,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         commandCharacteristic = nil
         secureStateCharacteristic = nil
         secureSessionReady = false
+        isSessionReady = false
         secureReadPending = false
         nearSince.removeAll()
         farSince.removeAll()
@@ -295,6 +304,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         reconnectFailures = 0
         reconnectScheduled = false
         secureSessionReady = false
+        isSessionReady = false
         secureReadPending = false
         secureStateCharacteristic = nil
         commandCharacteristic = nil
@@ -306,6 +316,9 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        isSessionReady = false
+        let failure = error as NSError?
+        lastLinkError = failure.map { "\($0.domain) / \($0.code): \($0.localizedDescription)" } ?? "connection failed"
         status = JL("فشل اتصال BLE", "BLE connection failed")
         reconnectFailures = min(reconnectFailures + 1, 6)
         reconnectAfterDelay()
@@ -324,6 +337,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
+        isSessionReady = false
+        linkDropCount += 1
+        let failure = error as NSError?
+        lastLinkError = failure.map { "\($0.domain) / \($0.code): \($0.localizedDescription)" } ?? "BLE disconnected without CoreBluetooth error"
         status = JL("انقطع BLE — إعادة اتصال", "BLE disconnected — reconnecting")
         let duration = Int(Date().timeIntervalSince1970)
         NSLog("[JOURNEY BLE] didDisconnect peripheral=%@ error=%@ timestamp=%d", peripheral.identifier.uuidString, error?.localizedDescription ?? "nil", duration)
@@ -382,6 +399,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             return
         }
         secureSessionReady = true
+        isSessionReady = true
         status = JL("BLE مقترن وجاهز", "BLE paired and ready")
         // Flush a user command only after pairing + CCCD activation. In
         // particular, never issue the first remote button before encryption.
@@ -419,6 +437,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             secureReadPending = false
             if let error {
                 secureSessionReady = false
+                isSessionReady = false
                 status = JL("فشل اقتران BLE — افحص الاقتران المحفوظ", "BLE pairing failed — check saved bond")
                 NSLog("[JOURNEY BLE] encrypted GATT read failed: %@", error.localizedDescription)
                 return
@@ -467,11 +486,11 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private func write(_ command: VehicleCommand, to peripheral: CBPeripheral, characteristic: CBCharacteristic) {
         guard !demoSuspended else { return }
         guard let data = try? JSONEncoder().encode(command) else {
-            status = JL("تعذر تجهيز أمر BLE", "Could not prepare BLE command")
+            commandStatus = JL("تعذر تجهيز أمر BLE", "Could not prepare BLE command")
             return
         }
         guard characteristic.properties.contains(.write) else {
-            status = JL("خاصية أوامر BLE غير متاحة", "BLE command characteristic unavailable")
+            commandStatus = JL("خاصية أوامر BLE غير متاحة", "BLE command characteristic unavailable")
             return
         }
         pending = nil
@@ -483,7 +502,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             return
         }
         bleWriteInFlight = true
-        status = JL("جاري تأكيد أمر BLE (\(data.count) بايت)", "Confirming BLE command (\(data.count) bytes)")
+        commandStatus = JL("جاري تأكيد أمر BLE (\(data.count) بايت)", "Confirming BLE command (\(data.count) bytes)")
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
@@ -500,7 +519,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
         let data = bleWriteQueue.removeFirst()
         bleWriteInFlight = true
-        status = JL("جاري تأكيد أمر BLE (\(data.count) بايت)", "Confirming BLE command (\(data.count) bytes)")
+        commandStatus = JL("جاري تأكيد أمر BLE (\(data.count) بايت)", "Confirming BLE command (\(data.count) bytes)")
         peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
@@ -508,12 +527,12 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         guard !demoSuspended else { return }
         guard characteristic.uuid == commandUUID else { return }
         if let error {
-            status = JL("فشل إرسال أمر BLE: \(error.localizedDescription)", "BLE command failed: \(error.localizedDescription)")
+            commandStatus = JL("فشل إرسال أمر BLE: \(error.localizedDescription)", "BLE command failed: \(error.localizedDescription)")
             bleWriteInFlight = false
             bleWriteQueue.removeAll()
             return
         }
-        status = JL("تم تأكيد أمر BLE", "BLE command confirmed")
+        commandStatus = JL("تم تأكيد أمر BLE", "BLE command confirmed")
         bleWriteInFlight = false
         sendNextBleWrite(on: peripheral, characteristic: characteristic)
     }
