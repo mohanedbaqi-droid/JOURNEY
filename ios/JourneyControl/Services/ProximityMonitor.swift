@@ -118,6 +118,9 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     // before this transport is considered available for vehicle commands.
     private var secureSessionReady = false
     private var secureReadPending = false
+    // Only one discovery/encrypted-read/notification setup per BLE link.
+    // Lifecycle resumes and scan fallbacks must not start overlapping GATT work.
+    private var gattSetupInProgress = false
     private var pending: (command: VehicleCommand, deviceID: String)?
     // Serialize confirmed GATT writes. CoreBluetooth accepts writeValue calls faster
     // than the ESP command task can drain them when OBD connect/discovery is busy.
@@ -159,6 +162,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         secureSessionReady = false
         isSessionReady = false
         secureReadPending = false
+        gattSetupInProgress = false
         nearSince.removeAll()
         farSince.removeAll()
         unlockedByKeyless.removeAll()
@@ -267,7 +271,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             peripherals[deviceID] = peripheral
             deviceIDs[peripheral.identifier] = deviceID
             peripheral.delegate = self
-            if peripheral.state == .connected { peripheral.discoverServices([service]) }
+            if peripheral.state == .connected { beginGattSetup(on: peripheral) }
         }
     }
 
@@ -298,6 +302,16 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
     }
 
+    /// Serializes the initial CoreBluetooth GATT flow. There must never be
+    /// another service discovery while the OS is handling an SMP pairing prompt.
+    private func beginGattSetup(on peripheral: CBPeripheral) {
+        guard !demoSuspended, peripheral.state == .connected,
+              !gattSetupInProgress, !secureSessionReady else { return }
+        gattSetupInProgress = true
+        status = JL("BLE متصل — اكتشاف الخدمة", "BLE connected — discovering service")
+        peripheral.discoverServices([service])
+    }
+
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard !demoSuspended else { central.cancelPeripheralConnection(peripheral); return }
         if central.isScanning { central.stopScan() }
@@ -308,11 +322,14 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         secureReadPending = false
         secureStateCharacteristic = nil
         commandCharacteristic = nil
+        gattSetupInProgress = false
+        bleWriteInFlight = false
+        bleWriteQueue.removeAll()
         disconnectGeneration += 1
         Task { @MainActor in VehicleNotificationService.shared.clearKeylessDepartureNotice() }
-        status = JL("BLE متصل — جاري تهيئة الاقتران", "BLE link connected — preparing secure pairing")
-        peripheral.discoverServices([service])
-        peripheral.readRSSI()
+        beginGattSetup(on: peripheral)
+        // Do not queue recurring RSSI reads while encrypted GATT access
+        // can trigger the system's Pair dialog. Start RSSI after CCCD success.
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -330,6 +347,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             secureStateCharacteristic = nil
             secureSessionReady = false
             secureReadPending = false
+            gattSetupInProgress = false
             bleWriteInFlight = false
             bleWriteQueue.removeAll()
             status = JL("BLE متوقف بوضع الديمو", "BLE suspended in demo mode")
@@ -356,20 +374,35 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         secureStateCharacteristic = nil
         secureSessionReady = false
         secureReadPending = false
+        gattSetupInProgress = false
         reconnectAfterDelay()
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        guard !demoSuspended else { return }
-        guard error == nil, let services = peripheral.services else { return }
-        for service in services where service.uuid == self.service {
-            peripheral.discoverCharacteristics([commandUUID, stateUUID], for: service)
+        guard !demoSuspended, gattSetupInProgress else { return }
+        guard error == nil, let services = peripheral.services else {
+            gattSetupInProgress = false
+            status = JL("فشل اكتشاف خدمة BLE", "BLE service discovery failed")
+            if let error { NSLog("[JOURNEY BLE] discoverServices failed: %@", error.localizedDescription) }
+            return
         }
+        guard let matchedService = services.first(where: { $0.uuid == self.service }) else {
+            gattSetupInProgress = false
+            status = JL("خدمة JOURNEY غير موجودة", "JOURNEY GATT service missing")
+            return
+        }
+        status = JL("BLE متصل — اكتشاف الخصائص", "BLE connected — discovering characteristics")
+        peripheral.discoverCharacteristics([commandUUID, stateUUID], for: matchedService)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        guard !demoSuspended else { return }
-        guard error == nil, let characteristics = service.characteristics else { return }
+        guard !demoSuspended, gattSetupInProgress, service.uuid == self.service else { return }
+        guard error == nil, let characteristics = service.characteristics else {
+            gattSetupInProgress = false
+            status = JL("فشل اكتشاف خصائص BLE", "BLE characteristic discovery failed")
+            if let error { NSLog("[JOURNEY BLE] discoverCharacteristics failed: %@", error.localizedDescription) }
+            return
+        }
         var discoveredStateCharacteristic: CBCharacteristic?
         for characteristic in characteristics {
             if characteristic.uuid == commandUUID { commandCharacteristic = characteristic }
@@ -379,13 +412,14 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         // pairing when bonds are absent. The system owns the pairing prompt;
         // do not fake a pairing dialog or send owner/remote commands early.
         guard commandCharacteristic != nil, let stateCharacteristic = discoveredStateCharacteristic else {
+            gattSetupInProgress = false
             status = JL("خصائص BLE غير مكتملة", "BLE GATT characteristics missing")
             return
         }
         secureStateCharacteristic = stateCharacteristic
         secureSessionReady = false
         secureReadPending = true
-        status = JL("بانتظار اقتران BLE الآمن", "Waiting for secure BLE pairing")
+        status = JL("BLE — انتظار القراءة المشفّرة / Pair", "BLE — waiting for encrypted read / Pair")
         peripheral.readValue(for: stateCharacteristic)
     }
 
@@ -395,12 +429,16 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         guard characteristic.uuid == stateUUID else { return }
         guard error == nil, characteristic.isNotifying, let commandCharacteristic else {
             secureSessionReady = false
-            status = JL("تعذر تفعيل إشعارات BLE بعد الاقتران", "Failed to enable encrypted BLE notifications")
+            gattSetupInProgress = false
+            status = JL("فشل تفعيل إشعارات BLE", "BLE notification subscription failed")
+            if let error { NSLog("[JOURNEY BLE] setNotifyValue failed: %@", error.localizedDescription) }
             return
         }
+        gattSetupInProgress = false
         secureSessionReady = true
         isSessionReady = true
         status = JL("BLE مقترن وجاهز", "BLE paired and ready")
+        peripheral.readRSSI()
         // Flush a user command only after pairing + CCCD activation. In
         // particular, never issue the first remote button before encryption.
         if let pending, pending.deviceID == deviceIDs[peripheral.identifier] {
@@ -438,13 +476,16 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             if let error {
                 secureSessionReady = false
                 isSessionReady = false
-                status = JL("فشل اقتران BLE — افحص الاقتران المحفوظ", "BLE pairing failed — check saved bond")
-                NSLog("[JOURNEY BLE] encrypted GATT read failed: %@", error.localizedDescription)
+                gattSetupInProgress = false
+                let failure = error as NSError
+                status = JL("فشل القراءة المشفّرة BLE (\(failure.code))", "Encrypted BLE read failed (\(failure.code))")
+                NSLog("[JOURNEY BLE] encrypted GATT read failed (%@/%ld): %@", failure.domain, failure.code, error.localizedDescription)
                 return
             }
             guard let stateCharacteristic = secureStateCharacteristic else { return }
             // This sequence is essential: encrypted read first, then CCCD
             // notification subscription, then authorized owner commands.
+            status = JL("BLE — تفعيل الإشعارات الآمنة", "BLE — enabling secure notifications")
             peripheral.setNotifyValue(true, for: stateCharacteristic)
         }
         guard error == nil,
@@ -551,15 +592,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             deviceIDs[connected.identifier] = deviceID
             defaults.set(connected.identifier.uuidString, forKey: "journey.ble.peripheral.\(deviceID)")
             connected.delegate = self
-            // Reusing a connected, bonded peripheral must not launch another
-            // service discovery while iOS is presenting the pairing request.
-            if secureReadPending { return }
-            if secureSessionReady {
-                connected.readRSSI()
-                return
-            }
-            status = JL("BLE متصل — فحص الاقتران", "BLE link — verifying bond")
-            connected.discoverServices([service])
+            // Never overlap discovery with an in-progress encrypted read/CCCD.
+            if gattSetupInProgress { return }
+            if secureSessionReady { return }
+            beginGattSetup(on: connected)
             return
         }
 
@@ -567,10 +603,8 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             peripheral.delegate = self
             switch peripheral.state {
             case .connected:
-                if secureReadPending { return }
-                if secureSessionReady { peripheral.readRSSI(); return }
-                status = JL("BLE متصل — تأكيد الاقتران", "BLE connected — checking bond")
-                peripheral.discoverServices([service])
+                if gattSetupInProgress || secureSessionReady { return }
+                beginGattSetup(on: peripheral)
                 return
             case .connecting:
                 status = JL("جاري اتصال BLE", "Connecting BLE")
@@ -628,9 +662,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             // A physically connected peripheral must not be scanned again just
             // because its GATT command characteristic is still being discovered.
             if let saved = self.peripherals[deviceID], saved.state == .connected {
-                if !self.secureReadPending && !self.secureSessionReady {
-                    saved.discoverServices([self.service])
-                }
+                self.beginGattSetup(on: saved)
                 return
             }
 
