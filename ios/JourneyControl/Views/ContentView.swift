@@ -1318,6 +1318,9 @@ private struct ESPStatusView: View {
             Section(JL("الاتصال المباشر", "Direct connection")) {
                 Label(JLStored(bluetoothStatus), systemImage: "antenna.radiowaves.left.and.right")
                     .foregroundStyle(JLStored(bluetoothStatus).hasPrefix(JL("BLE متصل", "BLE connected")) ? .green : .orange)
+                Text(JL("اتصال الآيفون مباشر بالـESP؛ قوة الإشارة للعرض والقرب فقط، مو شرط لفتح الاتصال.",
+                        "iPhone uses direct ESP BLE; RSSI is for signal and keyless proximity, never a connection gate."))
+                    .font(.caption).foregroundStyle(.secondary)
                 statusRow(JL("حالة ESP", "ESP status"), vehicle.online ? JL("متصل", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
                 statusRow(JL("وقت التشغيل", "Uptime"), JL("\(vehicle.uptimeSeconds) ثانية", "\(vehicle.uptimeSeconds) seconds"))
                 statusRow(JL("طاقة الريموت", "Remote power"), !vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off")))
@@ -1360,7 +1363,15 @@ private struct ESPStatusView: View {
                 }
                 .disabled(deviceID == nil || mqtt.diagnosticTransferBusy)
                 if mqtt.diagnosticTransferBusy {
-                    ProgressView(mqtt.diagnosticTransferStatus)
+                    if mqtt.diagnosticProgress > 0 {
+                        ProgressView(value: mqtt.diagnosticProgress) {
+                            Text(mqtt.diagnosticTransferStatus)
+                        }
+                        Text("\(Int(mqtt.diagnosticProgress * 100))%")
+                            .font(.caption.monospacedDigit())
+                    } else {
+                        ProgressView(mqtt.diagnosticTransferStatus)
+                    }
                 }
                 if !mqtt.diagnosticTransferStatus.isEmpty {
                     Text(mqtt.diagnosticTransferStatus)
@@ -1442,6 +1453,9 @@ private struct ESPStatusView: View {
                         .foregroundStyle(.orange)
                 }
 
+                Text(JL("حدّث والسيارة واقفة والمحرك مطفأ، وخلّ تغذية ESP مستقرة. يحتاج ESP يدعم OTA عبر MQTT.",
+                        "Update only while parked with the engine off and stable ESP power. ESP must support MQTT OTA."))
+                    .font(.caption).foregroundStyle(.orange)
                 Button(JL("إرسال الملف عبر الإنترنت MQTT", "Send file over Internet MQTT"), systemImage: "arrow.up.doc") {
                     guard let data = selectedFirmwareData, let deviceID else { return }
                     updateStatus = mqtt.beginFirmwareTransfer(data, to: deviceID)
@@ -1451,6 +1465,8 @@ private struct ESPStatusView: View {
                 .disabled(deviceID == nil || selectedFirmwareData == nil || mqtt.firmwareTransferBusy || mqtt.connection != .connected)
                 if mqtt.firmwareTransferBusy {
                     ProgressView(value: mqtt.firmwareTransferProgress)
+                    Text("\(Int(mqtt.firmwareTransferProgress * 100))%")
+                        .font(.caption.monospacedDigit())
                     Button(JL("إلغاء النقل", "Cancel transfer"), role: .cancel) {
                         mqtt.cancelFirmwareTransfer()
                     }
