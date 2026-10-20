@@ -546,18 +546,22 @@ struct ContentView: View {
                     .frame(width: 4, height: CGFloat(5 + index * 3))
             }
         }
-        .accessibilityLabel("Cellular signal: \\(rssi) dBm, \\(count) of 4 bars")
+        .accessibilityLabel("Cellular signal: \(rssi) dBm, \(count) of 4 bars")
     }
 
     private func bluetoothDotIndicator(rssi: Int) -> some View {
-        let count: Int = rssi >= -65 ? 4 : rssi >= -80 ? 3 : rssi >= -95 ? 2 : rssi >= -105 ? 1 : 0
+        // RSSI 0 and -127 mean unavailable; neither should display full strength.
+        let valid = rssi < 0 && rssi > -120
+        let count: Int = !valid ? 0 : rssi >= -60 ? 4 : rssi >= -75 ? 3 : rssi >= -90 ? 2 : 1
         return HStack(spacing: 3) {
             ForEach(0..<4, id: \.self) { index in
                 Circle()
                     .fill(index < count ? Color.cyan : JourneyTheme.ink.opacity(0.20))
-                    .frame(width: index == 0 ? 5 : 4, height: index == 0 ? 5 : 4)
+                    .frame(width: 5, height: 5)
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: count)
+        .accessibilityLabel("Bluetooth signal: \(count) of 4 dots")
     }
 
     private func cellularIndicator(_ state: VehicleState) -> some View {
