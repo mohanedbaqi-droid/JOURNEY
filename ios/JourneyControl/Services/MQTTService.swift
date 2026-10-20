@@ -50,10 +50,26 @@ final class MQTTService: ObservableObject {
     private let firmwareChunkSize = 384
 
     func beginFirmwareTransfer(_ data: Data, to deviceID: String) -> Bool {
-        guard !firmwareTransferBusy, cloudPathAvailable(for: deviceID),
-              !defaults.bool(forKey: "journey.demo.enabled"),
-              (262_144...3_145_728).contains(data.count) else {
-            firmwareTransferStatus = JL("لا يمكن بدء نقل التحديث عبر الإنترنت", "Cannot start Internet firmware transfer")
+        // Report the exact reason rather than silently rejecting the selected file.
+        guard !firmwareTransferBusy else {
+            firmwareTransferStatus = JL("يوجد تحديث قيد الإرسال بالفعل", "A firmware transfer is already in progress")
+            return false
+        }
+        guard !defaults.bool(forKey: "journey.demo.enabled") else {
+            firmwareTransferStatus = JL("أطفئ وضع الديمو قبل تحديث ESP", "Turn off demo mode before updating ESP")
+            return false
+        }
+        guard !deviceID.isEmpty, cloudPathAvailable(for: deviceID) else {
+            firmwareTransferStatus = JL("لا يوجد اتصال MQTT فعّال بهذه السيارة. تأكد من اتصال ESP بالإنترنت", "No active MQTT connection to this vehicle. Check ESP Internet connectivity")
+            return false
+        }
+        guard (262_144...3_145_728).contains(data.count) else {
+            firmwareTransferStatus = JL("حجم ملف BIN غير مناسب للتحديث", "Firmware BIN size is outside the supported range")
+            return false
+        }
+        // ESP32 application images start with the 0xE9 image magic byte.
+        guard data.first == 0xE9 else {
+            firmwareTransferStatus = JL("الملف المختار ليس صورة firmware.bin صالحة لـ ESP32", "Selected file is not an ESP32 firmware image")
             return false
         }
         let transferID = UUID().uuidString
