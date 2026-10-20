@@ -257,6 +257,7 @@ final class MQTTService: ObservableObject {
     private var diagnosticChunks: [Int: Data] = [:]
     private var diagnosticDeviceID: String?
     private var diagnosticStartedAt: Date?
+    private var diagnosticRetryGeneration = UUID()
 
     @discardableResult
     func requestFullDiagnostics(for deviceID: String) -> Bool {
@@ -294,6 +295,34 @@ final class MQTTService: ObservableObject {
         let sentViaBLE = route == .bluetooth && useBLE &&
             bluetooth.send(request, to: deviceID)
         if sentViaBLE || sentViaCloud {
+            if route == .cloud {
+                let generation = UUID()
+                diagnosticRetryGeneration = generation
+                Task { @MainActor [weak self] in
+                    for _ in 0..<7 {
+                        try? await Task.sleep(for: .seconds(12))
+                        guard let self, self.diagnosticTransferBusy,
+                              self.diagnosticRetryGeneration == generation,
+                              self.diagnosticDeviceID == deviceID else { return }
+                        if let sequence = self.diagnosticSequence, self.diagnosticExpectedChunks > 0 {
+                            let missing = (0..<self.diagnosticExpectedChunks)
+                                .filter { self.diagnosticChunks[$0] == nil }
+                            if !missing.isEmpty {
+                                let request: [String: Any] = [
+                                    "schema": 1, "action": "diag_resend",
+                                    "id": UUID().uuidString, "phoneID": AppConfig.phoneID,
+                                    "ds": sequence, "missing": Array(missing.prefix(64))
+                                ]
+                                _ = self.publishFirmwarePacket(request, to: deviceID)
+                                self.diagnosticTransferStatus = JL("إعادة طلب أجزاء التشخيص الناقصة", "Retrying missing diagnostic chunks") +
+                                    " \\(self.diagnosticChunks.count)/\\(self.diagnosticExpectedChunks)"
+                            }
+                        } else {
+                            _ = self.publishCloud(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID)
+                        }
+                    }
+                }
+            }
             // A lost MQTT chunk must not leave the download spinner running forever.
             let startedAt = diagnosticStartedAt
             Task { @MainActor [weak self] in
@@ -352,6 +381,7 @@ final class MQTTService: ObservableObject {
         }
         fullDiagnosticReport = String(decoding: result, as: UTF8.self)
         diagnosticTransferBusy = false
+        diagnosticRetryGeneration = UUID()
         diagnosticTransferStatus = JL("اكتمل استلام التشخيص", "Diagnostics received successfully")
     }
 
