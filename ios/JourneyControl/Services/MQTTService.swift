@@ -451,6 +451,10 @@ final class MQTTService: ObservableObject {
 
     @Published private(set) var commandHistory: [BenchEvent] = []
     @Published private(set) var bluetoothStatus = JL("غير متصل", "Disconnected")
+    @Published private(set) var bluetoothReady = false
+    @Published private(set) var bluetoothCommandStatus = ""
+    @Published private(set) var bluetoothDropCount = 0
+    @Published private(set) var bluetoothLastError = ""
     // v12.52: independent real ESP button feedback. Do not use lastEvent because
     // the ESP immediately follows remote_button_*_on with lock/unlock/horn/etc.
     @Published private(set) var buttonFeedback: [String: Set<String>] = [:]
@@ -488,6 +492,22 @@ final class MQTTService: ObservableObject {
         bluetooth.$status
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.bluetoothStatus = $0 }
+            .store(in: &cancellables)
+        bluetooth.$isSessionReady
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothReady = $0 }
+            .store(in: &cancellables)
+        bluetooth.$commandStatus
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothCommandStatus = $0 }
+            .store(in: &cancellables)
+        bluetooth.$linkDropCount
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothDropCount = $0 }
+            .store(in: &cancellables)
+        bluetooth.$lastLinkError
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothLastError = $0 }
             .store(in: &cancellables)
         // Heartbeat watchdog: stale cached state must never look connected.
         Timer.publish(every: 1.0, on: .main, in: .common)
