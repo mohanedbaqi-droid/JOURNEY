@@ -47,6 +47,10 @@ final class MQTTService: ObservableObject {
     private var firmwareTransferLastAck = -1
     private var firmwareLastChunkSentAt = Date.distantPast
     private var firmwareTransferWatchdog: Task<Void, Never>?
+    // Pending packet may be retransmitted when the broker or cellular route
+    // loses an acknowledgment; ESP de-duplicates by transfer ID + byte offset.
+    private var firmwarePendingPacket: [String: Any]?
+    private var firmwareRetryGeneration = UUID()
     private let firmwareChunkSize = 384
 
     func beginFirmwareTransfer(_ data: Data, to deviceID: String) -> Bool {
@@ -81,6 +85,8 @@ final class MQTTService: ObservableObject {
         firmwareLastChunkSentAt = .distantPast
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = nil
+        firmwarePendingPacket = nil
+        firmwareRetryGeneration = UUID()
         firmwareTransferProgress = 0
         firmwareTransferBusy = true
         firmwareTransferStatus = JL("بانتظار موافقة ESP على استقبال التحديث", "Waiting for ESP OTA receiver")
@@ -95,6 +101,8 @@ final class MQTTService: ObservableObject {
             cancelFirmwareTransfer()
             return false
         }
+        firmwarePendingPacket = packet
+        scheduleFirmwareRetry(id: transferID, expectedOffset: -1)
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(90))
             guard let self, self.firmwareTransferID == transferID,
@@ -127,6 +135,30 @@ final class MQTTService: ObservableObject {
         firmwareLastChunkSentAt = .distantPast
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = nil
+        firmwarePendingPacket = nil
+        firmwareRetryGeneration = UUID()
+    }
+
+    private func scheduleFirmwareRetry(id: String, expectedOffset: Int) {
+        let generation = UUID()
+        firmwareRetryGeneration = generation
+        Task { @MainActor [weak self] in
+            for _ in 0..<7 {
+                try? await Task.sleep(for: .seconds(12))
+                guard let self, self.firmwareTransferBusy,
+                      self.firmwareTransferID == id,
+                      self.firmwareRetryGeneration == generation,
+                      self.firmwareTransferLastAck == expectedOffset,
+                      let packet = self.firmwarePendingPacket,
+                      let deviceID = self.firmwareTransferDevice else { return }
+                // Do not advance the byte offset without an acknowledgment.
+                // QoS1 means broker delivery, not confirmed flash-write.
+                if self.publishFirmwarePacket(packet, to: deviceID) {
+                    self.firmwareLastChunkSentAt = Date()
+                    self.firmwareTransferStatus = JL("إعادة إرسال دفعة OTA غير المؤكدة", "Retrying unacknowledged OTA packet")
+                }
+            }
+        }
     }
 
     private func publishFirmwarePacket(_ packet: [String: Any], to deviceID: String) -> Bool {
@@ -199,6 +231,8 @@ final class MQTTService: ObservableObject {
             return
         }
         firmwareLastChunkSentAt = Date()
+        firmwarePendingPacket = next
+        scheduleFirmwareRetry(id: id, expectedOffset: offset)
         firmwareTransferStatus = JL("إرسال التحديث", "Sending firmware") + " \(Int(firmwareTransferProgress * 100))%"
     }
 
@@ -252,6 +286,9 @@ final class MQTTService: ObservableObject {
     @Published private(set) var fullDiagnosticReport = ""
     @Published private(set) var diagnosticTransferStatus = ""
     @Published private(set) var diagnosticTransferBusy = false
+    @Published private(set) var diagnosticProgress = 0.0
+    private var diagnosticRoute: DiagnosticRoute = .cloud
+    private var diagnosticLastChunkAt = Date.distantPast
     private var diagnosticSequence: Int?
     private var diagnosticExpectedChunks = 0
     private var diagnosticChunks: [Int: Data] = [:]
@@ -276,6 +313,9 @@ final class MQTTService: ObservableObject {
             return false
         }
         diagnosticDeviceID = deviceID
+        diagnosticRoute = route
+        diagnosticProgress = 0
+        diagnosticLastChunkAt = Date()
         diagnosticSequence = nil
         diagnosticExpectedChunks = 0
         diagnosticChunks.removeAll()
@@ -295,41 +335,60 @@ final class MQTTService: ObservableObject {
         let sentViaBLE = route == .bluetooth && useBLE &&
             bluetooth.send(request, to: deviceID)
         if sentViaBLE || sentViaCloud {
-            if route == .cloud {
-                let generation = UUID()
-                diagnosticRetryGeneration = generation
-                Task { @MainActor [weak self] in
-                    for _ in 0..<7 {
-                        try? await Task.sleep(for: .seconds(12))
-                        guard let self, self.diagnosticTransferBusy,
-                              self.diagnosticRetryGeneration == generation,
-                              self.diagnosticDeviceID == deviceID else { return }
+            // Keep each explicitly selected route independent. MQTT can resume
+            // the same diagnostic sequence with diag_resend; the legacy BLE
+            // firmware cannot, so BLE retries must request a fresh snapshot.
+            let generation = UUID()
+            diagnosticRetryGeneration = generation
+            Task { @MainActor [weak self] in
+                for attempt in 0..<10 {
+                    try? await Task.sleep(for: .seconds(12))
+                    guard let self, self.diagnosticTransferBusy,
+                          self.diagnosticRetryGeneration == generation,
+                          self.diagnosticDeviceID == deviceID,
+                          self.diagnosticRoute == route else { return }
+                    // Avoid flooding the ESP while diagnostics are arriving.
+                    guard Date().timeIntervalSince(self.diagnosticLastChunkAt) >= 11 else { continue }
+                    if route == .cloud {
                         if let sequence = self.diagnosticSequence, self.diagnosticExpectedChunks > 0 {
                             let missing = (0..<self.diagnosticExpectedChunks)
                                 .filter { self.diagnosticChunks[$0] == nil }
-                            if !missing.isEmpty {
-                                let request: [String: Any] = [
-                                    "schema": 1, "action": "diag_resend",
-                                    "id": UUID().uuidString, "phoneID": AppConfig.phoneID,
-                                    "ds": sequence, "missing": Array(missing.prefix(64))
-                                ]
-                                _ = self.publishFirmwarePacket(request, to: deviceID)
+                            guard !missing.isEmpty else { continue }
+                            let request: [String: Any] = [
+                                "schema": 1, "action": "diag_resend",
+                                "id": UUID().uuidString, "phoneID": AppConfig.phoneID,
+                                "ds": sequence, "missing": Array(missing.prefix(64))
+                            ]
+                            if self.publishFirmwarePacket(request, to: deviceID) {
                                 self.diagnosticTransferStatus = JL("إعادة طلب أجزاء التشخيص الناقصة", "Retrying missing diagnostic chunks") +
                                     " \(self.diagnosticChunks.count)/\(self.diagnosticExpectedChunks)"
                             }
-                        } else {
-                            _ = self.publishCloud(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID)
+                        } else if self.publishCloud(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID) {
+                            self.diagnosticTransferStatus = JL("إعادة طلب التشخيص عبر الإنترنت", "Retrying Internet diagnostic request")
+                        }
+                    } else if attempt.isMultiple(of: 2), self.bluetooth.isConnected(to: deviceID) {
+                        // An incomplete BLE sequence cannot be resumed with
+                        // diag_resend (ESP accepts that only from MQTT).
+                        if self.bluetooth.send(VehicleCommand(action: .espDiagnostics, diagnosticSince: 0), to: deviceID) {
+                            self.diagnosticSequence = nil
+                            self.diagnosticExpectedChunks = 0
+                            self.diagnosticChunks.removeAll()
+                            self.diagnosticProgress = 0
+                            self.diagnosticTransferStatus = JL("إعادة سحب تشخيص BLE بعد فقد أجزاء", "Restarting incomplete BLE diagnostics")
                         }
                     }
+                    self.diagnosticLastChunkAt = Date()
                 }
             }
             // A lost MQTT chunk must not leave the download spinner running forever.
             let startedAt = diagnosticStartedAt
             Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(90))
+                try? await Task.sleep(for: .seconds(145))
                 guard let self, self.diagnosticTransferBusy,
                       self.diagnosticStartedAt == startedAt else { return }
                 self.diagnosticTransferBusy = false
+                self.diagnosticRetryGeneration = UUID()
+                self.diagnosticProgress = 0
                 self.diagnosticTransferStatus = JL("انتهت مهلة السحب؛ الملف غير مكتمل. اضغط سحب التشخيص لإعادة المحاولة.",
                                                    "Download timed out; incomplete file discarded. Tap again to retry.")
                 self.diagnosticChunks.removeAll()
@@ -370,7 +429,11 @@ final class MQTTService: ObservableObject {
             guard let hi = nibble(chars[offset]), let lo = nibble(chars[offset + 1]) else { return }
             chunk.append((hi << 4) | lo)
         }
-        if diagnosticChunks[index] == nil { diagnosticChunks[index] = chunk }
+        if diagnosticChunks[index] == nil {
+            diagnosticChunks[index] = chunk
+            diagnosticLastChunkAt = Date()
+        }
+        diagnosticProgress = Double(diagnosticChunks.count) / Double(count)
         diagnosticTransferStatus = JL("استلام التشخيص", "Receiving diagnostics") +
             " \(diagnosticChunks.count)/\(count)"
         guard diagnosticChunks.count == count else { return }
@@ -380,6 +443,7 @@ final class MQTTService: ObservableObject {
             result.append(part)
         }
         fullDiagnosticReport = String(decoding: result, as: UTF8.self)
+        diagnosticProgress = 1
         diagnosticTransferBusy = false
         diagnosticRetryGeneration = UUID()
         diagnosticTransferStatus = JL("اكتمل استلام التشخيص", "Diagnostics received successfully")
@@ -387,6 +451,10 @@ final class MQTTService: ObservableObject {
 
     @Published private(set) var commandHistory: [BenchEvent] = []
     @Published private(set) var bluetoothStatus = JL("غير متصل", "Disconnected")
+    @Published private(set) var bluetoothReady = false
+    @Published private(set) var bluetoothCommandStatus = ""
+    @Published private(set) var bluetoothDropCount = 0
+    @Published private(set) var bluetoothLastError = ""
     // v12.52: independent real ESP button feedback. Do not use lastEvent because
     // the ESP immediately follows remote_button_*_on with lock/unlock/horn/etc.
     @Published private(set) var buttonFeedback: [String: Set<String>] = [:]
@@ -424,6 +492,22 @@ final class MQTTService: ObservableObject {
         bluetooth.$status
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.bluetoothStatus = $0 }
+            .store(in: &cancellables)
+        bluetooth.$isSessionReady
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothReady = $0 }
+            .store(in: &cancellables)
+        bluetooth.$commandStatus
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothCommandStatus = $0 }
+            .store(in: &cancellables)
+        bluetooth.$linkDropCount
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothDropCount = $0 }
+            .store(in: &cancellables)
+        bluetooth.$lastLinkError
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.bluetoothLastError = $0 }
             .store(in: &cancellables)
         // Heartbeat watchdog: stale cached state must never look connected.
         Timer.publish(every: 1.0, on: .main, in: .common)

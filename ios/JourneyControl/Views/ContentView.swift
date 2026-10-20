@@ -498,7 +498,7 @@ struct ContentView: View {
                         .tracking(5)
                     Text(device.name).font(.headline)
                     Label(
-                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothStatus.contains(JL("متصل", "Connected")) ? "ONLINE • 4G" : device.deviceID) : JL("غير متصل", "Disconnected"),
+                        vehicle.online ? (vehicle.cloudConnected && !mqtt.bluetoothReady ? "ONLINE • 4G" : device.deviceID) : JL("غير متصل", "Disconnected"),
                         systemImage: vehicle.cloudConnected ? "cloud.fill" : "location.fill"
                     )
                         .font(.caption)
@@ -1317,7 +1317,18 @@ private struct ESPStatusView: View {
         List {
             Section(JL("الاتصال المباشر", "Direct connection")) {
                 Label(JLStored(bluetoothStatus), systemImage: "antenna.radiowaves.left.and.right")
-                    .foregroundStyle(JLStored(bluetoothStatus).hasPrefix(JL("BLE متصل", "BLE connected")) ? .green : .orange)
+                    .foregroundStyle(mqtt.bluetoothReady ? .green : .orange)
+                Text(JL("اتصال الآيفون مباشر ومشفّر مع اقتران محفوظ؛ قوة الإشارة للعرض والقرب فقط، مو شرط للاتصال.",
+                        "iPhone uses direct, encrypted and bonded BLE; RSSI is only for signal and keyless proximity, never a connection gate."))
+                    .font(.caption).foregroundStyle(.secondary)
+                statusRow(JL("حالة GATT", "GATT state"), mqtt.bluetoothReady ? JL("متصل ومصادق", "Connected and authenticated") : JL("جاري الربط الآمن", "Awaiting secure link"))
+                statusRow(JL("انقطاعات BLE الفعلية", "Actual BLE link drops"), "\(mqtt.bluetoothDropCount)")
+                if !mqtt.bluetoothLastError.isEmpty {
+                    statusRow(JL("آخر سبب فصل من iOS", "Last iOS disconnection reason"), mqtt.bluetoothLastError)
+                }
+                if !mqtt.bluetoothCommandStatus.isEmpty {
+                    statusRow(JL("آخر أمر BLE", "Last BLE command"), mqtt.bluetoothCommandStatus)
+                }
                 statusRow(JL("حالة ESP", "ESP status"), vehicle.online ? JL("متصل", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
                 statusRow(JL("وقت التشغيل", "Uptime"), JL("\(vehicle.uptimeSeconds) ثانية", "\(vehicle.uptimeSeconds) seconds"))
                 statusRow(JL("طاقة الريموت", "Remote power"), !vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off")))
@@ -1360,7 +1371,15 @@ private struct ESPStatusView: View {
                 }
                 .disabled(deviceID == nil || mqtt.diagnosticTransferBusy)
                 if mqtt.diagnosticTransferBusy {
-                    ProgressView(mqtt.diagnosticTransferStatus)
+                    if mqtt.diagnosticProgress > 0 {
+                        ProgressView(value: mqtt.diagnosticProgress) {
+                            Text(mqtt.diagnosticTransferStatus)
+                        }
+                        Text("\(Int(mqtt.diagnosticProgress * 100))%")
+                            .font(.caption.monospacedDigit())
+                    } else {
+                        ProgressView(mqtt.diagnosticTransferStatus)
+                    }
                 }
                 if !mqtt.diagnosticTransferStatus.isEmpty {
                     Text(mqtt.diagnosticTransferStatus)
@@ -1442,6 +1461,9 @@ private struct ESPStatusView: View {
                         .foregroundStyle(.orange)
                 }
 
+                Text(JL("حدّث والسيارة واقفة والمحرك مطفأ، وخلّ تغذية ESP مستقرة. يحتاج ESP يدعم OTA عبر MQTT.",
+                        "Update only while parked with the engine off and stable ESP power. ESP must support MQTT OTA."))
+                    .font(.caption).foregroundStyle(.orange)
                 Button(JL("إرسال الملف عبر الإنترنت MQTT", "Send file over Internet MQTT"), systemImage: "arrow.up.doc") {
                     guard let data = selectedFirmwareData, let deviceID else { return }
                     updateStatus = mqtt.beginFirmwareTransfer(data, to: deviceID)
@@ -1451,6 +1473,8 @@ private struct ESPStatusView: View {
                 .disabled(deviceID == nil || selectedFirmwareData == nil || mqtt.firmwareTransferBusy || mqtt.connection != .connected)
                 if mqtt.firmwareTransferBusy {
                     ProgressView(value: mqtt.firmwareTransferProgress)
+                    Text("\(Int(mqtt.firmwareTransferProgress * 100))%")
+                        .font(.caption.monospacedDigit())
                     Button(JL("إلغاء النقل", "Cancel transfer"), role: .cancel) {
                         mqtt.cancelFirmwareTransfer()
                     }
@@ -1909,6 +1933,16 @@ struct VehicleMapView: View {
     @State private var region: MKCoordinateRegion
     @State private var locationName = JL("بانتظار GPS", "Waiting for GPS")
     @State private var expandedMap = false
+    @StateObject private var phoneLocation = JourneyPhoneMapLocation()
+    @State private var mapFocus: MapFocus = .vehicle
+
+    private enum MapFocus { case vehicle, phone, both }
+
+    private var vehicleCoordinate: CLLocationCoordinate2D? {
+        guard vehicle.gpsValid else { return nil }
+        let coordinate = CLLocationCoordinate2D(latitude: vehicle.latitude, longitude: vehicle.longitude)
+        return CLLocationCoordinate2DIsValid(coordinate) ? coordinate : nil
+    }
 
     init(vehicle: VehicleState, vehicleName: String, deviceID: String?) {
         self.vehicle = vehicle
@@ -1925,10 +1959,88 @@ struct VehicleMapView: View {
     }
 
     private var points: [VehicleMapPoint] {
-        guard vehicle.gpsValid else { return [] }
-        return [VehicleMapPoint(
-            coordinate: CLLocationCoordinate2D(latitude: vehicle.latitude, longitude: vehicle.longitude)
-        )]
+        var locations: [VehicleMapPoint] = []
+        if let vehicleCoordinate {
+            locations.append(VehicleMapPoint(coordinate: vehicleCoordinate, kind: .vehicle))
+        }
+        if let phoneCoordinate = phoneLocation.coordinate {
+            locations.append(VehicleMapPoint(coordinate: phoneCoordinate, kind: .phone))
+        }
+        return locations
+    }
+
+    private func centerMap(on target: MapFocus) {
+        mapFocus = target
+        switch target {
+        case .vehicle:
+            if let vehicleCoordinate {
+                region = MKCoordinateRegion(center: vehicleCoordinate,
+                                            span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012))
+            }
+        case .phone:
+            if let coordinate = phoneLocation.coordinate {
+                region = MKCoordinateRegion(center: coordinate,
+                                            span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012))
+            } else {
+                phoneLocation.start()
+            }
+        case .both:
+            guard let car = vehicleCoordinate, let phone = phoneLocation.coordinate else {
+                if vehicleCoordinate != nil { centerMap(on: .vehicle) }
+                else if phoneLocation.coordinate != nil { centerMap(on: .phone) }
+                else { phoneLocation.start() }
+                return
+            }
+            region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: (car.latitude + phone.latitude) / 2,
+                                               longitude: (car.longitude + phone.longitude) / 2),
+                span: MKCoordinateSpan(
+                    latitudeDelta: max(0.014, min(120, abs(car.latitude - phone.latitude) * 1.7)),
+                    longitudeDelta: max(0.014, min(120, abs(car.longitude - phone.longitude) * 1.7))
+                )
+            )
+        }
+    }
+
+    private var focusButtons: some View {
+        HStack(spacing: 6) {
+            Button { centerMap(on: .vehicle) } label: {
+                Label(JL("السيارة", "Car"), systemImage: "car.fill")
+            }.disabled(vehicleCoordinate == nil)
+            Button { centerMap(on: .phone) } label: {
+                Label(JL("موقعي", "Me"), systemImage: "location.fill")
+            }
+            Button { centerMap(on: .both) } label: {
+                Label(JL("الاثنين", "Both"), systemImage: "person.2.circle.fill")
+            }.disabled(vehicleCoordinate == nil || phoneLocation.coordinate == nil)
+        }
+        .font(.caption.bold())
+        .buttonStyle(.bordered)
+        .tint(.cyan)
+        .padding(8)
+        .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func mapPin(_ point: VehicleMapPoint, expanded: Bool) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: point.kind == .phone ? "iphone" : "car.fill")
+                .font(expanded ? .title2 : .headline)
+                .foregroundStyle(.white)
+                .padding(expanded ? 12 : 10)
+                .background(
+                    point.kind == .phone ? Color.blue :
+                        vehicle.online && vehicle.rpmValid
+                        ? (vehicle.simulatedEngineRunning ? Color.green : Color.yellow)
+                        : Color.gray,
+                    in: Circle()
+                )
+            Text(point.kind == .phone ? JL("موقعي", "My iPhone") : vehicleName)
+                .font(.caption.bold())
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .foregroundStyle(.white)
+                .background(.black.opacity(0.78), in: Capsule())
+        }
+        .accessibilityLabel(point.kind == .phone ? JL("موقع الآيفون", "iPhone location") : JL("موقع السيارة", "Vehicle location"))
     }
 
     var body: some View {
@@ -1944,29 +2056,21 @@ struct VehicleMapView: View {
                 ZStack(alignment: .topLeading) {
                     Map(coordinateRegion: $region, annotationItems: points) { point in
                         MapAnnotation(coordinate: point.coordinate) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "car.fill")
-                                    .font(.title2)
-                                    .foregroundStyle(.white)
-                                    .padding(10)
-                                    .background(
-                                        vehicle.online && vehicle.rpmValid
-                                            ? (vehicle.simulatedEngineRunning ? Color.green : Color.yellow)
-                                            : Color.gray,
-                                        in: Circle()
-                                    )
-                                Text(vehicleName)
-                                    .font(.caption.bold())
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(.black.opacity(0.75), in: Capsule())
-                            }
+                            mapPin(point, expanded: false)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .simultaneousGesture(TapGesture().onEnded { expandedMap = true })
 
                     VStack(alignment: .leading, spacing: 8) {
+                        focusButtons
+                        if phoneLocation.permissionDenied {
+                            Label(JL("اسمح للموقع من إعدادات الآيفون", "Enable location in iPhone Settings"),
+                                  systemImage: "location.slash")
+                                .font(.caption)
+                                .padding(8)
+                                .background(.black.opacity(0.8), in: Capsule())
+                        }
                         Label(
                             vehicle.gpsValid ? JL("الموقع الحي", "Live location") : JL("بانتظار GPS", "Waiting for GPS"),
                             systemImage: vehicle.gpsValid ? "location.fill" : "location.slash.fill"
@@ -2007,21 +2111,15 @@ struct VehicleMapView: View {
         .background(Color.black)
         .fullScreenCover(isPresented: $expandedMap) {
             NavigationStack {
-                Map(coordinateRegion: $region, annotationItems: points) { point in
-                    MapAnnotation(coordinate: point.coordinate) {
-                        Image(systemName: "car.fill")
-                            .font(.title2)
-                            .foregroundStyle(.white)
-                            .padding(12)
-                            .background(
-                                vehicle.online && vehicle.rpmValid
-                                    ? (vehicle.simulatedEngineRunning ? Color.green : Color.yellow)
-                                    : Color.gray,
-                                in: Circle()
-                            )
+                ZStack(alignment: .top) {
+                    Map(coordinateRegion: $region, annotationItems: points) { point in
+                        MapAnnotation(coordinate: point.coordinate) {
+                            mapPin(point, expanded: true)
+                        }
                     }
+                    .ignoresSafeArea(edges: .bottom)
+                    focusButtons.padding(.top, 12)
                 }
-                .ignoresSafeArea(edges: .bottom)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button(JL("إغلاق", "Close")) { expandedMap = false }
@@ -2031,6 +2129,20 @@ struct VehicleMapView: View {
         }
         .task(id: "\(vehicle.latitude),\(vehicle.longitude),\(vehicle.gpsValid)") {
             await resolveLocationName()
+        }
+        .onAppear { phoneLocation.start() }
+        .onDisappear { phoneLocation.stop() }
+        .onChange(of: vehicle.latitude) { _ in
+            if mapFocus == .vehicle || mapFocus == .both { centerMap(on: mapFocus) }
+        }
+        .onChange(of: vehicle.longitude) { _ in
+            if mapFocus == .vehicle || mapFocus == .both { centerMap(on: mapFocus) }
+        }
+        .onChange(of: phoneLocation.coordinate?.latitude) { _ in
+            if mapFocus == .phone || mapFocus == .both { centerMap(on: mapFocus) }
+        }
+        .onChange(of: phoneLocation.coordinate?.longitude) { _ in
+            if mapFocus == .phone || mapFocus == .both { centerMap(on: mapFocus) }
         }
     }
 
@@ -2181,8 +2293,10 @@ private struct VehicleMapEntryCard: View {
 }
 
 private struct VehicleMapPoint: Identifiable {
-    let id = UUID()
+    enum Kind: String { case vehicle, phone }
     let coordinate: CLLocationCoordinate2D
+    var kind: Kind = .vehicle
+    var id: String { kind.rawValue }
 }
 
 private struct KeylessEntrySettingsView: View {
