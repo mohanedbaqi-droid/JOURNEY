@@ -1407,6 +1407,11 @@ private struct ESPStatusView: View {
                 Button(JL("اختيار ملف firmware.bin من الآيفون", "Choose firmware.bin from iPhone"), systemImage: "doc.badge.plus") {
                     showingFirmwareImporter = true
                 }
+                if !updateStatus.isEmpty {
+                    Text(updateStatus)
+                        .font(.footnote)
+                        .foregroundStyle(selectedFirmwareData == nil ? .orange : .green)
+                }
                 if !selectedFirmwareName.isEmpty {
                     Text("\(selectedFirmwareName) · \(selectedFirmwareBytes) bytes")
                     Text("SHA-256: \(selectedFirmwareSHA256)")
@@ -1462,8 +1467,8 @@ private struct ESPStatusView: View {
                 selectedFirmwareSHA256 = ""
                 let granted = url.startAccessingSecurityScopedResource()
                 defer { if granted { url.stopAccessingSecurityScopedResource() } }
-                guard url.lastPathComponent.lowercased() == "firmware.bin" else {
-                    updateStatus = JL("اختار firmware.bin فقط", "Select firmware.bin only")
+                guard url.pathExtension.lowercased() == "bin" else {
+                    updateStatus = JL("اختار ملف BIN الخاص بالـESP", "Select an ESP firmware .bin file")
                     return
                 }
                 do {
@@ -1474,14 +1479,18 @@ private struct ESPStatusView: View {
                         return
                     }
                     let firmwareData = try Data(contentsOf: url)
-                    guard firmwareData.count == count else {
+                    guard count == 0 || firmwareData.count == count else {
                         updateStatus = JL("حجم الملف غير متطابق", "Firmware size mismatch")
+                        return
+                    }
+                    guard firmwareData.first == 0xE9 else {
+                        updateStatus = JL("ملف BIN ليس فيرموير ESP32 صالح", "Invalid ESP32 firmware BIN")
                         return
                     }
                     selectedFirmwareSHA256 = SHA256.hash(data: firmwareData).map { String(format: "%02x", $0) }.joined()
                     selectedFirmwareData = firmwareData
                     selectedFirmwareName = url.lastPathComponent
-                    selectedFirmwareBytes = count
+                    selectedFirmwareBytes = firmwareData.count
                     updateStatus = JL("تم اختيار الملف؛ جاهز لطلب النقل عبر MQTT عند اتصال ESP", "Firmware selected; ready to negotiate MQTT transfer when ESP is online")
                 } catch {
                     updateStatus = JL("تعذر قراءة الملف", "Could not read selected file")
