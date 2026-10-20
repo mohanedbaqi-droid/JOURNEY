@@ -1317,9 +1317,9 @@ private struct ESPStatusView: View {
         List {
             Section(JL("الاتصال المباشر", "Direct connection")) {
                 Label(JLStored(bluetoothStatus), systemImage: "antenna.radiowaves.left.and.right")
-                    .foregroundStyle(JLStored(bluetoothStatus).hasPrefix(JL("BLE متصل", "BLE connected")) ? .green : .orange)
-                Text(JL("اتصال الآيفون مباشر بالـESP؛ قوة الإشارة للعرض والقرب فقط، مو شرط لفتح الاتصال.",
-                        "iPhone uses direct ESP BLE; RSSI is for signal and keyless proximity, never a connection gate."))
+                    .foregroundStyle(JLStored(bluetoothStatus).hasPrefix(JL("BLE مقترن", "BLE paired")) ? .green : .orange)
+                Text(JL("اتصال الآيفون مباشر ومشفّر مع اقتران محفوظ؛ قوة الإشارة للعرض والقرب فقط، مو شرط للاتصال.",
+                        "iPhone uses direct, encrypted and bonded BLE; RSSI is only for signal and keyless proximity, never a connection gate."))
                     .font(.caption).foregroundStyle(.secondary)
                 statusRow(JL("حالة ESP", "ESP status"), vehicle.online ? JL("متصل", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
                 statusRow(JL("وقت التشغيل", "Uptime"), JL("\(vehicle.uptimeSeconds) ثانية", "\(vehicle.uptimeSeconds) seconds"))
