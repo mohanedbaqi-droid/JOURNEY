@@ -264,7 +264,12 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         let name = ((advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let wantedID = pending?.deviceID ?? preferredDeviceID
-        guard let wantedID, name == wantedID || name == "JOURNEY-\(wantedID)" else { return }
+        guard let wantedID else { return }
+        // Match the previously paired CoreBluetooth identifier directly even when
+        // advertising omits the device name. RSSI must never gate the connection.
+        let savedIdentifier = defaults.string(forKey: "journey.ble.peripheral.\(wantedID)")
+        let isKnownPeripheral = savedIdentifier == peripheral.identifier.uuidString
+        guard isKnownPeripheral || name == wantedID || name == "JOURNEY-\(wantedID)" else { return }
         peripherals[wantedID] = peripheral
         deviceIDs[peripheral.identifier] = wantedID
         defaults.set(peripheral.identifier.uuidString, forKey: "journey.ble.peripheral.\(wantedID)")
@@ -402,9 +407,13 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
               let deviceID = deviceIDs[peripheral.identifier]
         else { return }
         let rssi = RSSI.intValue
-        status = JL("BLE متصل \(rssi) dBm", "BLE connected \(rssi) dBm")
-        onRSSI?(deviceID, rssi)
-        evaluateKeyless(rssi: rssi, deviceID: deviceID)
+        // Invalid CoreBluetooth RSSI samples are not proximity evidence.
+        // Keep the authenticated BLE link connected regardless of signal level.
+        if rssi != 0 && rssi != 127 {
+            status = JL("BLE متصل \(rssi) dBm", "BLE connected \(rssi) dBm")
+            onRSSI?(deviceID, rssi)
+            evaluateKeyless(rssi: rssi, deviceID: deviceID)
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak peripheral] in
             guard let peripheral, peripheral.state == .connected else { return }
             peripheral.readRSSI()
@@ -538,7 +547,9 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func scheduleScanFallback(for deviceID: String) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        // Prefer the cached direct connection long enough to complete GATT setup.
+        // Fall back to a short scan only when the cached path has not completed.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8.0) { [weak self] in
             guard let self,
                   self.preferredDeviceID == deviceID,
                   self.central.state == .poweredOn
