@@ -136,6 +136,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private var reconnectScheduled = false
     private var reconnectFailures = 0
     private var disconnectGeneration = 0
+    // Poll RSSI once per authenticated connection session. Old delayed poll
+    // closures must never survive a disconnect/reconnect and start new loops.
+    private var rssiPollGeneration = 0
+    private var rssiPollScheduled = false
     private let defaults = UserDefaults.standard
     private let service = CBUUID(string: AppConfig.bleServiceUUID)
     private let commandUUID = CBUUID(string: AppConfig.bleCommandCharacteristicUUID)
@@ -163,6 +167,8 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         isSessionReady = false
         secureReadPending = false
         gattSetupInProgress = false
+        rssiPollGeneration += 1
+        rssiPollScheduled = false
         nearSince.removeAll()
         farSince.removeAll()
         unlockedByKeyless.removeAll()
@@ -325,6 +331,8 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         gattSetupInProgress = false
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
+        rssiPollGeneration += 1
+        rssiPollScheduled = false
         disconnectGeneration += 1
         Task { @MainActor in VehicleNotificationService.shared.clearKeylessDepartureNotice() }
         beginGattSetup(on: peripheral)
@@ -350,12 +358,16 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             gattSetupInProgress = false
             bleWriteInFlight = false
             bleWriteQueue.removeAll()
+            rssiPollGeneration += 1
+            rssiPollScheduled = false
             status = JL("BLE متوقف بوضع الديمو", "BLE suspended in demo mode")
             return
         }
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
         isSessionReady = false
+        rssiPollGeneration += 1
+        rssiPollScheduled = false
         linkDropCount += 1
         let failure = error as NSError?
         lastLinkError = failure.map { "\($0.domain) / \($0.code): \($0.localizedDescription)" } ?? "BLE disconnected without CoreBluetooth error"
@@ -438,7 +450,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         secureSessionReady = true
         isSessionReady = true
         status = JL("BLE مقترن وجاهز", "BLE paired and ready")
-        peripheral.readRSSI()
+        // Begin one RSSI loop only after the encrypted GATT subscription.
+        rssiPollGeneration += 1
+        rssiPollScheduled = false
+        scheduleRSSIPoll(on: peripheral, generation: rssiPollGeneration, after: 0.2)
         // Flush a user command only after pairing + CCCD activation. In
         // particular, never issue the first remote button before encryption.
         if let pending, pending.deviceID == deviceIDs[peripheral.identifier] {
@@ -503,25 +518,38 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
     }
 
+    /// Exactly one queued timer and one RSSI read sequence per BLE session.
+    /// A queued read from an old link is discarded even if iOS reconnects the
+    /// same peripheral quickly and its CoreBluetooth state is .connected again.
+    private func scheduleRSSIPoll(on peripheral: CBPeripheral, generation: Int, after delay: Double) {
+        guard !rssiPollScheduled, secureSessionReady, !demoSuspended else { return }
+        rssiPollScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak peripheral] in
+            guard let self, self.rssiPollGeneration == generation else { return }
+            self.rssiPollScheduled = false
+            guard let peripheral,
+                  peripheral.state == .connected,
+                  self.secureSessionReady,
+                  !self.demoSuspended else { return }
+            peripheral.readRSSI()
+        }
+    }
+
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
-        guard !demoSuspended else { return }
-        guard error == nil, peripheral.state == .connected,
-              let deviceID = deviceIDs[peripheral.identifier]
-        else { return }
-        let rssi = RSSI.intValue
-        // Invalid CoreBluetooth RSSI samples are not proximity evidence.
-        // Keep the authenticated BLE link connected regardless of signal level.
-        if rssi < 0 && rssi != -127 && rssi > -120 {
-            if secureSessionReady {
+        guard !demoSuspended, secureSessionReady, peripheral.state == .connected else { return }
+        if error == nil, let deviceID = deviceIDs[peripheral.identifier] {
+            let rssi = RSSI.intValue
+            // Invalid CoreBluetooth RSSI values are never proximity evidence.
+            // RSSI must not reject or tear down a healthy BLE connection.
+            if rssi < 0 && rssi != -127 && rssi > -120 {
                 status = JL("BLE مقترن \(rssi) dBm", "BLE paired \(rssi) dBm")
                 onRSSI?(deviceID, rssi)
                 evaluateKeyless(rssi: rssi, deviceID: deviceID)
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak peripheral] in
-            guard let peripheral, peripheral.state == .connected else { return }
-            peripheral.readRSSI()
-        }
+        // 2 s is enough for keyless hold/hysteresis. Avoid 1 Hz GATT polling
+        // alongside repeated MQTT/OBD status traffic on the ESP radio.
+        scheduleRSSIPoll(on: peripheral, generation: rssiPollGeneration, after: 2.0)
     }
 
     private func write(_ command: VehicleCommand, to peripheral: CBPeripheral, characteristic: CBCharacteristic) {
