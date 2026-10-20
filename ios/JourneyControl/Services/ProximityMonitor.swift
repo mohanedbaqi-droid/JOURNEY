@@ -409,7 +409,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         let rssi = RSSI.intValue
         // Invalid CoreBluetooth RSSI samples are not proximity evidence.
         // Keep the authenticated BLE link connected regardless of signal level.
-        if rssi != 0 && rssi != 127 {
+        if rssi < 0 && rssi != -127 && rssi > -120 {
             status = JL("BLE متصل \(rssi) dBm", "BLE connected \(rssi) dBm")
             onRSSI?(deviceID, rssi)
             evaluateKeyless(rssi: rssi, deviceID: deviceID)
@@ -555,6 +555,12 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
                   self.central.state == .poweredOn
             else { return }
             if self.isConnected(to: deviceID) { return }
+            // A physically connected peripheral must not be scanned again just
+            // because its GATT command characteristic is still being discovered.
+            if let saved = self.peripherals[deviceID], saved.state == .connected {
+                saved.discoverServices([self.service])
+                return
+            }
 
             // A cached CBPeripheral can become stale after app suspension.
             // Do not wait for the user to press a command; scan for the ESP now.
