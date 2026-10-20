@@ -532,9 +532,15 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             deviceIDs[connected.identifier] = deviceID
             defaults.set(connected.identifier.uuidString, forKey: "journey.ble.peripheral.\(deviceID)")
             connected.delegate = self
-            status = JL("BLE متصل — مزامنة", "BLE connected — synchronizing")
+            // Reusing a connected, bonded peripheral must not launch another
+            // service discovery while iOS is presenting the pairing request.
+            if secureReadPending { return }
+            if secureSessionReady {
+                connected.readRSSI()
+                return
+            }
+            status = JL("BLE متصل — فحص الاقتران", "BLE link — verifying bond")
             connected.discoverServices([service])
-            connected.readRSSI()
             return
         }
 
