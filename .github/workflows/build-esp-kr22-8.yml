@@ -1,0 +1,82 @@
+name: Build JOURNEY ESP KR22.8
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "firmware-source/KR22.8.zip"
+      - ".github/workflows/build-esp-kr22-8.yml"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract and validate KR22.8 source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path, PurePosixPath
+          import zipfile, shutil, re
+          archive = Path("firmware-source/KR22.8.zip")
+          if not archive.is_file():
+              raise SystemExit("Missing firmware-source/KR22.8.zip; upload the verified KR22.8 source ZIP before building")
+          with zipfile.ZipFile(archive) as z:
+              bad = z.testzip()
+              if bad: raise SystemExit("Damaged ZIP entry: " + bad)
+              for item in z.infolist():
+                  p = PurePosixPath(item.filename)
+                  if p.is_absolute() or ".." in p.parts: raise SystemExit("Unsafe ZIP path")
+              z.extractall("/tmp/kr22_8_source")
+          ino = list(Path("/tmp/kr22_8_source").rglob("*.ino"))
+          if len(ino) != 1: raise SystemExit(f"Expected one .ino, got {len(ino)}")
+          sketch = ino[0]
+          target = Path("JOURNEY_KR22_8")
+          if target.exists(): shutil.rmtree(target)
+          shutil.copytree(sketch.parent, target)
+          (target / sketch.name).rename(target / "JOURNEY_KR22_8.ino")
+          code = (target / "JOURNEY_KR22_8.ino").read_text()
+          if '12.86-KR22.8' not in code: raise SystemExit("Firmware version mismatch: expected KR22.8")
+          if not (target / "config.h").exists(): raise SystemExit("Missing config.h")
+          print("KR22.8 source and version validated")
+          PY
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install ESP32 core and libraries
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@3.3.0
+          arduino-cli lib install ArduinoJson PubSubClient TM1637 "Adafruit PN532"
+      - name: Inject private credentials
+        env:
+          JOURNEY_MQTT_PASSWORD: ${{ secrets.JOURNEY_MQTT_PASSWORD }}
+          JOURNEY_OTA_AP_PASSWORD: ${{ secrets.JOURNEY_OTA_AP_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path("JOURNEY_KR22_8/config.h")
+          s=p.read_text()
+          for symbol,env in (("MQTT_PASSWORD","JOURNEY_MQTT_PASSWORD"),("OTA_AP_PASSWORD","JOURNEY_OTA_AP_PASSWORD")):
+              val=os.environ.get(env,"")
+              if not val: raise SystemExit("Missing Actions secret: "+env)
+              pat=r'(constexpr char '+symbol+r'\[\]\s*=\s*)"[^"]*"'
+              val=val.replace("\\","\\\\").replace('"','\\"')
+              s,n=re.subn(pat,lambda m:m.group(1)+'"'+val+'"',s)
+              if n!=1: raise SystemExit("Missing config constant: "+symbol)
+          p.write_text(s)
+          PY
+      - name: Compile KR22.8 for ESP32-S3 16MB
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=default,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,PSRAM=opi,FlashMode=qio,CPUFreq=240 --output-dir build-kr22-8 JOURNEY_KR22_8
+      - name: Package verified BIN
+        run: |
+          set -euo pipefail
+          cp build-kr22-8/JOURNEY_KR22_8.ino.bin build-kr22-8/firmware.bin
+          test -s build-kr22-8/firmware.bin
+          sha256sum build-kr22-8/firmware.bin > build-kr22-8/firmware.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JOURNEY-KR22.8-ESP32S3-16MB-BIN
+          path: |
+            build-kr22-8/firmware.bin
+            build-kr22-8/firmware.sha256
+          if-no-files-found: error
