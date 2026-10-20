@@ -62,6 +62,7 @@ final class MQTTService: ObservableObject {
         firmwareTransferOffset = 0
         firmwareTransferLastAck = -1
         firmwareTransferWatchdog?.cancel()
+        firmwareTransferWatchdog = nil
         firmwareTransferProgress = 0
         firmwareTransferBusy = true
         firmwareTransferStatus = JL("بانتظار موافقة ESP على استقبال التحديث", "Waiting for ESP OTA receiver")
