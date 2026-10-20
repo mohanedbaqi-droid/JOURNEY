@@ -517,7 +517,7 @@ struct ContentView: View {
         Button { showingMQTTSettings = true } label: {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
-                    Image(systemName: "cellularbars")
+                    cellularSignalBars(rssi: state.cellularSignalDBm, connected: state.cellularRegistered && state.cellularDataAttached)
                     Text(state.cloudConnected ? (state.internetRoute == "CELLULAR" ? "4G" : "NET") : (state.cellularNetwork == JL("غير متاح", "Unavailable") ? "—" : state.cellularNetwork.uppercased()))
                 }
                 .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -534,6 +534,21 @@ struct ContentView: View {
 
     // السطر العلوي هو الشبكة (4G/3G)، والنقاط الأربع تحته هي قوة BLE بين
     // الهاتف وESP — مثل الترتيب المتفق عليه في مؤشر iPhone.
+    // Render actual modem RSSI levels, not the fixed SF Symbol cellularbars.
+    // -120 or lower is an unavailable/invalid reading from ESP.
+    private func cellularSignalBars(rssi: Int, connected: Bool) -> some View {
+        let count = !connected || rssi <= -120 ? 0 :
+            rssi >= -75 ? 4 : rssi >= -90 ? 3 : rssi >= -105 ? 2 : 1
+        return HStack(alignment: .bottom, spacing: 2) {
+            ForEach(0..<4, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(index < count ? Color.green : JourneyTheme.ink.opacity(0.22))
+                    .frame(width: 4, height: CGFloat(5 + index * 3))
+            }
+        }
+        .accessibilityLabel("Cellular signal: \\(rssi) dBm, \\(count) of 4 bars")
+    }
+
     private func bluetoothDotIndicator(rssi: Int) -> some View {
         let count: Int = rssi >= -65 ? 4 : rssi >= -80 ? 3 : rssi >= -95 ? 2 : rssi >= -105 ? 1 : 0
         return HStack(spacing: 3) {
