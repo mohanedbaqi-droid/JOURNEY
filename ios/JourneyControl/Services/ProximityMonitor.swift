@@ -1,6 +1,7 @@
 @preconcurrency import CoreBluetooth
 import Combine
 import Foundation
+import UIKit
 
 final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelegate {
     struct DiscoveredDevice: Identifiable, Hashable {
@@ -118,6 +119,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private var unlockedByKeyless: Set<String> = []
     private var lastPresenceSent: [String: Date] = [:]
     private var reconnectScheduled = false
+    private var connectionAttemptStarted: [UUID: Date] = [:]
     private var reconnectFailures = 0
     private var disconnectGeneration = 0
     private let defaults = UserDefaults.standard
@@ -272,6 +274,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         central.stopScan()
         // Duplicate advertisements must never issue overlapping connect calls.
         if peripheral.state == .disconnected {
+            connectionAttemptStarted[peripheral.identifier] = Date()
             central.connect(peripheral)
         }
     }
@@ -279,7 +282,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard !demoSuspended else { central.cancelPeripheralConnection(peripheral); return }
         if central.isScanning { central.stopScan() }
-        reconnectFailures = 0
+        connectionAttemptStarted.removeValue(forKey: peripheral.identifier)
         reconnectScheduled = false
         disconnectGeneration += 1
         Task { @MainActor in VehicleNotificationService.shared.clearKeylessDepartureNotice() }
@@ -289,12 +292,17 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        connectionAttemptStarted.removeValue(forKey: peripheral.identifier)
+        commandCharacteristic = nil
+        bleWriteInFlight = false
+        bleWriteQueue.removeAll()
         status = JL("فشل اتصال BLE", "BLE connection failed")
         reconnectFailures = min(reconnectFailures + 1, 6)
         reconnectAfterDelay()
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        connectionAttemptStarted.removeValue(forKey: peripheral.identifier)
         if demoSuspended {
             commandCharacteristic = nil
             bleWriteInFlight = false
@@ -321,7 +329,11 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard !demoSuspended else { return }
-        guard error == nil, let services = peripheral.services else { return }
+        guard error == nil, let services = peripheral.services else {
+            status = JL("فشل اكتشاف خدمات BLE", "BLE service discovery failed")
+            central.cancelPeripheralConnection(peripheral)
+            return
+        }
         for service in services where service.uuid == self.service {
             peripheral.discoverCharacteristics([commandUUID, stateUUID], for: service)
         }
@@ -329,7 +341,11 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         guard !demoSuspended else { return }
-        guard error == nil, let characteristics = service.characteristics else { return }
+        guard error == nil, let characteristics = service.characteristics else {
+            status = JL("فشل اكتشاف خصائص BLE", "BLE characteristic discovery failed")
+            central.cancelPeripheralConnection(peripheral)
+            return
+        }
         var discoveredStateCharacteristic: CBCharacteristic?
         for characteristic in characteristics {
             if characteristic.uuid == commandUUID { commandCharacteristic = characteristic }
@@ -350,12 +366,14 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         guard !demoSuspended else { return }
-        guard characteristic.uuid == stateUUID,
-              error == nil,
-              characteristic.isNotifying,
-              let commandCharacteristic
-        else { return }
+        guard characteristic.uuid == stateUUID else { return }
+        guard error == nil, characteristic.isNotifying, let commandCharacteristic else {
+            status = JL("فشل تفعيل إشعارات GATT", "GATT notifications unavailable")
+            central.cancelPeripheralConnection(peripheral)
+            return
+        }
 
+        reconnectFailures = 0 // Only reset after the CCCD subscription is ready.
         // Notification subscription is confirmed now, so the ESP owner reply
         // cannot be lost during app relaunch/reconnect.
         write(VehicleCommand(action: .ownerStatus), to: peripheral, characteristic: commandCharacteristic)
@@ -497,6 +515,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
                 status = JL("جاري اتصال BLE", "Connecting BLE")
             default:
                 status = JL("جاري اتصال BLE", "Connecting BLE")
+                connectionAttemptStarted[peripheral.identifier] = Date()
                 central.connect(peripheral)
             }
             if forceScanFallback { scheduleScanFallback(for: deviceID) }
@@ -510,6 +529,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             deviceIDs[peripheral.identifier] = deviceID
             peripheral.delegate = self
             status = JL("جاري اتصال BLE", "Connecting BLE")
+            connectionAttemptStarted[peripheral.identifier] = Date()
             central.connect(peripheral)
             if forceScanFallback { scheduleScanFallback(for: deviceID) }
         } else {
@@ -545,8 +565,20 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             else { return }
             if self.isConnected(to: deviceID) { return }
 
-            // A cached CBPeripheral can become stale after app suspension.
-            // Do not wait for the user to press a command; scan for the ESP now.
+            // Keep iOS pending connect in background: it is the best way to
+            // reconnect on approach without opening the app. In foreground,
+            // recover a hung connect attempt instead of leaving GATT blocked.
+            if let peripheral = self.peripherals[deviceID], peripheral.state == .connecting {
+                guard UIApplication.shared.applicationState == .active else { return }
+                let since = self.connectionAttemptStarted[peripheral.identifier] ?? Date()
+                if Date().timeIntervalSince(since) >= 12.0 {
+                    self.central.cancelPeripheralConnection(peripheral)
+                    self.connectionAttemptStarted.removeValue(forKey: peripheral.identifier)
+                } else {
+                    self.scheduleScanFallback(for: deviceID)
+                }
+                return
+            }
             self.startPreferredScan(deviceID: deviceID)
         }
     }
@@ -554,7 +586,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private func reconnectAfterDelay() {
         guard !reconnectScheduled, !demoSuspended else { return }
         reconnectScheduled = true
-        let delay = min(2.0 * pow(2.0, Double(max(0, reconnectFailures - 1))), 30.0)
+        let delay = min(0.8 * pow(1.6, Double(max(0, reconnectFailures - 1))), 3.0)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
             self.reconnectScheduled = false
