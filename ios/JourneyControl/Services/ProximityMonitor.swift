@@ -266,7 +266,15 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         let name = ((advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let wantedID = pending?.deviceID ?? preferredDeviceID
-        guard let wantedID, name == wantedID || name == "JOURNEY-\(wantedID)" else { return }
+        guard let wantedID else { return }
+        // A background service-filtered scan may omit the local name.
+        // Identify the ESP using its saved CoreBluetooth identifier or our
+        // application-specific service UUID, not the name alone.
+        let cachedID = defaults.string(forKey: "journey.ble.peripheral.\(wantedID)")
+        let services = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
+        let isExpectedName = name == wantedID || name == "JOURNEY-\(wantedID)"
+        let isCachedPeripheral = cachedID == peripheral.identifier.uuidString
+        guard isExpectedName || isCachedPeripheral || services.contains(service) else { return }
         peripherals[wantedID] = peripheral
         deviceIDs[peripheral.identifier] = wantedID
         defaults.set(peripheral.identifier.uuidString, forKey: "journey.ble.peripheral.\(wantedID)")
@@ -296,6 +304,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         commandCharacteristic = nil
         bleWriteInFlight = false
         bleWriteQueue.removeAll()
+        if central.isScanning { central.stopScan() }
         status = JL("فشل اتصال BLE", "BLE connection failed")
         reconnectFailures = min(reconnectFailures + 1, 6)
         reconnectAfterDelay()
@@ -562,12 +571,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         if let p = peripherals[deviceID], p.state == .connected || p.state == .connecting { return }
         status = JL("جاري البحث عن ESP", "Searching for ESP")
         if central.isScanning { central.stopScan() }
-        // Scan all BLE advertisements here instead of filtering by service UUID.
-        // Some ESP32 advertising payloads omit the service UUID even though the
-        // GATT service is available after connection. Name matching below keeps
-        // this scan targeted to the selected JOURNEY ESP.
+        // iOS background central scanning requires a specific service UUID.
+        // JOURNEY ESP always advertises our 128-bit service UUID.
         central.scanForPeripherals(
-            withServices: nil,
+            withServices: [service],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
         )
         DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
