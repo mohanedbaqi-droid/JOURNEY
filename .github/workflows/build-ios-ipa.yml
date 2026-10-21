@@ -3,7 +3,7 @@ name: Build JOURNEY iOS IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main, journey-main-real-doors, journey-android-real-state, fix/iphone-direct-ble-kr17-9-20261020]
+    branches: [main, journey-main-real-doors, journey-android-real-state, fix/iphone-direct-ble-kr17-9-20261020, fix/oct04-direct-gatt-kr17-9-bench-20261021]
     paths:
       - "ios/**"
       - ".github/workflows/build-ios-ipa.yml"
