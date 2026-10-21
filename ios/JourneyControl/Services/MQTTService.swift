@@ -265,6 +265,7 @@ final class MQTTService: ObservableObject {
     }
 
     enum DiagnosticRoute { case cloud, bluetooth }
+    private var activeDiagnosticRoute: DiagnosticRoute = .cloud
 
     func requestFullDiagnostics(for deviceID: String, via route: DiagnosticRoute) -> Bool {
         guard !diagnosticTransferBusy else { return false }
@@ -276,6 +277,7 @@ final class MQTTService: ObservableObject {
             return false
         }
         diagnosticDeviceID = deviceID
+        activeDiagnosticRoute = route
         diagnosticSequence = nil
         diagnosticExpectedChunks = 0
         diagnosticChunks.removeAll()
@@ -299,7 +301,7 @@ final class MQTTService: ObservableObject {
                 let generation = UUID()
                 diagnosticRetryGeneration = generation
                 Task { @MainActor [weak self] in
-                    for _ in 0..<7 {
+                    for _ in 0..<4 {
                         try? await Task.sleep(for: .seconds(12))
                         guard let self, self.diagnosticTransferBusy,
                               self.diagnosticRetryGeneration == generation,
@@ -383,6 +385,14 @@ final class MQTTService: ObservableObject {
         diagnosticTransferBusy = false
         diagnosticRetryGeneration = UUID()
         diagnosticTransferStatus = JL("اكتمل استلام التشخيص", "Diagnostics received successfully")
+        if activeDiagnosticRoute == .cloud {
+            let ack: [String: Any] = [
+                "schema": 1, "action": "diag_ack",
+                "phoneID": AppConfig.phoneID,
+                "id": UUID().uuidString, "ds": sequence
+            ]
+            _ = publishFirmwarePacket(ack, to: deviceID)
+        }
     }
 
     @Published private(set) var commandHistory: [BenchEvent] = []
