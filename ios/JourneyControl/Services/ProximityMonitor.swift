@@ -114,7 +114,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private var deviceIDs: [UUID: String] = [:]
     private var commandCharacteristic: CBCharacteristic?
     private var secureStateCharacteristic: CBCharacteristic?
-    // GATT must complete an encrypted state read and enable notifications
+    // GATT is ready after the notification subscription succeeds (not after Pair).
     // before this transport is considered available for vehicle commands.
     private var secureSessionReady = false
     private var secureReadPending = false
@@ -308,8 +308,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
     }
 
-    /// Serializes the initial CoreBluetooth GATT flow. There must never be
-    /// another service discovery while the OS is handling an SMP pairing prompt.
+    /// Serializes initial GATT discovery and CCCD subscription; never issue overlapping discovery.
     private func beginGattSetup(on peripheral: CBPeripheral) {
         guard !demoSuspended, peripheral.state == .connected,
               !gattSetupInProgress, !secureSessionReady else { return }
@@ -336,8 +335,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         disconnectGeneration += 1
         Task { @MainActor in VehicleNotificationService.shared.clearKeylessDepartureNotice() }
         beginGattSetup(on: peripheral)
-        // Do not queue recurring RSSI reads while encrypted GATT access
-        // can trigger the system's Pair dialog. Start RSSI after CCCD success.
+        // Poll RSSI only after GATT notification subscription is confirmed.
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -420,9 +418,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             if characteristic.uuid == commandUUID { commandCharacteristic = characteristic }
             if characteristic.uuid == stateUUID { discoveredStateCharacteristic = characteristic }
         }
-        // A read of the ESP encrypted state characteristic triggers iOS SMP
-        // pairing when bonds are absent. The system owns the pairing prompt;
-        // do not fake a pairing dialog or send owner/remote commands early.
+        // Oct 04 legacy BLE path: both GATT characteristics are intentionally
+        // unencrypted on the KR17.9 BENCH firmware. Subscribe to notifications
+        // directly and complete readiness only after iOS confirms the CCCD.
+        // Never claim that a direct GATT session is encrypted or bonded.
         guard commandCharacteristic != nil, let stateCharacteristic = discoveredStateCharacteristic else {
             gattSetupInProgress = false
             status = JL("خصائص BLE غير مكتملة", "BLE GATT characteristics missing")
@@ -430,9 +429,9 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
         secureStateCharacteristic = stateCharacteristic
         secureSessionReady = false
-        secureReadPending = true
-        status = JL("BLE — انتظار القراءة المشفّرة / Pair", "BLE — waiting for encrypted read / Pair")
-        peripheral.readValue(for: stateCharacteristic)
+        secureReadPending = false
+        status = JL("BLE — تفعيل إشعارات GATT", "BLE — subscribing to GATT notifications")
+        peripheral.setNotifyValue(true, for: stateCharacteristic)
     }
 
 
@@ -449,13 +448,13 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         gattSetupInProgress = false
         secureSessionReady = true
         isSessionReady = true
-        status = JL("BLE مقترن وجاهز", "BLE paired and ready")
-        // Begin one RSSI loop only after the encrypted GATT subscription.
+        status = JL("BLE GATT متصل وجاهز", "BLE GATT connected and ready")
+        // Begin one RSSI loop only after the GATT notification subscription.
         rssiPollGeneration += 1
         rssiPollScheduled = false
         scheduleRSSIPoll(on: peripheral, generation: rssiPollGeneration, after: 0.2)
-        // Flush a user command only after pairing + CCCD activation. In
-        // particular, never issue the first remote button before encryption.
+        // Flush queued commands only after CCCD activation. BENCH firmware
+        // rejects vehicle commands and disables all remote output GPIOs.
         if let pending, pending.deviceID == deviceIDs[peripheral.identifier] {
             write(pending.command, to: peripheral, characteristic: commandCharacteristic)
         }
@@ -542,7 +541,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             // Invalid CoreBluetooth RSSI values are never proximity evidence.
             // RSSI must not reject or tear down a healthy BLE connection.
             if rssi < 0 && rssi != -127 && rssi > -120 {
-                status = JL("BLE مقترن \(rssi) dBm", "BLE paired \(rssi) dBm")
+                status = JL("BLE متصل \(rssi) dBm", "BLE connected \(rssi) dBm")
                 onRSSI?(deviceID, rssi)
                 evaluateKeyless(rssi: rssi, deviceID: deviceID)
             }

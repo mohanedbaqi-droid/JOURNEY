@@ -1318,10 +1318,10 @@ private struct ESPStatusView: View {
             Section(JL("الاتصال المباشر", "Direct connection")) {
                 Label(JLStored(bluetoothStatus), systemImage: "antenna.radiowaves.left.and.right")
                     .foregroundStyle(mqtt.bluetoothReady ? .green : .orange)
-                Text(JL("اتصال الآيفون مباشر ومشفّر مع اقتران محفوظ؛ قوة الإشارة للعرض والقرب فقط، مو شرط للاتصال.",
-                        "iPhone uses direct, encrypted and bonded BLE; RSSI is only for signal and keyless proximity, never a connection gate."))
+                Text(JL("تجربة ربط GATT مباشر مثل 4 أكتوبر، بدون تشفير أو Pair إجباري. استخدمها فقط مع فيرموير BENCH المعطّلة بيه مخارج السيارة.",
+                        "Oct 4 direct GATT comparison without mandatory pairing or encryption. Use only with BENCH firmware whose vehicle outputs are disabled."))
                     .font(.caption).foregroundStyle(.secondary)
-                statusRow(JL("حالة GATT", "GATT state"), mqtt.bluetoothReady ? JL("متصل ومصادق", "Connected and authenticated") : JL("جاري الربط الآمن", "Awaiting secure link"))
+                statusRow(JL("حالة GATT", "GATT state"), mqtt.bluetoothReady ? JL("متصل — بدون مصادقة", "Connected — not authenticated") : JL("جاري اتصال GATT", "Connecting GATT"))
                 statusRow(JL("انقطاعات BLE الفعلية", "Actual BLE link drops"), "\(mqtt.bluetoothDropCount)")
                 if !mqtt.bluetoothLastError.isEmpty {
                     statusRow(JL("آخر سبب فصل من iOS", "Last iOS disconnection reason"), mqtt.bluetoothLastError)
