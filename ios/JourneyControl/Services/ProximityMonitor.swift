@@ -274,7 +274,9 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         let services = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? []
         let isExpectedName = name == wantedID || name == "JOURNEY-\(wantedID)"
         let isCachedPeripheral = cachedID == peripheral.identifier.uuidString
-        guard isExpectedName || isCachedPeripheral || services.contains(service) else { return }
+        // Never substitute an arbitrary device for an already-known vehicle.
+        let firstDiscoveryByService = cachedID == nil && services.contains(service)
+        guard isExpectedName || isCachedPeripheral || firstDiscoveryByService else { return }
         peripherals[wantedID] = peripheral
         deviceIDs[peripheral.identifier] = wantedID
         defaults.set(peripheral.identifier.uuidString, forKey: "journey.ble.peripheral.\(wantedID)")
