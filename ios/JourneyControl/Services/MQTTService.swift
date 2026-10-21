@@ -96,7 +96,15 @@ final class MQTTService: ObservableObject {
             return false
         }
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(90))
+            // Re-send exactly the same OTA begin request if the broker drops its ACK.
+            // ESP deduplicates by transfer ID and reports its current offset.
+            for _ in 0..<4 {
+                try? await Task.sleep(for: .seconds(10))
+                guard let self, self.firmwareTransferID == transferID,
+                      self.firmwareTransferBusy, self.firmwareTransferLastAck < 0 else { return }
+                _ = self.publishFirmwarePacket(packet, to: deviceID)
+            }
+            try? await Task.sleep(for: .seconds(30))
             guard let self, self.firmwareTransferID == transferID,
                   self.firmwareTransferBusy, self.firmwareTransferLastAck < 0 else { return }
             self.firmwareTransferStatus = JL("ESP لم يؤكد دعم استقبال OTA. لم تُرسل بيانات الفيرموير.", "ESP did not confirm OTA streaming support. No firmware bytes were sent.")
@@ -175,10 +183,25 @@ final class MQTTService: ObservableObject {
         }
         firmwareTransferWatchdog?.cancel()
         firmwareTransferWatchdog = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(120))
-            guard !Task.isCancelled, let self, self.firmwareTransferBusy,
+            // The ESP OTA receiver treats a duplicate offset as a query and
+            // acknowledges nextOffset without writing duplicate flash bytes.
+            for _ in 0..<5 {
+                try? await Task.sleep(for: .seconds(12))
+                guard !Task.isCancelled, let self, self.firmwareTransferBusy,
+                      self.firmwareTransferID == id, self.firmwareTransferLastAck == offset else { return }
+                if offset < source.count {
+                    let end = min(offset + self.firmwareChunkSize, source.count)
+                    let retry: [String: Any] = [
+                        "action": "ota_stream_chunk", "id": id,
+                        "phoneID": AppConfig.phoneID, "offset": offset,
+                        "data": source.subdata(in: offset..<end).base64EncodedString()
+                    ]
+                    _ = self.publishFirmwarePacket(retry, to: deviceID)
+                }
+            }
+            guard let self, self.firmwareTransferBusy,
                   self.firmwareTransferID == id, self.firmwareTransferLastAck == offset else { return }
-            self.firmwareTransferStatus = JL("انتهت مهلة تأكيد الدفعة؛ أُوقف النقل لحماية التحديث", "No chunk acknowledgment for 120 seconds; transfer stopped safely")
+            self.firmwareTransferStatus = JL("انتهت مهلة تأكيد OTA؛ أُوقف النقل بأمان", "OTA acknowledgment timeout; transfer stopped safely")
             self.cancelFirmwareTransfer()
         }
         firmwareTransferProgress = Double(offset) / Double(source.count)
@@ -265,6 +288,7 @@ final class MQTTService: ObservableObject {
     }
 
     enum DiagnosticRoute { case cloud, bluetooth }
+    private var activeDiagnosticRoute: DiagnosticRoute = .cloud
 
     func requestFullDiagnostics(for deviceID: String, via route: DiagnosticRoute) -> Bool {
         guard !diagnosticTransferBusy else { return false }
@@ -276,6 +300,7 @@ final class MQTTService: ObservableObject {
             return false
         }
         diagnosticDeviceID = deviceID
+        activeDiagnosticRoute = route
         diagnosticSequence = nil
         diagnosticExpectedChunks = 0
         diagnosticChunks.removeAll()
@@ -299,7 +324,7 @@ final class MQTTService: ObservableObject {
                 let generation = UUID()
                 diagnosticRetryGeneration = generation
                 Task { @MainActor [weak self] in
-                    for _ in 0..<7 {
+                    for _ in 0..<4 {
                         try? await Task.sleep(for: .seconds(12))
                         guard let self, self.diagnosticTransferBusy,
                               self.diagnosticRetryGeneration == generation,
@@ -383,6 +408,14 @@ final class MQTTService: ObservableObject {
         diagnosticTransferBusy = false
         diagnosticRetryGeneration = UUID()
         diagnosticTransferStatus = JL("اكتمل استلام التشخيص", "Diagnostics received successfully")
+        if activeDiagnosticRoute == .cloud {
+            let ack: [String: Any] = [
+                "schema": 1, "action": "diag_ack",
+                "phoneID": AppConfig.phoneID,
+                "id": UUID().uuidString, "ds": sequence
+            ]
+            _ = publishFirmwarePacket(ack, to: deviceID)
+        }
     }
 
     @Published private(set) var commandHistory: [BenchEvent] = []
