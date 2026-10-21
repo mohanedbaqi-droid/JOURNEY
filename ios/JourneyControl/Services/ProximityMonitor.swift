@@ -275,7 +275,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         // Duplicate advertisements must never issue overlapping connect calls.
         if peripheral.state == .disconnected {
             connectionAttemptStarted[peripheral.identifier] = Date()
-            central.connect(peripheral)
+            central.connect(peripheral, options: [CBConnectPeripheralOptionEnableAutoReconnect: true])
         }
     }
 
@@ -325,6 +325,25 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
         commandCharacteristic = nil
         reconnectAfterDelay()
+    }
+
+    // Apple's system-managed reconnect is more reliable while the app is suspended.
+    // This delegate is required when EnableAutoReconnect is passed to connect().
+    func centralManager(_ central: CBCentralManager,
+                        didDisconnectPeripheral peripheral: CBPeripheral,
+                        timestamp: CFAbsoluteTime,
+                        isReconnecting: Bool,
+                        error: Error?) {
+        if isReconnecting {
+            // Do not race iOS automatic reconnection with a second connect().
+            connectionAttemptStarted.removeValue(forKey: peripheral.identifier)
+            commandCharacteristic = nil
+            bleWriteInFlight = false
+            bleWriteQueue.removeAll()
+            status = JL("انقطع BLE — يعيد iOS الاتصال", "BLE reconnecting through iOS")
+            return
+        }
+        centralManager(central, didDisconnectPeripheral: peripheral, error: error)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -516,7 +535,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             default:
                 status = JL("جاري اتصال BLE", "Connecting BLE")
                 connectionAttemptStarted[peripheral.identifier] = Date()
-                central.connect(peripheral)
+                central.connect(peripheral, options: [CBConnectPeripheralOptionEnableAutoReconnect: true])
             }
             if forceScanFallback { scheduleScanFallback(for: deviceID) }
             return
@@ -530,7 +549,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             peripheral.delegate = self
             status = JL("جاري اتصال BLE", "Connecting BLE")
             connectionAttemptStarted[peripheral.identifier] = Date()
-            central.connect(peripheral)
+            central.connect(peripheral, options: [CBConnectPeripheralOptionEnableAutoReconnect: true])
             if forceScanFallback { scheduleScanFallback(for: deviceID) }
         } else {
             startPreferredScan(deviceID: deviceID)
