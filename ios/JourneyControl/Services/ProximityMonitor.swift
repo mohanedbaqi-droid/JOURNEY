@@ -344,12 +344,16 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
                         isReconnecting: Bool,
                         error: Error?) {
         if isReconnecting {
-            // Do not race iOS automatic reconnection with a second connect().
-            connectionAttemptStarted.removeValue(forKey: peripheral.identifier)
+            // iOS owns this pending reconnect in the background. In foreground,
+            // a timed monitor prevents a .connecting state wedged forever.
+            connectionAttemptStarted[peripheral.identifier] = Date()
             commandCharacteristic = nil
             bleWriteInFlight = false
             bleWriteQueue.removeAll()
             status = JL("انقطع BLE — يعيد iOS الاتصال", "BLE reconnecting through iOS")
+            if let deviceID = deviceIDs[peripheral.identifier] {
+                scheduleScanFallback(for: deviceID)
+            }
             return
         }
         centralManager(central, didDisconnectPeripheral: peripheral, error: error)
