@@ -606,6 +606,18 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
                 if Date().timeIntervalSince(since) >= 12.0 {
                     self.central.cancelPeripheralConnection(peripheral)
                     self.connectionAttemptStarted.removeValue(forKey: peripheral.identifier)
+                    // iOS does not guarantee a didFailToConnect callback after
+                    // canceling a pending connection. Explicitly re-scan once.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                        guard let self, !self.demoSuspended,
+                              self.preferredDeviceID == deviceID,
+                              self.central.state == .poweredOn else { return }
+                        if let current = self.peripherals[deviceID], current.state == .connecting {
+                            self.scheduleScanFallback(for: deviceID)
+                        } else if !self.isConnected(to: deviceID) {
+                            self.startPreferredScan(deviceID: deviceID)
+                        }
+                    }
                 } else {
                     self.scheduleScanFallback(for: deviceID)
                 }
