@@ -48,7 +48,7 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
         guard central.state == .poweredOn else { return }
         samples.removeAll()
         discoveredDevices.removeAll()
-        central.scanForPeripherals(withServices: [service], options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
+        central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         isScanning = true
     }
 
@@ -68,8 +68,8 @@ final class ProximityMonitor: NSObject, ObservableObject, CBCentralManagerDelega
 
         let advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let detectedID = (advertisedName ?? peripheral.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if detectedID.range(of: "^[A-Za-z0-9_-]{3,40}$", options: .regularExpression) != nil {
-            let found = DiscoveredDevice(id: peripheral.identifier, deviceID: detectedID, rssi: value)
+        if detectedID == "JOURNEY HID" || detectedID.range(of: "^[A-Za-z0-9_-]{3,40}$", options: .regularExpression) != nil {
+            let found = DiscoveredDevice(id: peripheral.identifier, deviceID: detectedID == "JOURNEY HID" ? "27A77884" : detectedID, rssi: value)
             if let index = discoveredDevices.firstIndex(where: { $0.deviceID == detectedID }) {
                 discoveredDevices[index] = found
             } else {
@@ -100,11 +100,15 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     var onState: ((String, VehicleState) -> Void)?
     var onDiagnosticChunk: ((String, String) -> Void)?
     var onRSSI: ((String, Int) -> Void)?
+    var onFreshStatus: ((String, JourneyFreshStatus) -> Void)?
+    var onFreshOwnerEvent: ((String, JourneyFreshOwnerEvent) -> Void)?
 
     private var central: CBCentralManager!
     private var peripherals: [String: CBPeripheral] = [:]
     private var deviceIDs: [UUID: String] = [:]
     private var commandCharacteristic: CBCharacteristic?
+    private var freshEventCharacteristic: CBCharacteristic?
+    private var freshPeripheralIDs = Set<UUID>()
     private var pending: (command: VehicleCommand, deviceID: String)?
     // Serialize confirmed GATT writes. CoreBluetooth accepts writeValue calls faster
     // than the ESP command task can drain them when OBD connect/discovery is busy.
@@ -124,6 +128,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     private let service = CBUUID(string: AppConfig.bleServiceUUID)
     private let commandUUID = CBUUID(string: AppConfig.bleCommandCharacteristicUUID)
     private let stateUUID = CBUUID(string: AppConfig.bleStateCharacteristicUUID)
+    private let freshEventUUID = CBUUID(string: AppConfig.bleFreshEventCharacteristicUUID)
 
     override init() {
         super.init()
@@ -142,6 +147,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         bleWriteQueue.removeAll()
         bleWriteInFlight = false
         commandCharacteristic = nil
+        freshEventCharacteristic = nil
         nearSince.removeAll()
         farSince.removeAll()
         unlockedByKeyless.removeAll()
@@ -212,6 +218,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     @discardableResult
     func send(_ command: VehicleCommand, to deviceID: String) -> Bool {
         guard !demoSuspended else { return false }
+        guard !isFresh(to: deviceID) else {
+            status = JL("فيرموير FRESH للفحص: أوامر السيارة معطلة", "FRESH bench firmware: vehicle commands disabled")
+            return false
+        }
         pending = (command, deviceID)
         guard central.state == .poweredOn else {
             status = JL("فعّل البلوتوث", "Enable Bluetooth")
@@ -229,6 +239,35 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         defaults.set(deviceID, forKey: "journey.ble.preferredDevice")
         reconnectPreferredDevice(forceScanFallback: true)
         return true
+    }
+
+    func isFresh(to deviceID: String) -> Bool {
+        guard let peripheral = peripherals[deviceID] else { return false }
+        return freshPeripheralIDs.contains(peripheral.identifier)
+    }
+
+    /// FRESH V0.1.1 uses a strict small ASCII command protocol, not legacy JSON.
+    @discardableResult
+    func sendFresh(_ message: String, to deviceID: String) -> Bool {
+        guard !demoSuspended, message.utf8.count < 380,
+              message == "STATUS" || message.hasPrefix("JOIN|") || message.hasPrefix("APPROVE|") || message.hasPrefix("REJECT|"),
+              let peripheral = peripherals[deviceID], peripheral.state == .connected,
+              freshPeripheralIDs.contains(peripheral.identifier),
+              let commandCharacteristic else {
+            status = JL("قناة FRESH غير جاهزة", "FRESH GATT is not ready")
+            return false
+        }
+        enqueueBLEWrite(Data(message.utf8), to: peripheral, characteristic: commandCharacteristic)
+        return true
+    }
+
+    private func enqueueBLEWrite(_ data: Data, to peripheral: CBPeripheral, characteristic: CBCharacteristic) {
+        if bleWriteInFlight {
+            if bleWriteQueue.count < 12 { bleWriteQueue.append(data) }
+            return
+        }
+        bleWriteInFlight = true
+        peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -264,7 +303,8 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         let name = ((advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let wantedID = pending?.deviceID ?? preferredDeviceID
-        guard let wantedID, name == wantedID || name == "JOURNEY-\(wantedID)" else { return }
+        guard let wantedID, name == wantedID || name == "JOURNEY-\(wantedID)" || name == "JOURNEY HID" else { return }
+        if name == "JOURNEY HID" { freshPeripheralIDs.insert(peripheral.identifier) }
         peripherals[wantedID] = peripheral
         deviceIDs[peripheral.identifier] = wantedID
         defaults.set(peripheral.identifier.uuidString, forKey: "journey.ble.peripheral.\(wantedID)")
@@ -279,6 +319,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         guard !demoSuspended else { central.cancelPeripheralConnection(peripheral); return }
         if central.isScanning { central.stopScan() }
+        if peripheral.name == "JOURNEY HID" { freshPeripheralIDs.insert(peripheral.identifier) }
         reconnectFailures = 0
         reconnectScheduled = false
         disconnectGeneration += 1
@@ -297,6 +338,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         if demoSuspended {
             commandCharacteristic = nil
+            freshEventCharacteristic = nil
             bleWriteInFlight = false
             bleWriteQueue.removeAll()
             status = JL("BLE متوقف بوضع الديمو", "BLE suspended in demo mode")
@@ -316,6 +358,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             loadKeylessConfig(for: deviceID)
         }
         commandCharacteristic = nil
+        freshEventCharacteristic = nil
         reconnectAfterDelay()
     }
 
@@ -323,7 +366,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         guard !demoSuspended else { return }
         guard error == nil, let services = peripheral.services else { return }
         for service in services where service.uuid == self.service {
-            peripheral.discoverCharacteristics([commandUUID, stateUUID], for: service)
+            peripheral.discoverCharacteristics([commandUUID, stateUUID, freshEventUUID], for: service)
         }
     }
 
@@ -334,6 +377,10 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         for characteristic in characteristics {
             if characteristic.uuid == commandUUID { commandCharacteristic = characteristic }
             if characteristic.uuid == stateUUID { discoveredStateCharacteristic = characteristic }
+            if characteristic.uuid == freshEventUUID { freshEventCharacteristic = characteristic }
+        }
+        if let freshEventCharacteristic {
+            peripheral.setNotifyValue(true, for: freshEventCharacteristic)
         }
         if let stateCharacteristic = discoveredStateCharacteristic {
             // Do not request owner state until notifications are actually enabled.
@@ -342,19 +389,26 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
             peripheral.setNotifyValue(true, for: stateCharacteristic)
             peripheral.readValue(for: stateCharacteristic)
         }
-        if let pending, let commandCharacteristic {
+        if let pending, let commandCharacteristic, !freshPeripheralIDs.contains(peripheral.identifier) {
             write(pending.command, to: peripheral, characteristic: commandCharacteristic)
+        } else if freshPeripheralIDs.contains(peripheral.identifier) {
+            pending = nil
         }
     }
 
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         guard !demoSuspended else { return }
-        guard characteristic.uuid == stateUUID,
-              error == nil,
-              characteristic.isNotifying,
-              let commandCharacteristic
-        else { return }
+        guard error == nil, characteristic.isNotifying else { return }
+        if characteristic.uuid == freshEventUUID {
+            if let deviceID = deviceIDs[peripheral.identifier] { _ = sendFresh("STATUS", to: deviceID) }
+            return
+        }
+        guard characteristic.uuid == stateUUID, let commandCharacteristic else { return }
+        if freshPeripheralIDs.contains(peripheral.identifier) {
+            peripheral.readValue(for: characteristic)
+            return
+        }
 
         // Notification subscription is confirmed now, so the ESP owner reply
         // cannot be lost during app relaunch/reconnect.
@@ -381,9 +435,19 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
-        guard error == nil, characteristic.uuid == stateUUID,
-              let data = characteristic.value,
+        guard error == nil, let data = characteristic.value,
               let deviceID = deviceIDs[peripheral.identifier] else { return }
+        if characteristic.uuid == freshEventUUID {
+            if let event = JourneyFreshOwnerEvent(data: data) { onFreshOwnerEvent?(deviceID, event) }
+            return
+        }
+        guard characteristic.uuid == stateUUID else { return }
+        if let fresh = JourneyFreshStatus(data: data) {
+            freshPeripheralIDs.insert(peripheral.identifier)
+            pending = nil
+            onFreshStatus?(deviceID, fresh)
+            return
+        }
         // Diagnostic chunks are not VehicleState messages.
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            object["ds"] != nil, object["di"] != nil,
@@ -404,7 +468,9 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         let rssi = RSSI.intValue
         status = JL("BLE متصل \(rssi) dBm", "BLE connected \(rssi) dBm")
         onRSSI?(deviceID, rssi)
-        evaluateKeyless(rssi: rssi, deviceID: deviceID)
+        if !freshPeripheralIDs.contains(peripheral.identifier) {
+            evaluateKeyless(rssi: rssi, deviceID: deviceID)
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak peripheral] in
             guard let peripheral, peripheral.state == .connected else { return }
             peripheral.readRSSI()
@@ -412,7 +478,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
     }
 
     private func write(_ command: VehicleCommand, to peripheral: CBPeripheral, characteristic: CBCharacteristic) {
-        guard !demoSuspended else { return }
+        guard !demoSuspended, !freshPeripheralIDs.contains(peripheral.identifier) else { return }
         guard let data = try? JSONEncoder().encode(command) else {
             status = JL("تعذر تجهيز أمر BLE", "Could not prepare BLE command")
             return
@@ -425,13 +491,8 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         // Only one .withResponse write may be outstanding. Queue the rest locally
         // instead of flooding the ESP FreeRTOS queue. Keep a hard ceiling so a
         // stale background session can never build an unbounded backlog.
-        if bleWriteInFlight {
-            if bleWriteQueue.count < 12 { bleWriteQueue.append(data) }
-            return
-        }
-        bleWriteInFlight = true
         status = JL("جاري تأكيد أمر BLE (\(data.count) بايت)", "Confirming BLE command (\(data.count) bytes)")
-        peripheral.writeValue(data, for: characteristic, type: .withResponse)
+        enqueueBLEWrite(data, to: peripheral, characteristic: characteristic)
     }
 
     private func sendNextBleWrite(on peripheral: CBPeripheral, characteristic: CBCharacteristic) {
@@ -575,7 +636,7 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         guard !demoSuspended else { return }
         loadKeylessConfig(for: deviceID)
         guard let config = keylessConfigs[deviceID], config.enabled,
-              let peripheral = peripherals[deviceID], peripheral.state == .connected,
+              let peripheral = peripherals[deviceID], !freshPeripheralIDs.contains(peripheral.identifier), peripheral.state == .connected,
               let characteristic = commandCharacteristic
         else { return }
 
