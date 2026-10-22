@@ -11,6 +11,7 @@ enum AppConfig {
     /// ESP32 GATT protocol used when the car has no SIM / internet connection.
     static let bleCommandCharacteristicUUID = "AF10A001-17B7-4A86-A7D7-9A3B40C8D001"
     static let bleStateCharacteristicUUID = "AF10A002-17B7-4A86-A7D7-9A3B40C8D001"
+    static let bleFreshEventCharacteristicUUID = "AF10A003-17B7-4A86-A7D7-9A3B40C8D001"
 
     /// Stable app-install identifier enrolled in the ESP on the first keyless save.
     /// iOS does not expose the phone's hardware Bluetooth address.

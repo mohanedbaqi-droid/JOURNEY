@@ -674,7 +674,83 @@ struct ContentView: View {
                 Text("\(state.authorizedPhoneCount) / 10")
                     .font(.caption.bold()).foregroundStyle(JourneyTheme.accent)
             }
-            if !state.ownerStateKnown {
+            if let fresh = mqtt.freshStatuses[device.deviceID] {
+                Text(fresh.version)
+                    .font(.caption.monospaced()).foregroundStyle(.secondary)
+                Text(JL("مالك مسجّل: \(fresh.owners) / 10 · آيفونات متصلة: \(fresh.phones) / 3",
+                        "Registered owners: \(fresh.owners) / 10 · Connected iPhones: \(fresh.phones) / 3"))
+                    .font(.caption)
+                if let identity = mqtt.freshIdentities[device.deviceID] {
+                    if identity.admin {
+                        Label(JL("هذا الآيفون هو المدير المعتمد", "This iPhone is the approved administrator"),
+                              systemImage: "checkmark.shield.fill")
+                            .font(.caption).foregroundStyle(.green)
+                        ForEach(mqtt.freshRequests[device.deviceID] ?? []) { request in
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text(JL("طلب إضافة: \(request.name)", "Add owner request: \(request.name)"))
+                                    .font(.subheadline.bold())
+                                Text(request.deviceIdentity).font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                                HStack {
+                                    Button(JL("موافقة بـ Face ID", "Approve with Face ID")) {
+                                        Task {
+                                            guard await faceID.authenticateFaceID(reason: JL(
+                                                "الموافقة على إضافة مالك جديد إلى JOURNEY",
+                                                "Approve a new JOURNEY owner"
+                                            )) else {
+                                                faceIDError = faceID.lastError
+                                                return
+                                            }
+                                            if !mqtt.freshReviewRequest(token: request.id, approve: true, for: device.deviceID) {
+                                                faceIDError = JL("فشل إرسال الموافقة عبر FRESH BLE", "Could not send FRESH BLE approval")
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    Button(JL("رفض", "Reject"), role: .destructive) {
+                                        Task {
+                                            guard await faceID.authenticateFaceID(reason: JL(
+                                                "تأكيد رفض إضافة جهاز مالك",
+                                                "Confirm rejection of owner device"
+                                            )) else {
+                                                faceIDError = faceID.lastError
+                                                return
+                                            }
+                                            _ = mqtt.freshReviewRequest(token: request.id, approve: false, for: device.deviceID)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        if fresh.pending > 0 && (mqtt.freshRequests[device.deviceID] ?? []).isEmpty {
+                            Text(JL("طلبات معلّقة — انتظار إشعار GATT من ESP", "Pending requests — awaiting ESP GATT event"))
+                                .font(.caption).foregroundStyle(.orange)
+                        }
+                    } else if identity.approved {
+                        Label(JL("هذا الآيفون مخوّل بالاتصال", "This iPhone is approved"),
+                              systemImage: "checkmark.shield")
+                            .font(.caption).foregroundStyle(.green)
+                    } else {
+                        Text(JL("هذا الجهاز مرتبط بالبلوتوث لكنه غير مخوّل بعد.",
+                                "Bluetooth paired, but not yet approved for control."))
+                            .font(.caption).foregroundStyle(.orange)
+                        Button(JL("إرسال طلب موافقة", "Request admin approval")) {
+                            _ = mqtt.freshJoinRequest(for: device.deviceID)
+                        }.buttonStyle(.bordered)
+                    }
+                } else {
+                    Text(JL("جاري قراءة صلاحيات هذا الآيفون من ESP…", "Checking this iPhone's ESP permissions…"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let message = mqtt.freshMessages[device.deviceID] {
+                    Text(message).font(.caption).foregroundStyle(.secondary)
+                }
+                Button(JL("تحديث حالة المالك", "Refresh owner status")) {
+                    _ = mqtt.freshStatusRequest(for: device.deviceID)
+                }.font(.caption)
+            } else if !state.ownerStateKnown {
                 Text(JL("جاري التحقق من المدير المحفوظ في ESP…", "Checking the administrator saved on ESP…")).font(.caption).foregroundStyle(.secondary)
                 ProgressView()
                     .controlSize(.small)
@@ -1314,25 +1390,38 @@ private struct ESPStatusView: View {
     @State private var diagnosticMessage = ""
 
     var body: some View {
+        let fresh = deviceID.flatMap { mqtt.freshStatuses[$0] }
         List {
             Section(JL("الاتصال المباشر", "Direct connection")) {
                 Label(JLStored(bluetoothStatus), systemImage: "antenna.radiowaves.left.and.right")
                     .foregroundStyle(JLStored(bluetoothStatus).hasPrefix(JL("BLE متصل", "BLE connected")) ? .green : .orange)
-                statusRow(JL("حالة ESP", "ESP status"), vehicle.online ? JL("متصل", "Connected") : JL("بانتظار الاتصال", "Waiting for connection"))
-                statusRow(JL("وقت التشغيل", "Uptime"), JL("\(vehicle.uptimeSeconds) ثانية", "\(vehicle.uptimeSeconds) seconds"))
-                statusRow(JL("طاقة الريموت", "Remote power"), !vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off")))
-                statusRow(JL("أجهزة المالك", "Owner devices"), vehicle.ownerStateKnown ? JL("\(vehicle.authorizedPhoneCount) / 10 مسجّل", "\(vehicle.authorizedPhoneCount) / 10 registered") : JL("بانتظار ESP", "Waiting for ESP"))
+                statusRow(JL("حالة ESP", "ESP status"), fresh != nil ? JL("FRESH HID متصل", "FRESH HID connected") : (vehicle.online ? JL("متصل", "Connected") : JL("بانتظار الاتصال", "Waiting for connection")))
+                statusRow(JL("وقت التشغيل", "Uptime"), fresh.map { JL("\($0.uptimeMs / 1000) ثانية", "\($0.uptimeMs / 1000) seconds") } ?? JL("\(vehicle.uptimeSeconds) ثانية", "\(vehicle.uptimeSeconds) seconds"))
+                statusRow(JL("طاقة الريموت", "Remote power"), fresh.map { $0.remotePower ? JL("مشتغلة", "On") : JL("مطفأة", "Off") } ?? (!vehicle.online ? JL("غير متاح", "Unavailable") : (vehicle.remotePowered ? JL("مشتغلة", "On") : JL("مطفأة", "Off"))))
+                statusRow(JL("أجهزة المالك", "Owner devices"), fresh.map { JL("\($0.owners) / 10 مسجّل", "\($0.owners) / 10 registered") } ?? (vehicle.ownerStateKnown ? JL("\(vehicle.authorizedPhoneCount) / 10 مسجّل", "\(vehicle.authorizedPhoneCount) / 10 registered") : JL("بانتظار ESP", "Waiting for ESP")))
+                if let fresh {
+                    statusRow(JL("آيفونات متصلة", "Connected phones"), "\(fresh.phones) / 3")
+                    statusRow(JL("طلبات موافقة معلّقة", "Pending approval requests"), "\(fresh.pending)")
+                    statusRow(JL("فصلات BLE", "BLE disconnections"), "\(fresh.disconnections)")
+                    statusRow(JL("إعادة الإعلان", "Advertising recovery"), "\(fresh.advRetries)")
+                    statusRow(JL("نسخة ESP", "ESP firmware"), fresh.version)
+                    if !fresh.gpioEnabled {
+                        Label(JL("نسخة فحص: مخارج الريموت غير مفعّلة", "Bench mode: remote outputs disabled"),
+                              systemImage: "shield.slash")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
             }
             Section(JL("صحة ESP", "ESP health")) {
                 statusRow(JL("حرارة شريحة ESP", "ESP chip temperature"), vehicle.online ? vehicle.espTemperatureC.map { String(format: "%.1f °C", $0) } ?? "—" : "—")
                 statusRow(JL("بطارية ESP", "ESP battery"), vehicle.online && vehicle.espBatteryPercent != nil ? String(format: "%.0f%% · %.2f V", vehicle.espBatteryPercent ?? 0, vehicle.espBatteryVoltage ?? 0) : JL("غير متاحة — تحتاج حساس بطارية", "Unavailable — battery gauge required"))
                 Text(!vehicle.online || vehicle.espTemperatureC == nil ? JL("بانتظار قراءة حرارة فعلية", "Waiting for a live temperature reading") : vehicle.espThermalLevel >= 2 ? JL("حرارة مرتفعة جداً؛ افحص التهوية والتغذية", "Very high temperature; check ventilation and power") : vehicle.espThermalLevel == 1 ? JL("حرارة مرتفعة؛ افحص التهوية", "High temperature; check ventilation") : JL("الحرارة دون حد التنبيه", "Temperature below warning threshold"))
                     .foregroundStyle(vehicle.online && vehicle.espTemperatureC != nil && vehicle.espThermalLevel > 0 ? Color.orange : Color.secondary)
-                statusRow(JL("حد التنبيه المحفوظ", "Saved warning threshold"), vehicle.espTempWarningC.map { "\($0) °C" } ?? JL("بانتظار ESP v12.78", "Waiting for ESP v12.78"))
+                statusRow(JL("حد التنبيه المحفوظ", "Saved warning threshold"), fresh != nil ? JL("غير مدعوم بإصدار فحص FRESH", "Not supported by FRESH bench firmware") : (vehicle.espTempWarningC.map { "\($0) °C" } ?? JL("بانتظار ESP", "Waiting for ESP")))
                 statusRow(JL("بداية تنبيه الحرارة", "Temperature warning starts at"), "\(Int(tempWarningC)) °C")
                 Slider(value: $tempWarningC, in: 35...75, step: 1, onEditingChanged: { editing in
                     if editing { tempWarningDirty = true; tempSaveStatus = "" }
-                }).disabled(!vehicle.online || vehicle.espTempWarningC == nil || pendingTempWarning != nil)
+                }).disabled(fresh != nil || !vehicle.online || vehicle.espTempWarningC == nil || pendingTempWarning != nil)
                 Button(JL("حفظ حد التنبيه على ESP", "Save warning threshold to ESP")) { saveTempWarning() }
                     .disabled(!vehicle.online || vehicle.espTempWarningC == nil || pendingTempWarning != nil || Int(tempWarningC) == vehicle.espTempWarningC)
                 if !tempSaveStatus.isEmpty { Text(tempSaveStatus).font(.footnote) }
@@ -1340,7 +1429,7 @@ private struct ESPStatusView: View {
                 if vehicle.online && vehicle.espResetReason == 9 {
                     Text(JL("آخر إعادة تشغيل: هبوط تغذية (Brownout)، وليس إثباتاً لعطل حراري.", "Last reset: brownout; this does not prove a thermal fault.")).foregroundStyle(.orange)
                 }
-                statusRow(JL("فيرموير ESP", "ESP firmware"), vehicle.online ? (vehicle.firmwareVersion.isEmpty ? "—" : vehicle.firmwareVersion) : "—")
+                statusRow(JL("فيرموير ESP", "ESP firmware"), fresh?.version ?? (vehicle.online ? (vehicle.firmwareVersion.isEmpty ? "—" : vehicle.firmwareVersion) : "—"))
             }
             Section(JL("تشخيص ESP الكامل", "Full ESP diagnostics")) {
                 Button {
