@@ -443,9 +443,15 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
         }
         guard characteristic.uuid == stateUUID else { return }
         if let fresh = JourneyFreshStatus(data: data) {
+            let firstFreshMessage = !freshPeripheralIDs.contains(peripheral.identifier)
             freshPeripheralIDs.insert(peripheral.identifier)
             pending = nil
             onFreshStatus?(deviceID, fresh)
+            // iOS may return a nameless restored peripheral. Detect the real
+            // FRESH protocol from STATE and fetch identity once EVENT is subscribed.
+            if firstFreshMessage && freshEventCharacteristic?.isNotifying == true {
+                _ = sendFresh("STATUS", to: deviceID)
+            }
             return
         }
         // Diagnostic chunks are not VehicleState messages.
@@ -532,10 +538,16 @@ final class BluetoothVehicleService: NSObject, ObservableObject, CBCentralManage
 
         // First reuse an already-connected Journey peripheral when iOS kept it
         // alive while the app was in the background.
-        if let connected = central.retrieveConnectedPeripherals(withServices: [service]).first(where: {
+        if let connected = central.retrieveConnectedPeripherals(
+            withServices: [service, CBUUID(string: "1812")]
+        ).first(where: {
             $0.identifier == peripherals[deviceID]?.identifier ||
-            $0.identifier.uuidString == defaults.string(forKey: "journey.ble.peripheral.\(deviceID)")
+            $0.identifier.uuidString == defaults.string(forKey: "journey.ble.peripheral.\(deviceID)") ||
+            $0.name == "JOURNEY HID"
         }) {
+            if connected.name == "JOURNEY HID" {
+                freshPeripheralIDs.insert(connected.identifier)
+            }
             peripherals[deviceID] = connected
             deviceIDs[connected.identifier] = deviceID
             defaults.set(connected.identifier.uuidString, forKey: "journey.ble.peripheral.\(deviceID)")
