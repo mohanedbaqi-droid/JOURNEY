@@ -387,6 +387,11 @@ final class MQTTService: ObservableObject {
 
     @Published private(set) var commandHistory: [BenchEvent] = []
     @Published private(set) var bluetoothStatus = JL("غير متصل", "Disconnected")
+    /// Actual FRESH bench values, separate from legacy car telemetry and cached owners.
+    @Published private(set) var freshStatuses: [String: JourneyFreshStatus] = [:]
+    @Published private(set) var freshIdentities: [String: JourneyFreshIdentity] = [:]
+    @Published private(set) var freshRequests: [String: [JourneyFreshRequest]] = [:]
+    @Published private(set) var freshMessages: [String: String] = [:]
     // v12.52: independent real ESP button feedback. Do not use lastEvent because
     // the ESP immediately follows remote_button_*_on with lock/unlock/horn/etc.
     @Published private(set) var buttonFeedback: [String: Set<String>] = [:]
@@ -401,6 +406,55 @@ final class MQTTService: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
 
     init() {
+        bluetooth.onFreshStatus = { [weak self] deviceID, fresh in
+            Task { @MainActor in
+                self?.freshStatuses[deviceID] = fresh
+            }
+        }
+        bluetooth.onFreshOwnerEvent = { [weak self] deviceID, event in
+            Task { @MainActor in
+                guard let self else { return }
+                switch event.kind {
+                case "identity":
+                    self.freshIdentities[deviceID] = JourneyFreshIdentity(
+                        approved: event.approved, admin: event.admin
+                    )
+                    self.freshMessages[deviceID] = event.admin
+                        ? JL("هذا الآيفون مدير JOURNEY", "This iPhone is the JOURNEY administrator")
+                        : event.approved
+                            ? JL("هذا الجهاز موافق عليه", "This device is approved")
+                            : JL("الجهاز غير موافق عليه بعد", "This device is not yet approved")
+                case "owner_join_request":
+                    guard !event.token.isEmpty, !event.id.isEmpty else { return }
+                    let request = JourneyFreshRequest(id: event.token,
+                                                      deviceIdentity: event.id,
+                                                      name: event.name)
+                    var requests = self.freshRequests[deviceID] ?? []
+                    if let idx = requests.firstIndex(where: { $0.id == event.token }) {
+                        requests[idx] = request
+                    } else {
+                        requests.append(request)
+                    }
+                    self.freshRequests[deviceID] = requests
+                case "owner_approved", "owner_rejected":
+                    self.freshRequests[deviceID] = (self.freshRequests[deviceID] ?? [])
+                        .filter { $0.deviceIdentity != event.id }
+                    self.freshMessages[deviceID] = event.kind == "owner_approved"
+                        ? JL("أكد ESP قبول الجهاز الجديد", "ESP confirmed the new owner's approval")
+                        : JL("أكد ESP رفض طلب الجهاز", "ESP confirmed rejection")
+                    _ = self.bluetooth.sendFresh("STATUS", to: deviceID)
+                case "owner_revoked":
+                    self.freshMessages[deviceID] = JL("تم إلغاء صلاحية الجهاز", "Device access revoked")
+                    _ = self.bluetooth.sendFresh("STATUS", to: deviceID)
+                case "pending_admin_approval":
+                    self.freshMessages[deviceID] = JL("الطلب بانتظار موافقة آيفون المدير", "Waiting for admin iPhone approval")
+                case "first_admin_requires_usb":
+                    self.freshMessages[deviceID] = JL("سجّل أول مدير بالأمر ADMIN_OPEN عبر USB", "Register the first admin with ADMIN_OPEN over USB")
+                default:
+                    break
+                }
+            }
+        }
         bluetooth.onDiagnosticChunk = { [weak self] deviceID, payload in
             Task { @MainActor in
                 self?.receiveDiagnosticChunk(payload, deviceID: deviceID)
@@ -783,6 +837,13 @@ final class MQTTService: ObservableObject {
     private func sendByConfiguredPriority(_ command: VehicleCommand, to deviceID: String) -> Bool {
         guard !defaults.bool(forKey: "journey.demo.enabled") else { return false }
 
+        // The FRESH bench firmware does not implement old JSON commands.
+        // Never route old remote, OTA, or keyless actions to it or through cloud.
+        if bluetooth.isFresh(to: deviceID) || freshStatuses[deviceID] != nil {
+            lastError = JL("هذه نسخة FRESH للفحص ولا تدعم أوامر السيارة القديمة", "FRESH bench firmware does not support legacy vehicle commands")
+            return false
+        }
+
         // Proximity/keyless presence must stay local to prevent remote presence spoofing.
         if isKeylessAction(command.action) {
             guard bluetooth.isConnected(to: deviceID),
@@ -848,6 +909,32 @@ final class MQTTService: ObservableObject {
         }
     }
 
+    /// FRESH V0.1.1 uses authenticated local BLE only for owner operations.
+    @discardableResult
+    func freshStatusRequest(for deviceID: String) -> Bool {
+        bluetooth.sendFresh("STATUS", to: deviceID)
+    }
+
+    @discardableResult
+    func freshJoinRequest(for deviceID: String) -> Bool {
+        bluetooth.sendFresh("JOIN|iPhone", to: deviceID)
+    }
+
+    @discardableResult
+    func freshReviewRequest(token: String, approve: Bool, for deviceID: String) -> Bool {
+        guard freshIdentities[deviceID]?.admin == true,
+              token.count == 16,
+              token.unicodeScalars.allSatisfy({ CharacterSet(charactersIn: "0123456789abcdefABCDEF").contains($0) }) else {
+            freshMessages[deviceID] = JL("ليست لديك صلاحية الموافقة على الطلب", "You are not authorized to review this request")
+            return false
+        }
+        let ok = bluetooth.sendFresh((approve ? "APPROVE|" : "REJECT|") + token, to: deviceID)
+        if ok {
+            freshMessages[deviceID] = JL("أُرسل القرار — بانتظار تأكيد ESP", "Decision sent — awaiting ESP confirmation")
+        }
+        return ok
+    }
+
     /// Registers the selected ESP32 for BLE background reconnection.
     func prepareBluetooth(for deviceID: String) {
         guard !defaults.bool(forKey: "journey.demo.enabled") else { return }
@@ -878,6 +965,10 @@ final class MQTTService: ObservableObject {
     @discardableResult
     func sendKeylessConfig(_ config: KeylessEntryConfig, to deviceID: String) -> Bool {
         guard !UserDefaults.standard.bool(forKey: "journey.demo.enabled") else { return false }
+        if bluetooth.isFresh(to: deviceID) || freshStatuses[deviceID] != nil {
+            lastError = JL("الكيليس التلقائي غير مفعّل بإصدار FRESH التجريبي", "Automatic keyless is disabled in FRESH bench firmware")
+            return false
+        }
         bluetooth.configureKeyless(config, for: deviceID)
         let command = VehicleCommand(action: .keylessConfig, keyless: config)
 
