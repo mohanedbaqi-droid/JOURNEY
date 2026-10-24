@@ -16,14 +16,10 @@ enum JourneyTheme {
 extension View {
     @ViewBuilder
     func journeyLiquidGlass<S: Shape>(in shape: S) -> some View {
-#if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
+if #available(iOS 26.0, *) {
             self.glassEffect(.regular, in: shape)
         } else {
             self.background(.ultraThinMaterial, in: shape)
         }
-#else
-        self.background(.ultraThinMaterial, in: shape)
-#endif
     }
 }
