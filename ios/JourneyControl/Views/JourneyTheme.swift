@@ -11,15 +11,19 @@ enum JourneyTheme {
     })
 }
 
-/// Uses the native iOS 26 Liquid Glass surface where available, with a
-/// system-material fallback on earlier iOS releases.
+/// Uses Apple's native Liquid Glass on SDKs that provide it, and falls back
+/// to system material when building with an older Xcode/SwiftUI SDK.
 extension View {
     @ViewBuilder
     func journeyLiquidGlass<S: Shape>(in shape: S) -> some View {
+#if compiler(>=6.2)
         if #available(iOS 26.0, *) {
             self.glassEffect(.regular, in: shape)
         } else {
             self.background(.ultraThinMaterial, in: shape)
         }
+#else
+        self.background(.ultraThinMaterial, in: shape)
+#endif
     }
 }
