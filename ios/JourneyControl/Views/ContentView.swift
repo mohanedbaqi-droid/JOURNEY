@@ -325,12 +325,8 @@ struct ContentView: View {
             }
             .padding(.horizontal, 8)
             .frame(height: 60)
-            .background {
-                Capsule()
-                    .fill(JourneyTheme.surface.opacity(0.90))
-                    .overlay(Capsule().fill(.ultraThinMaterial).opacity(0.16))
-            }
-            .overlay(Capsule().stroke(JourneyTheme.ink.opacity(0.24), lineWidth: 1))
+            .journeyLiquidGlass(in: Capsule())
+            .overlay(Capsule().stroke(JourneyTheme.ink.opacity(0.16), lineWidth: 1))
 
             liquidHomeTab
                 .offset(y: -10)
@@ -401,10 +397,10 @@ struct ContentView: View {
                     .overlay(alignment: .trailing) { Divider().overlay(.cyan.opacity(0.18)) }
                 topAction("HUD", icon: "display") { showingHUD = true }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 25))
+        .journeyLiquidGlass(in: RoundedRectangle(cornerRadius: 25))
         .overlay(
             RoundedRectangle(cornerRadius: 25)
-                .stroke(LinearGradient(colors: [JourneyTheme.ink.opacity(0.35), .cyan.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
+                .stroke(LinearGradient(colors: [JourneyTheme.ink.opacity(0.22), .cyan.opacity(0.24)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
     }
